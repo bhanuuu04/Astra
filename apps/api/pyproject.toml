@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "astra-api"
+version = "0.1.0"
+description = "ASTRA Digital Risk Protection API"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+  "fastapi>=0.120,<1.0",
+  "uvicorn[standard]>=0.38,<1.0",
+  "pydantic-settings>=2.10,<3.0",
+  "sqlalchemy>=2.0,<3.0",
+  "alembic>=1.16,<2.0",
+  "psycopg[binary]>=3.2,<4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]

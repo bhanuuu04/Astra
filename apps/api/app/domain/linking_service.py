@@ -124,10 +124,10 @@ def compute_campaign_edges_and_clusters(
 
     for cluster in clusters:
         cluster_set = set(cluster)
-        # Check if any sighting is labeled benign
-        is_all_benign = all(
-            sighting_map[sid].normalized_payload.get("isBenign", False)
-            for sid in cluster if sighting_map[sid].normalized_payload
+        # Check if all sightings in cluster are explicitly labeled benign
+        is_all_benign = bool(cluster) and all(
+            bool(sighting_map[sid].normalized_payload and sighting_map[sid].normalized_payload.get("isBenign", False))
+            for sid in cluster
         )
 
         # Calculate truthful risk score derived directly from member sightings
@@ -143,18 +143,41 @@ def compute_campaign_edges_and_clusters(
             # Multi-surface correlation boost (+5.0) capped at 98.0
             derived_risk = min(98.0, base_risk + (5.0 if len(cluster) > 1 else 0.0))
 
-        title = "Connected Multi-Surface Threat Campaign" if len(cluster) > 1 else f"Isolated Threat Event ({sighting_map[cluster[0]].surface})"
-        if is_all_benign:
-            title = "Benign Brand Inquiries & Communications"
+        # Determine distinctive campaign title based on shared pivots or target references
+        shared_pivots = [
+            f"{itype}:{val}" for (itype, val), sids in indicator_sightings.items()
+            if len(set(sids).intersection(cluster_set)) > 1
+        ]
+        surfaces = sorted(list(set(sighting_map[sid].surface for sid in cluster)))
+        surfaces_str = ", ".join(surfaces)
 
-        # Check existing campaign or create new
-        existing_camp = session.scalar(
-            select(Campaign).where(
+        if is_all_benign:
+            title = f"Benign Inquiries & Communications ({sighting_map[cluster[0]].surface})"
+        elif len(cluster) > 1:
+            primary_pivot = shared_pivots[0] if shared_pivots else f"Cluster {str(cluster[0])[:8]}"
+            title = f"Campaign: {primary_pivot} ({surfaces_str})"
+        else:
+            s_obj = sighting_map[cluster[0]]
+            ref = s_obj.raw_ref or str(s_obj.id)[:8]
+            title = f"Isolated Threat Event ({s_obj.surface}: {ref})"
+
+        # Check existing campaign by member sighting association (prevents improper merges)
+        existing_camp_id = session.scalar(
+            select(CampaignMember.campaign_id)
+            .join(Campaign, CampaignMember.campaign_id == Campaign.id)
+            .where(
+                CampaignMember.sighting_id.in_(cluster),
                 Campaign.tenant_id == tenant_id,
                 Campaign.brand_id == brand_id,
-                Campaign.title == title,
             )
+            .limit(1)
         )
+
+        existing_camp = None
+        if existing_camp_id:
+            existing_camp = session.scalar(
+                select(Campaign).where(Campaign.id == existing_camp_id)
+            )
 
         camp_id = existing_camp.id if existing_camp else uuid.uuid4()
         if not existing_camp:
@@ -173,6 +196,7 @@ def compute_campaign_edges_and_clusters(
             campaigns_count += 1
         else:
             existing_camp.risk_score = derived_risk
+            existing_camp.last_seen_at = datetime.now(timezone.utc)
             campaigns_count += 1
 
         # Associate campaign members

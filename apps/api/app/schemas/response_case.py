@@ -11,8 +11,12 @@ class ResponseCaseDraft(BaseModel):
     finding_id: uuid.UUID
     cluster_id: Optional[uuid.UUID] = None
     target_provider: str = Field(..., description="Provider: meta_takedown, google_abuse, cloudflare_abuse, registrar_dmca")
-    submission_payload: Dict[str, Any] = Field(..., description="Provider-specific takedown request payload")
-    evidence_manifest: List[uuid.UUID] = Field(..., description="Evidence object IDs to include")
+    case_type: Optional[str] = Field(default="infringement_takedown", description="Takedown category")
+    draft_recipient: Optional[str] = Field(default=None, description="Recipient authority or abuse desk")
+    draft_subject: Optional[str] = Field(default=None, description="Notice subject line")
+    draft_body: Optional[str] = Field(default=None, description="Legal notice body text")
+    submission_payload: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Provider-specific takedown request payload")
+    evidence_manifest: Optional[List[uuid.UUID]] = Field(default_factory=list, description="Evidence object IDs to include")
 
 
 class ResponseCaseApprove(BaseModel):
@@ -38,6 +42,10 @@ class ResponseCaseResponse(BaseModel):
     finding_id: uuid.UUID
     cluster_id: Optional[uuid.UUID] = None
     target_provider: str
+    case_type: str = "infringement_takedown"
+    draft_recipient: Optional[str] = None
+    draft_subject: Optional[str] = None
+    draft_body: Optional[str] = None
     lifecycle_state: str  # draft, pending_approval, approved, submitted, acknowledged, resolved, rejected
     drafted_by: uuid.UUID
     approved_by: Optional[uuid.UUID] = None
@@ -45,6 +53,7 @@ class ResponseCaseResponse(BaseModel):
     submission_channel: str
     external_case_reference: Optional[str] = None
     evidence_manifest_hash: str
+    evidence_manifest: Optional[List[uuid.UUID]] = None
     submission_payload: Dict[str, Any]
     submitted_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None

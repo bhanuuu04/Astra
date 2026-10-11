@@ -2,7 +2,7 @@
 import hashlib
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import select, func
@@ -17,6 +17,7 @@ from app.db.models import (
     Signal,
 )
 from app.domain.audit_service import log_audit_event, sanitize_state_for_audit
+from app.storage.evidence_storage import save_evidence_content
 from app.schemas.finding import (
     FindingIngest,
     FindingTriageSignal,
@@ -32,6 +33,9 @@ def seal_evidence(
 ) -> Optional[uuid.UUID]:
     """Seal raw evidence with SHA-256 digest before any parsing.
     
+    Persists evidence bytes to the durable storage vault and registers
+    the cryptographic digest in EvidenceObject linked to the finding.
+    
     Args:
         session: Database session
         finding_id: Finding ID to link evidence
@@ -44,22 +48,27 @@ def seal_evidence(
     if not raw_payload and not evidence_files:
         return None
     
-    # Create deterministic evidence object
+    # Create deterministic evidence content
     evidence_content = json.dumps(raw_payload, sort_keys=True).encode('utf-8')
     sha256_digest = hashlib.sha256(evidence_content).hexdigest()
     
     # Generate unique object key
-    object_key = f"findings/{finding_id}/evidence_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+    now_utc = datetime.now(timezone.utc)
+    object_key = f"findings/{finding_id}/evidence_{now_utc.strftime('%Y%m%d_%H%M%S')}.json"
     
-    # Store evidence object (simplified - actual implementation would use S3/storage service)
+    # Persist raw evidence bytes to durable storage vault
+    save_evidence_content(object_key, evidence_content)
+    
+    # Store evidence object linked directly to finding_id
     evidence = EvidenceObject(
-        sighting_id=finding_id,  # Note: Using sighting_id FK temporarily until migration complete
+        sighting_id=None,
+        finding_id=finding_id,
         object_key=object_key,
         media_type="application/json",
         sha256=sha256_digest,
-        captured_at=datetime.utcnow(),
+        captured_at=now_utc,
         provenance={
-            "sealed_at": datetime.utcnow().isoformat(),
+            "sealed_at": now_utc.isoformat(),
             "evidence_files": evidence_files,
             "raw_payload_hash": sha256_digest
         }
@@ -109,8 +118,12 @@ def calculate_triage_priority(
         ))
     
     # Signal 2: Recent observation (recency boost)
-    time_delta = (datetime.utcnow() - finding.observed_at).total_seconds()
-    hours_ago = time_delta / 3600
+    now_utc = datetime.now(timezone.utc)
+    obs = finding.observed_at
+    if obs.tzinfo is None:
+        obs = obs.replace(tzinfo=timezone.utc)
+    time_delta = (now_utc - obs).total_seconds()
+    hours_ago = max(0.0, time_delta / 3600)
     
     if hours_ago < 24:
         recency_score = 0.15
@@ -120,7 +133,7 @@ def calculate_triage_priority(
             detector_version="1.0.0",
             score=recency_score,
             explanation=f"Observed {hours_ago:.1f} hours ago (recent activity)",
-            feature_values={"hours_ago": hours_ago, "observed_at": finding.observed_at.isoformat()}
+            feature_values={"hours_ago": hours_ago, "observed_at": obs.isoformat()}
         ))
     
     # Signal 3: High-risk surface
@@ -230,6 +243,11 @@ def ingest_finding(
         )
     
     # Create new finding
+    now_utc = datetime.now(timezone.utc)
+    obs = finding_data.observed_at
+    if obs.tzinfo is None:
+        obs = obs.replace(tzinfo=timezone.utc)
+
     finding = Finding(
         tenant_id=tenant_id,
         brand_id=finding_data.brand_id,
@@ -238,8 +256,8 @@ def ingest_finding(
         surface=finding_data.surface,
         external_id=finding_data.external_id,
         target_identifier=finding_data.target_identifier,
-        observed_at=finding_data.observed_at,
-        collected_at=datetime.utcnow(),
+        observed_at=obs,
+        collected_at=now_utc,
         data_mode=finding_data.data_mode,
         normalized_attributes=finding_data.normalized_attributes or {},
         triage_status="pending",
@@ -269,10 +287,11 @@ def ingest_finding(
     
     finding.triage_priority = priority
     
-    # Store signals
+    # Store signals linked directly to finding_id
     for sig in signal_list:
         signal = Signal(
-            sighting_id=finding.id,  # Note: Using sighting_id FK temporarily
+            sighting_id=None,
+            finding_id=finding.id,
             detector_key=sig.detector_key,
             detector_version=sig.detector_version,
             score=sig.score,
@@ -345,24 +364,29 @@ def list_findings(
     return findings, total
 
 
+VALID_TRIAGE_STATUSES = {"pending", "investigating", "confirmed_threat", "false_positive", "needs_evidence"}
+
+
 def update_finding_triage(
     session: Session,
     tenant_id: uuid.UUID,
     finding_id: uuid.UUID,
     triage_status: str,
     rationale: str,
+    actor_id: uuid.UUID,
     analyst_id: Optional[uuid.UUID] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None
 ) -> Finding:
-    """Update finding triage status with audit trail.
+    """Update finding triage status with enforced audit trail and strict validation.
     
     Args:
         session: Database session
         tenant_id: Tenant ID (enforced)
         finding_id: Finding to update
-        triage_status: New status
+        triage_status: New status (must be valid triage enum)
         rationale: Analyst rationale
+        actor_id: Authenticated user ID performing triage
         analyst_id: Optional analyst assignment
         ip_address: Client IP for audit
         user_agent: Client user agent for audit
@@ -371,8 +395,13 @@ def update_finding_triage(
         Updated finding
         
     Raises:
-        ValueError: If finding not found or access denied
+        ValueError: If finding not found or status invalid
     """
+    if triage_status not in VALID_TRIAGE_STATUSES:
+        raise ValueError(
+            f"Invalid triage status '{triage_status}'. Valid statuses are: {', '.join(sorted(VALID_TRIAGE_STATUSES))}"
+        )
+
     finding = session.scalar(
         select(Finding).where(
             Finding.id == finding_id,
@@ -392,6 +421,8 @@ def update_finding_triage(
     
     if analyst_id:
         finding.assigned_analyst_id = analyst_id
+    elif not finding.assigned_analyst_id:
+        finding.assigned_analyst_id = actor_id
     
     # Store rationale in normalized_attributes
     if not finding.normalized_attributes:
@@ -400,32 +431,33 @@ def update_finding_triage(
     if 'triage_history' not in finding.normalized_attributes:
         finding.normalized_attributes['triage_history'] = []
     
+    now_utc = datetime.now(timezone.utc)
     finding.normalized_attributes['triage_history'].append({
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now_utc.isoformat(),
         "old_status": old_status,
         "new_status": triage_status,
         "rationale": rationale,
-        "analyst_id": str(analyst_id) if analyst_id else None
+        "actor_id": str(actor_id),
+        "analyst_id": str(finding.assigned_analyst_id) if finding.assigned_analyst_id else None
     })
     
     session.flush()
     
-    # Capture after state and log audit event
+    # Capture after state and log audit event (ALWAYS logged with authenticated actor_id)
     after_state = sanitize_state_for_audit(finding)
     
-    if analyst_id:
-        log_audit_event(
-            session=session,
-            tenant_id=tenant_id,
-            actor_id=analyst_id,
-            action="finding_status_change",
-            entity_type="finding",
-            entity_id=finding.id,
-            before_state=before_state,
-            after_state=after_state,
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
+    log_audit_event(
+        session=session,
+        tenant_id=tenant_id,
+        actor_id=actor_id,
+        action="finding_status_change",
+        entity_type="finding",
+        entity_id=finding.id,
+        before_state=before_state,
+        after_state=after_state,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
     
     session.commit()
     
@@ -459,7 +491,9 @@ def get_finding_with_signals(
     
     signals = list(
         session.scalars(
-            select(Signal).where(Signal.sighting_id == finding.id)
+            select(Signal).where(
+                (Signal.finding_id == finding.id) | (Signal.sighting_id == finding.id)
+            )
         ).all()
     )
     

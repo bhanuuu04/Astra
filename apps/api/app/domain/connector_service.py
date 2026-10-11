@@ -1,6 +1,6 @@
 """Connector management service for authorized data source configuration."""
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 from sqlalchemy import select, func
@@ -182,18 +182,18 @@ def check_connector_health(
     if not connector:
         return "error", "Connector not found"
     
-    # TODO: Implement actual health checks per connector type
-    # For now, return current status
+    connector.last_health_check_at = datetime.now(timezone.utc)
     
-    connector.last_health_check_at = datetime.utcnow()
-    
-    # Simulate health check
-    if connector.auth_config_vault_ref:
+    # Truthful health check: verify credentials and actual pipeline sync
+    if not connector.auth_config_vault_ref:
+        connector.status = "unconfigured"
+        connector.error_message = "No authentication configuration registered."
+    elif connector.last_successful_sync_at is None:
+        connector.status = "unconfigured"
+        connector.error_message = "Awaiting initial verified synchronization."
+    else:
         connector.status = "active"
         connector.error_message = None
-    else:
-        connector.status = "unconfigured"
-        connector.error_message = "No authentication configuration"
     
     session.commit()
     

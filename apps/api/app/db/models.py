@@ -166,7 +166,8 @@ class EvidenceObject(Base):
     __tablename__ = "evidence_objects"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    sighting_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sightings.id", ondelete="CASCADE"), index=True)
+    sighting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("sightings.id", ondelete="CASCADE"), nullable=True, index=True)
+    finding_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("findings.id", ondelete="CASCADE", use_alter=True), nullable=True, index=True)
     object_key: Mapped[str] = mapped_column(String(255), nullable=False)
     media_type: Mapped[str] = mapped_column(String(64), nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -218,7 +219,8 @@ class Signal(Base):
     __tablename__ = "signals"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    sighting_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sightings.id", ondelete="CASCADE"), index=True)
+    sighting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("sightings.id", ondelete="CASCADE"), nullable=True, index=True)
+    finding_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("findings.id", ondelete="CASCADE"), nullable=True, index=True)
     run_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True, index=True)
     detector_key: Mapped[str] = mapped_column(String(64), nullable=False)
     detector_version: Mapped[str] = mapped_column(String(32), nullable=False, default="1.0.0")

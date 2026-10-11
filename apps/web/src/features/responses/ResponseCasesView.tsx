@@ -27,6 +27,8 @@ import { Button } from '@/components/ui/button';
 export function ResponseCasesView() {
   const queryClient = useQueryClient();
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['response_cases'],
@@ -100,18 +102,39 @@ export function ResponseCasesView() {
   const activeCase = displayCases.find(c => c.id === selectedCaseId) || displayCases[0];
 
   const handleApprove = async (id: string) => {
-    await approveResponseCase(id).catch(() => null);
-    await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+    setActionError(null);
+    try {
+      await approveResponseCase(id);
+      setActionSuccess('Response case approved for dispatch.');
+      setTimeout(() => setActionSuccess(null), 4000);
+      await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to approve response case.');
+    }
   };
 
   const handleDispatch = async (id: string) => {
-    await dispatchResponseCase(id).catch(() => null);
-    await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+    setActionError(null);
+    try {
+      await dispatchResponseCase(id);
+      setActionSuccess('Response case dispatched to provider.');
+      setTimeout(() => setActionSuccess(null), 4000);
+      await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to dispatch response case.');
+    }
   };
 
   const handleResolve = async (id: string) => {
-    await resolveResponseCase(id, 'abatement_confirmed', 'Verified threat removed').catch(() => null);
-    await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+    setActionError(null);
+    try {
+      await resolveResponseCase(id, 'abatement_confirmed', 'Verified threat removed and confirmed by analyst');
+      setActionSuccess('Response case marked as resolved.');
+      setTimeout(() => setActionSuccess(null), 4000);
+      await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to resolve response case.');
+    }
   };
 
   return (
@@ -136,6 +159,20 @@ export function ResponseCasesView() {
           <span>Refresh Cases</span>
         </button>
       </header>
+
+      {/* Action Notification Banners */}
+      {actionSuccess && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-xs font-medium text-emerald-300 animate-fade-in flex items-center justify-between">
+          <span>{actionSuccess}</span>
+          <button onClick={() => setActionSuccess(null)} className="text-emerald-400 hover:text-emerald-200 text-xs">Dismiss</button>
+        </div>
+      )}
+      {actionError && (
+        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-xs font-medium text-rose-300 animate-fade-in flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-400 hover:text-rose-200 text-xs">Dismiss</button>
+        </div>
+      )}
 
       {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -169,10 +206,10 @@ export function ResponseCasesView() {
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${stateColors}`}>
-                    {rc.lifecycle_state.replace('_', ' ')}
+                    {rc.lifecycle_state.replace(/_/g, ' ')}
                   </span>
                   <span className="text-xs font-mono text-slate-500">
-                    {rc.case_type.replace('_', ' ')}
+                    {(rc.case_type || 'takedown').replace(/_/g, ' ')}
                   </span>
                 </div>
 

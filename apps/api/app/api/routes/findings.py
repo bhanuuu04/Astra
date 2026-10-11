@@ -185,6 +185,7 @@ def handle_update_finding_triage(
             finding_id=finding_id,
             triage_status=update.triage_status,
             rationale=update.rationale,
+            actor_id=context.user_id,
             analyst_id=update.assigned_analyst_id
         )
         
@@ -193,4 +194,7 @@ def handle_update_finding_triage(
         return FindingResponse.model_validate(finding)
         
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)

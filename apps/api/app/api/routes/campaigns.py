@@ -111,13 +111,22 @@ def handle_campaign_decision(
     if not campaign:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
 
-    # Update status
-    if data.decision == "accept":
+    # Normalize and update status
+    norm = data.decision.lower().strip()
+    if norm in ("accept", "confirm", "confirmed"):
         campaign.status = "confirmed"
-    elif data.decision == "reject":
+        data.decision = "accept"
+    elif norm in ("reject", "rejected"):
         campaign.status = "rejected"
-    elif data.decision == "benign":
+        data.decision = "reject"
+    elif norm in ("benign", "closed"):
         campaign.status = "closed"
+        data.decision = "benign"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid decision '{data.decision}'. Allowed decisions: accept, reject, benign"
+        )
 
     # Server-verified actor
     effective_actor = context.actor

@@ -1,6 +1,6 @@
 """Pydantic schemas for Finding model (normalized threat observations)."""
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 import uuid
 
 from pydantic import BaseModel, Field
@@ -73,7 +73,9 @@ class FindingListResponse(BaseModel):
 
 class FindingTriageUpdate(BaseModel):
     """Update finding triage status."""
-    triage_status: str = Field(..., description="New status: confirmed_threat, false_positive, investigating, needs_evidence")
+    triage_status: Literal["pending", "investigating", "confirmed_threat", "false_positive", "needs_evidence"] = Field(
+        ..., description="New status: pending, investigating, confirmed_threat, false_positive, needs_evidence"
+    )
     rationale: str = Field(..., min_length=10, description="Analyst rationale for triage decision")
     assigned_analyst_id: Optional[uuid.UUID] = None
     escalate_to_campaign: bool = Field(default=False, description="Link to campaign cluster")

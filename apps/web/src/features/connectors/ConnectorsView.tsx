@@ -39,47 +39,45 @@ export function ConnectorsView() {
     }
   };
 
-  // Demo fallback connectors if none exist in the database yet
+  // Unconfigured pipeline templates shown when no database connectors exist yet
   const displayConnectors: ConnectorData[] = connectors.length > 0 
     ? connectors 
     : [
         {
-          id: 'conn-meta-demo',
-          name: 'Meta Graph Webhook Connector',
+          id: 'conn-meta-template',
+          name: 'Meta Graph Webhook Connector (Template)',
           connector_type: 'meta_webhook',
-          status: 'active',
+          status: 'unconfigured',
           rate_limit_rpm: 200,
-          last_successful_sync_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-          last_health_check_at: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
+          error_message: 'Awaiting Webhook Secret and App Secret verification.',
         },
         {
-          id: 'conn-vt-demo',
-          name: 'VirusTotal Intelligence API',
+          id: 'conn-vt-template',
+          name: 'VirusTotal Intelligence API (Template)',
           connector_type: 'virustotal',
-          status: 'active',
+          status: 'unconfigured',
           rate_limit_rpm: 60,
-          last_successful_sync_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-          last_health_check_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+          error_message: 'Awaiting VirusTotal API key configuration.',
         },
         {
-          id: 'conn-play-demo',
-          name: 'Google Play Scraper Pipeline',
+          id: 'conn-play-template',
+          name: 'Google Play Scraper Pipeline (Template)',
           connector_type: 'google_play',
-          status: 'degraded',
+          status: 'unconfigured',
           rate_limit_rpm: 30,
-          last_successful_sync_at: new Date(Date.now() - 1000 * 3600 * 2).toISOString(),
-          error_message: 'Rate limit threshold reached on store search mirror. Retrying with backoff.',
+          error_message: 'Awaiting Android publisher mirror configuration.',
         },
         {
-          id: 'conn-telegram-demo',
-          name: 'Telegram Threat Feed Ingestion',
+          id: 'conn-telegram-template',
+          name: 'Telegram Threat Feed Ingestion (Template)',
           connector_type: 'telegram_bot',
-          status: 'active',
+          status: 'unconfigured',
           rate_limit_rpm: 100,
-          last_successful_sync_at: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+          error_message: 'Awaiting Telegram Bot Token configuration.',
         },
       ];
 
+  const isTemplateMode = connectors.length === 0;
   const activeCount = displayConnectors.filter(c => c.status === 'active').length;
   const degradedCount = displayConnectors.filter(c => c.status === 'degraded' || c.status === 'error').length;
 
@@ -105,6 +103,19 @@ export function ConnectorsView() {
           <span>Refresh Connectors</span>
         </button>
       </header>
+
+      {/* Honest Unconfigured State Banner */}
+      {isTemplateMode && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+          <div className="flex items-center gap-2 font-semibold text-amber-300">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
+            <span>Unconfigured Ingestion Pipelines (Template Mode)</span>
+          </div>
+          <p className="mt-1 text-slate-300 leading-relaxed">
+            No live data connectors are active in this tenant yet. The pipelines below represent pre-built integration templates. To start streaming live detections, configure provider credentials or ingest test telemetry.
+          </p>
+        </div>
+      )}
 
       {/* Metrics Strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

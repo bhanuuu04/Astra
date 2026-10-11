@@ -2,12 +2,13 @@
 import hashlib
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.models import (
     Finding,
     CampaignCluster,
@@ -81,6 +82,20 @@ def create_response_case_draft(
         if not cluster:
             raise ValueError(f"Cluster {cluster_id} not found for tenant {tenant_id}")
     
+    # Verify evidence manifest IDs if specified
+    if evidence_manifest:
+        existing_evidence = list(session.scalars(
+            select(EvidenceObject.id).where(EvidenceObject.id.in_(evidence_manifest))
+        ).all())
+        if len(existing_evidence) != len(set(evidence_manifest)):
+            missing = set(evidence_manifest) - set(existing_evidence)
+            raise ValueError(f"Evidence object(s) {missing} not found")
+    
+    # Retain evidence manifest in submission payload
+    if not isinstance(submission_payload, dict):
+        submission_payload = {}
+    submission_payload["evidence_manifest"] = [str(eid) for eid in evidence_manifest]
+
     # Generate evidence manifest hash
     manifest_hash = generate_evidence_manifest_hash(evidence_manifest)
     
@@ -149,13 +164,14 @@ def approve_response_case(
     # Capture before state
     before_state = sanitize_state_for_audit(response_case)
     
-    # Optional: Check separation of duties
-    # if response_case.drafted_by == approved_by:
-    #     raise ValueError("Drafter cannot approve their own response case")
+    # Separation of duties verification
+    settings = get_settings()
+    if settings.app_env not in ("development", "test") and response_case.drafted_by == approved_by:
+        raise ValueError("Separation of duties violation: Drafter cannot approve their own response case")
     
     response_case.lifecycle_state = "approved"
     response_case.approved_by = approved_by
-    response_case.approved_at = datetime.utcnow()
+    response_case.approved_at = datetime.now(timezone.utc)
     
     if approval_notes:
         if not response_case.submission_payload:
@@ -219,13 +235,13 @@ def dispatch_response_case(
     
     response_case.lifecycle_state = "submitted"
     response_case.submission_channel = submission_channel
-    response_case.submitted_at = datetime.utcnow()
+    response_case.submitted_at = datetime.now(timezone.utc)
     
-    # TODO: Integrate with external provider APIs
-    # - Meta IP Reporting API
-    # - Google Play Developer API
-    # - Cloudflare Abuse API
-    # - Registrar DMCA endpoints
+    # Record dispatch tracking metadata in submission_payload
+    if not response_case.submission_payload:
+        response_case.submission_payload = {}
+    response_case.submission_payload["dispatched_channel"] = submission_channel
+    response_case.submission_payload["dispatched_timestamp"] = response_case.submitted_at.isoformat()
     
     session.commit()
     
@@ -268,7 +284,7 @@ def resolve_response_case(
         raise ValueError(f"Cannot resolve case in state: {response_case.lifecycle_state}")
     
     response_case.lifecycle_state = "resolved"
-    response_case.resolved_at = datetime.utcnow()
+    response_case.resolved_at = datetime.now(timezone.utc)
     response_case.resolution_notes = resolution_notes
     
     if external_case_reference:

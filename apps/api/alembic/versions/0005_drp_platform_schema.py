@@ -95,6 +95,18 @@ def upgrade() -> None:
     op.create_index(op.f("ix_findings_brand_id"), "findings", ["brand_id"])
     op.create_index(op.f("ix_findings_connector_id"), "findings", ["connector_id"])
 
+    # 3b. Update evidence_objects to support findings FK
+    op.alter_column("evidence_objects", "sighting_id", nullable=True)
+    op.add_column("evidence_objects", sa.Column("finding_id", sa.Uuid(), nullable=True))
+    op.create_foreign_key("fk_evidence_objects_finding", "evidence_objects", "findings", ["finding_id"], ["id"], ondelete="CASCADE")
+    op.create_index(op.f("ix_evidence_objects_finding_id"), "evidence_objects", ["finding_id"])
+
+    # 3c. Update signals to support findings FK
+    op.alter_column("signals", "sighting_id", nullable=True)
+    op.add_column("signals", sa.Column("finding_id", sa.Uuid(), nullable=True))
+    op.create_foreign_key("fk_signals_finding", "signals", "findings", ["finding_id"], ["id"], ondelete="CASCADE")
+    op.create_index(op.f("ix_signals_finding_id"), "signals", ["finding_id"])
+
     # 4. Create mobile_app_findings table
     op.create_table(
         "mobile_app_findings",
@@ -236,6 +248,18 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_mobile_app_findings_finding_id"), table_name="mobile_app_findings")
     op.drop_table("mobile_app_findings")
     
+    # Revert signals finding_id
+    op.drop_index(op.f("ix_signals_finding_id"), table_name="signals")
+    op.drop_constraint("fk_signals_finding", "signals", type_="foreignkey")
+    op.drop_column("signals", "finding_id")
+    op.alter_column("signals", "sighting_id", nullable=False)
+
+    # Revert evidence_objects finding_id
+    op.drop_index(op.f("ix_evidence_objects_finding_id"), table_name="evidence_objects")
+    op.drop_constraint("fk_evidence_objects_finding", "evidence_objects", type_="foreignkey")
+    op.drop_column("evidence_objects", "finding_id")
+    op.alter_column("evidence_objects", "sighting_id", nullable=False)
+
     op.drop_index(op.f("ix_findings_connector_id"), table_name="findings")
     op.drop_index(op.f("ix_findings_brand_id"), table_name="findings")
     op.drop_index(op.f("ix_findings_tenant_id"), table_name="findings")

@@ -30,20 +30,24 @@ class MobileAppFindingResponse(BaseModel):
 class MobileAppRadarItem(BaseModel):
     """Combined finding + mobile app forensics for radar UI."""
     # Finding fields
+    id: uuid.UUID
     finding_id: uuid.UUID
     tenant_id: uuid.UUID
     brand_id: uuid.UUID
     target_identifier: str
     observed_at: datetime
+    created_at: datetime
     data_mode: str  # CRITICAL: live, synthetic_demo, manual_upload
     triage_status: str
     triage_priority: float
+    risk_score: float  # Compatibility alias for triage_priority
     
     # Mobile app forensic fields
     package_name: str
     app_title: str
     publisher_name: Optional[str] = None
     store_source: str
+    store_platform: str  # Compatibility alias for store_source
     store_url: Optional[str] = None
     version_string: Optional[str] = None
     cert_sha256_fingerprint: Optional[str] = None
@@ -51,6 +55,7 @@ class MobileAppRadarItem(BaseModel):
     apk_sha256: Optional[str] = None
     malware_detections: Dict[str, Any]
     permissions_declared: List[str]
+    impersonation_evidence: Optional[Dict[str, Any]] = None
     
     # Computed fields
     malware_status: str  # clean, suspicious, malicious, unknown

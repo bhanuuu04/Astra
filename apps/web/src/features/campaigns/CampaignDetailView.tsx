@@ -90,7 +90,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
           )}
 
           <button
-            onClick={() => decisionMutation.mutate({ decision: 'confirmed', reason: 'Confirmed multi-surface threat with shared UPI payee' })}
+            onClick={() => decisionMutation.mutate({ decision: 'accept', reason: 'Confirmed multi-surface threat with shared pivot correlation' })}
             disabled={decisionMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow transition cursor-pointer"
           >
@@ -99,7 +99,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
           </button>
 
           <button
-            onClick={() => decisionMutation.mutate({ decision: 'rejected', reason: 'Analyst rejected cluster — insufficient evidence' })}
+            onClick={() => decisionMutation.mutate({ decision: 'reject', reason: 'Analyst rejected cluster — insufficient correlation evidence' })}
             disabled={decisionMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow transition cursor-pointer"
           >

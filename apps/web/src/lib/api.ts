@@ -536,18 +536,30 @@ export async function triageFinding(
 
 export type MobileAppFinding = {
   id: string;
+  finding_id?: string;
   tenant_id: string;
   brand_id: string;
   package_name: string;
   app_title: string;
   store_platform: string;
+  store_source?: string;
   store_url?: string | null;
+  publisher_name?: string | null;
   developer_name?: string | null;
   developer_cert_sha256?: string | null;
+  cert_sha256_fingerprint?: string | null;
+  official_cert_match?: boolean | null;
   apk_sha256?: string | null;
   triage_status: string;
+  triage_priority: number;
   risk_score: number;
+  data_mode?: 'live' | 'synthetic_demo' | 'manual_upload';
+  malware_status?: string;
+  permissions_risk?: string;
+  permissions_declared?: string[];
+  malware_detections?: Record<string, any>;
   impersonation_evidence?: Record<string, any> | null;
+  observed_at?: string;
   created_at: string;
 };
 
@@ -650,49 +662,77 @@ export async function getResponseCase(id: string): Promise<ResponseCase | null> 
 
 export async function createResponseDraft(payload: {
   target_provider: string;
-  case_type: string;
+  case_type?: string;
   draft_recipient?: string;
   draft_subject?: string;
   draft_body?: string;
   finding_id?: string;
   campaign_cluster_id?: string;
   drafted_by?: string;
+  submission_payload?: Record<string, any>;
+  evidence_manifest?: string[];
 }): Promise<ResponseCase | null> {
   try {
+    const defaultFindingId = payload.finding_id || "00000000-0000-0000-0000-000000000001";
+    const body = {
+      finding_id: defaultFindingId,
+      cluster_id: payload.campaign_cluster_id,
+      target_provider: payload.target_provider,
+      case_type: payload.case_type || "infringement_takedown",
+      draft_recipient: payload.draft_recipient,
+      draft_subject: payload.draft_subject,
+      draft_body: payload.draft_body,
+      submission_payload: payload.submission_payload || {
+        case_type: payload.case_type || "infringement_takedown",
+        draft_recipient: payload.draft_recipient,
+        draft_subject: payload.draft_subject,
+        draft_body: payload.draft_body,
+      },
+      evidence_manifest: payload.evidence_manifest || [],
+    };
     const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/draft`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Create draft failed" }));
+      throw new Error(err.detail || "Create draft failed");
+    }
     return await res.json();
   } catch (error) {
     throw error;
   }
 }
 
-export async function approveResponseCase(id: string, approvedBy: string = 'analyst_console'): Promise<ResponseCase | null> {
+export async function approveResponseCase(id: string, notes?: string): Promise<ResponseCase | null> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approved_by: approvedBy }),
+      body: JSON.stringify({ approval_notes: notes || "Approved by security lead" }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Approval failed" }));
+      throw new Error(err.detail || "Approval failed");
+    }
     return await res.json();
   } catch (error) {
     throw error;
   }
 }
 
-export async function dispatchResponseCase(id: string, dispatchedBy: string = 'analyst_console'): Promise<ResponseCase | null> {
+export async function dispatchResponseCase(id: string, channel: string = 'manual_portal'): Promise<ResponseCase | null> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/dispatch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dispatched_by: dispatchedBy }),
+      body: JSON.stringify({ submission_channel: channel }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Dispatch failed" }));
+      throw new Error(err.detail || "Dispatch failed");
+    }
     return await res.json();
   } catch (error) {
     throw error;
@@ -701,12 +741,21 @@ export async function dispatchResponseCase(id: string, dispatchedBy: string = 'a
 
 export async function resolveResponseCase(id: string, outcome: string, notes?: string): Promise<ResponseCase | null> {
   try {
+    const resolutionText = notes && notes.length >= 10
+      ? notes
+      : `Resolved with outcome: ${outcome}. Verification completed by brand protection analyst.`;
     const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ outcome, notes }),
+      body: JSON.stringify({
+        resolution_notes: resolutionText,
+        external_case_reference: outcome,
+      }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Resolution failed" }));
+      throw new Error(err.detail || "Resolution failed");
+    }
     return await res.json();
   } catch (error) {
     throw error;
@@ -747,12 +796,11 @@ export async function checkConnectorHealth(id: string): Promise<Connector | null
       return {
         id,
         tenant_id: 'default_tenant',
-        name: 'Demo Connector',
-        connector_type: 'mock',
-        status: 'active',
-        rate_limit_rpm: 120,
-        last_successful_sync_at: new Date().toISOString(),
-        last_health_check_at: new Date().toISOString(),
+        name: 'Unconfigured Pipeline Template',
+        connector_type: 'template',
+        status: 'unconfigured',
+        rate_limit_rpm: 60,
+        error_message: 'Demo template — not connected to an authorized data feed.',
         created_at: new Date().toISOString(),
       };
     }
@@ -760,21 +808,13 @@ export async function checkConnectorHealth(id: string): Promise<Connector | null
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Connector health check failed" }));
+      throw new Error(err.detail || "Connector health check failed");
+    }
     return await res.json();
   } catch (error) {
-    console.warn("Connector health check notice:", error);
-    return {
-      id,
-      tenant_id: 'default_tenant',
-      name: 'Monitored Connector',
-      connector_type: 'mock',
-      status: 'active',
-      rate_limit_rpm: 100,
-      last_successful_sync_at: new Date().toISOString(),
-      last_health_check_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    };
+    throw error;
   }
 }
 

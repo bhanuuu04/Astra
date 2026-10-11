@@ -27,6 +27,47 @@ from app.schemas.response_case import (
 router = APIRouter(prefix="/api/v1/responses", tags=["responses"])
 
 
+def _to_response_case_response(case) -> ResponseCaseResponse:
+    """Map ResponseCase model to schema with payload-derived fields."""
+    payload = case.submission_payload or {}
+    case_type = payload.get("case_type", "infringement_takedown")
+    draft_recipient = payload.get("draft_recipient")
+    draft_subject = payload.get("draft_subject")
+    draft_body = payload.get("draft_body")
+    evidence_manifest_raw = payload.get("evidence_manifest") or []
+    evidence_manifest = []
+    for em in evidence_manifest_raw:
+        try:
+            evidence_manifest.append(uuid.UUID(str(em)))
+        except (ValueError, TypeError):
+            pass
+
+    return ResponseCaseResponse(
+        id=case.id,
+        tenant_id=case.tenant_id,
+        finding_id=case.finding_id,
+        cluster_id=case.cluster_id,
+        target_provider=case.target_provider,
+        case_type=case_type,
+        draft_recipient=draft_recipient,
+        draft_subject=draft_subject,
+        draft_body=draft_body,
+        lifecycle_state=case.lifecycle_state,
+        drafted_by=case.drafted_by,
+        approved_by=case.approved_by,
+        approved_at=case.approved_at,
+        submission_channel=case.submission_channel,
+        external_case_reference=case.external_case_reference,
+        evidence_manifest_hash=case.evidence_manifest_hash,
+        evidence_manifest=evidence_manifest,
+        submission_payload=payload,
+        submitted_at=case.submitted_at,
+        resolved_at=case.resolved_at,
+        resolution_notes=case.resolution_notes,
+        created_at=case.created_at,
+    )
+
+
 @router.post("/draft", response_model=ResponseCaseResponse, status_code=status.HTTP_201_CREATED)
 def handle_create_response_draft(
     draft: ResponseCaseDraft,
@@ -63,18 +104,28 @@ def handle_create_response_draft(
     - Initial state: 'draft'
     """
     try:
+        payload = dict(draft.submission_payload or {})
+        if draft.case_type:
+            payload["case_type"] = draft.case_type
+        if draft.draft_recipient:
+            payload["draft_recipient"] = draft.draft_recipient
+        if draft.draft_subject:
+            payload["draft_subject"] = draft.draft_subject
+        if draft.draft_body:
+            payload["draft_body"] = draft.draft_body
+
         response_case = create_response_case_draft(
             session=session,
             tenant_id=context.tenant_id,
             finding_id=draft.finding_id,
             cluster_id=draft.cluster_id,
             target_provider=draft.target_provider,
-            submission_payload=draft.submission_payload,
-            evidence_manifest=draft.evidence_manifest,
+            submission_payload=payload,
+            evidence_manifest=draft.evidence_manifest or [],
             drafted_by=context.user_id  # From auth context
         )
         
-        return ResponseCaseResponse.model_validate(response_case)
+        return _to_response_case_response(response_case)
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -111,7 +162,7 @@ def handle_list_response_cases(
         offset=offset
     )
     
-    case_responses = [ResponseCaseResponse.model_validate(c) for c in cases]
+    case_responses = [_to_response_case_response(c) for c in cases]
     
     return ResponseCaseListResponse(
         cases=case_responses,
@@ -143,7 +194,7 @@ def handle_get_response_case(
             detail=f"Response case {response_case_id} not found"
         )
     
-    return ResponseCaseResponse.model_validate(response_case)
+    return _to_response_case_response(response_case)
 
 
 @router.post("/{response_case_id}/approve", response_model=ResponseCaseResponse)
@@ -183,7 +234,7 @@ def handle_approve_response_case(
             approval_notes=approval.approval_notes
         )
         
-        return ResponseCaseResponse.model_validate(response_case)
+        return _to_response_case_response(response_case)
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -227,7 +278,7 @@ def handle_dispatch_response_case(
             submission_channel=dispatch.submission_channel
         )
         
-        return ResponseCaseResponse.model_validate(response_case)
+        return _to_response_case_response(response_case)
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -267,7 +318,7 @@ def handle_resolve_response_case(
             external_case_reference=resolution.external_case_reference
         )
         
-        return ResponseCaseResponse.model_validate(response_case)
+        return _to_response_case_response(response_case)
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

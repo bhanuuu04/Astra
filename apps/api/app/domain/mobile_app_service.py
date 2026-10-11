@@ -178,18 +178,22 @@ def get_mobile_app_radar(
         permissions_risk = calculate_permissions_risk(app_finding.permissions_declared or [])
         
         radar_items.append(MobileAppRadarItem(
+            id=finding.id,
             finding_id=finding.id,
             tenant_id=finding.tenant_id,
             brand_id=finding.brand_id,
             target_identifier=finding.target_identifier,
             observed_at=finding.observed_at,
+            created_at=finding.created_at or finding.observed_at,
             data_mode=finding.data_mode,
             triage_status=finding.triage_status,
             triage_priority=finding.triage_priority,
+            risk_score=finding.triage_priority,
             package_name=app_finding.package_name,
             app_title=app_finding.app_title,
             publisher_name=app_finding.publisher_name,
             store_source=app_finding.store_source,
+            store_platform=app_finding.store_source,
             store_url=app_finding.store_url,
             version_string=app_finding.version_string,
             cert_sha256_fingerprint=app_finding.cert_sha256_fingerprint,
@@ -197,6 +201,7 @@ def get_mobile_app_radar(
             apk_sha256=app_finding.apk_sha256,
             malware_detections=app_finding.malware_detections or {},
             permissions_declared=app_finding.permissions_declared or [],
+            impersonation_evidence=finding.normalized_attributes,
             malware_status=malware_status,
             permissions_risk=permissions_risk
         ))

@@ -316,17 +316,19 @@ export function AppsRadarView() {
   React.useEffect(() => {
     if (radarData && radarData.apps && radarData.apps.length > 0) {
       const liveRadarApps: AppEntry[] = radarData.apps.map((a: MobileAppFinding) => ({
-        id: a.id,
+        id: a.finding_id || a.id,
         appName: a.app_title,
         packageName: a.package_name,
         downloadUrl: a.store_url || '',
         sha256: a.apk_sha256 || undefined,
-        riskScore: Math.round(a.risk_score * 100),
+        riskScore: Math.round((a.triage_priority ?? a.risk_score ?? 0.8) * ((a.triage_priority ?? a.risk_score ?? 0.8) <= 1 ? 100 : 1)),
         status: (a.triage_status as any) || 'active_threat',
-        sourcePlatform: a.store_platform,
-        discoveredAt: a.created_at,
-        impersonationDetails: a.impersonation_evidence ? JSON.stringify(a.impersonation_evidence) : 'Detected counterfeit mobile application.',
-        dataMode: 'live',
+        sourcePlatform: a.store_platform || a.store_source || 'google_play',
+        discoveredAt: a.observed_at || a.created_at,
+        impersonationDetails: a.official_cert_match === false
+          ? 'Certificate signature mismatch: Unauthorized APK signature does NOT match verified brand certificate.'
+          : (a.impersonation_evidence ? JSON.stringify(a.impersonation_evidence) : `Forensic status: ${a.malware_status || 'analyzed'}, permissions risk: ${a.permissions_risk || 'medium'}`),
+        dataMode: a.data_mode || 'synthetic_demo',
       }));
       setApps(liveRadarApps);
     } else if (sightings && sightings.length > 0) {

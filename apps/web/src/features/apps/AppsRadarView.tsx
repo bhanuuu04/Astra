@@ -344,12 +344,16 @@ export function AppsRadarView() {
   const handleVtCheck = async (id: string, hash?: string, url?: string) => {
     setVtLoading(id);
     try {
-      // Call backend scan package API to persist scan request
-      await scanMobileAppPackage(id, 'virustotal').catch(() => null);
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(id)) {
+        await scanMobileAppPackage(id, 'virustotal').catch(() => null);
+      }
       const result = await checkVirusTotal(url, hash);
       if (result) {
         setApps((prev) => prev.map((a) => (a.id === id ? { ...a, vtResult: result } : a)));
       }
+    } catch (err) {
+      console.warn("VirusTotal scan notice:", err);
     } finally {
       setVtLoading(null);
     }

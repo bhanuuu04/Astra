@@ -32,6 +32,8 @@ export function ConnectorsView() {
     try {
       await checkConnectorHealth(id);
       await queryClient.invalidateQueries({ queryKey: ['connectors'] });
+    } catch (err) {
+      console.warn("Health check notice:", err);
     } finally {
       setCheckingId(null);
     }

@@ -23,23 +23,16 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  // Gracefully wrap with ClerkProvider if Clerk publishable key is present, otherwise provide children directly
-  const hasClerkKey = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "pk_test_Y2xlcmsuZXhhbXBsZS5jb20k";
 
   return (
     <html lang="en">
       <body className={`${inter.variable} ${mono.variable} font-sans antialiased min-h-screen bg-slate-50 text-slate-900`}>
-        {hasClerkKey ? (
-          <ClerkProvider>
-            <QueryProvider>
-              <AppShell>{children}</AppShell>
-            </QueryProvider>
-          </ClerkProvider>
-        ) : (
+        <ClerkProvider publishableKey={clerkPublishableKey}>
           <QueryProvider>
             <AppShell>{children}</AppShell>
           </QueryProvider>
-        )}
+        </ClerkProvider>
       </body>
     </html>
   );

@@ -19,8 +19,8 @@ app.add_middleware(
     allow_origins=clean_origins or ["http://localhost:3000", "http://localhost:3001"],
     allow_origin_regex=None,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Tenant-ID", "X-API-Key"],
 )
 
 

@@ -64,10 +64,124 @@ export class ApiError extends Error {
   }
 }
 
-let authToken: string | null = null;
+export type UserInfo = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+};
+
+export type TenantInfo = {
+  id: string;
+  name: string;
+  is_demo: boolean;
+};
+
+export type TenantMembershipInfo = {
+  tenant_id: string;
+  tenant_name: string;
+  role: string;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  token_type: string;
+  user: UserInfo;
+  tenant: TenantInfo;
+};
+
+export type MeResponse = {
+  user: UserInfo;
+  tenant: TenantInfo;
+  available_tenants: TenantMembershipInfo[];
+};
+
+export type RegisterPayload = {
+  email: string;
+  password: string;
+  full_name: string;
+  organization_name: string;
+};
+
+export type LoginPayload = {
+  email: string;
+  password: string;
+};
+
+export type TenantSettings = {
+  id?: string;
+  tenant_id?: string;
+  quarantine_threshold: number;
+  slack_webhook_url?: string | null;
+  alert_critical_only: boolean;
+  notification_email?: string | null;
+  auto_quarantine_enabled: boolean;
+  updated_at?: string | null;
+};
+
+let authToken: string | null =
+  typeof window !== "undefined" ? localStorage.getItem("astra_auth_token") : null;
+
+export function getAuthToken(): string | null {
+  if (typeof window !== "undefined") {
+    return authToken || localStorage.getItem("astra_auth_token");
+  }
+  return authToken;
+}
 
 export function setAuthToken(token: string | null) {
   authToken = token;
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem("astra_auth_token", token);
+    } else {
+      localStorage.removeItem("astra_auth_token");
+    }
+  }
+}
+
+export function getActiveUser(): UserInfo | null {
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem("astra_active_user");
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {}
+    }
+  }
+  return null;
+}
+
+export function setActiveUser(user: UserInfo | null) {
+  if (typeof window !== "undefined") {
+    if (user) {
+      localStorage.setItem("astra_active_user", JSON.stringify(user));
+    } else {
+      localStorage.removeItem("astra_active_user");
+    }
+  }
+}
+
+export function getActiveTenant(): TenantInfo | null {
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem("astra_active_tenant");
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {}
+    }
+  }
+  return null;
+}
+
+export function setActiveTenant(tenant: TenantInfo | null) {
+  if (typeof window !== "undefined") {
+    if (tenant) {
+      localStorage.setItem("astra_active_tenant", JSON.stringify(tenant));
+    } else {
+      localStorage.removeItem("astra_active_tenant");
+    }
+  }
 }
 
 async function astraFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -76,8 +190,9 @@ async function astraFetch(url: string, init?: RequestInit): Promise<Response> {
     ...((init?.headers as Record<string, string>) || {}),
   };
 
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
+  const currentToken = getAuthToken();
+  if (currentToken) {
+    headers["Authorization"] = `Bearer ${currentToken}`;
   }
 
   const response = await fetch(url, {
@@ -817,4 +932,72 @@ export async function checkConnectorHealth(id: string): Promise<Connector | null
     throw error;
   }
 }
+
+export async function register(payload: RegisterPayload): Promise<AuthResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/register`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = (await res.json()) as AuthResponse;
+  setAuthToken(data.access_token);
+  setActiveUser(data.user);
+  setActiveTenant(data.tenant);
+  return data;
+}
+
+export async function login(payload: LoginPayload): Promise<AuthResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/login`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = (await res.json()) as AuthResponse;
+  setAuthToken(data.access_token);
+  setActiveUser(data.user);
+  setActiveTenant(data.tenant);
+  return data;
+}
+
+export async function getMe(): Promise<MeResponse | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/me`);
+    const data = (await res.json()) as MeResponse;
+    setActiveUser(data.user);
+    setActiveTenant(data.tenant);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function switchTenant(tenantId: string): Promise<AuthResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/switch-tenant`, {
+    method: "POST",
+    body: JSON.stringify({ tenant_id: tenantId }),
+  });
+  const data = (await res.json()) as AuthResponse;
+  setAuthToken(data.access_token);
+  setActiveUser(data.user);
+  setActiveTenant(data.tenant);
+  return data;
+}
+
+export function logout(): void {
+  setAuthToken(null);
+  setActiveUser(null);
+  setActiveTenant(null);
+}
+
+export async function getSettings(): Promise<TenantSettings> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/settings`);
+  return (await res.json()) as TenantSettings;
+}
+
+export async function updateSettings(updates: Partial<TenantSettings>): Promise<TenantSettings> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/settings`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+  return (await res.json()) as TenantSettings;
+}
+
 

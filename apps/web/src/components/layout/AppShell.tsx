@@ -10,20 +10,37 @@ import {
   Bell,
   BellRing,
   BookOpen,
+  Building2,
   Command,
   Database,
   Fingerprint,
   LayoutDashboard,
+  LogIn,
+  LogOut,
   Menu,
   Network,
   Search,
   Send,
+  Settings,
   Shield,
   Smartphone,
+  Sparkles,
+  User,
   X,
 } from 'lucide-react';
 import { CommandPalette } from '@/components/CommandPalette';
-import { listSightings, type Sighting } from '@/lib/api';
+import { AuthModal } from '@/components/auth/AuthModal';
+import {
+  getActiveTenant,
+  getActiveUser,
+  getMe,
+  listSightings,
+  logout,
+  type AuthResponse,
+  type Sighting,
+  type TenantInfo,
+  type UserInfo,
+} from '@/lib/api';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -36,6 +53,7 @@ const primaryNavigation = [
   { href: '/responses', label: 'Response cases', icon: Send },
   { href: '/brands', label: 'Brand DNA', icon: Fingerprint },
   { href: '/connectors', label: 'Connectors', icon: Database },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const monitorNavigation = [
@@ -50,6 +68,7 @@ const pageNames: Record<string, string> = {
   responses: 'Response cases',
   brands: 'Brand DNA',
   connectors: 'Connectors',
+  settings: 'Platform Settings',
   apps: 'Mobile App Radar',
   alerts: 'Alert feed',
   landing: 'Product tour',
@@ -59,6 +78,28 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false);
+  const [authModalOpen, setAuthModalOpen] = React.useState(false);
+
+  // Authenticated identity & tenant context
+  const [user, setUser] = React.useState<UserInfo | null>(null);
+  const [tenant, setTenant] = React.useState<TenantInfo | null>(null);
+
+  React.useEffect(() => {
+    // Read from localStorage after hydration
+    const u = getActiveUser();
+    const t = getActiveTenant();
+    setUser(u);
+    setTenant(t);
+
+    // Refresh profile in background if token exists
+    getMe().then((profile) => {
+      if (profile) {
+        setUser(profile.user);
+        setTenant(profile.tenant);
+      }
+    }).catch(() => {});
+  }, []);
+
   const routeParts = pathname.split('/').filter(Boolean);
   const pageRoot = routeParts[0] || 'overview';
   const pageTitle = pageRoot === 'campaigns'
@@ -91,6 +132,22 @@ export function AppShell({ children }: AppShellProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const handleLogout = () => {
+    logout();
+    setUser(null);
+    setTenant(null);
+    window.location.reload();
+  };
+
+  const isDemo = !tenant || tenant.is_demo;
+
+  const orgInitials = React.useMemo(() => {
+    if (!tenant?.name) return 'AD';
+    const parts = tenant.name.split(' ').filter(Boolean);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return tenant.name.slice(0, 2).toUpperCase();
+  }, [tenant]);
 
   const nav = (
     <nav aria-label="Main navigation" className="space-y-1">
@@ -144,14 +201,27 @@ export function AppShell({ children }: AppShellProps) {
           <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation" className="rounded-md p-1 text-slate-500 hover:bg-white/5 hover:text-white md:hidden"><X className="h-4 w-4" /></button>
         </div>
 
+        {/* Tenant Organization Card */}
         <div className="border-b border-white/[0.07] p-3">
           <div className="flex w-full items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-left">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#26364a] text-[11px] font-semibold tracking-wide text-slate-200">AD</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-slate-200">ASTRA Demo</span>
-              <span className="mt-0.5 block text-[10px] text-slate-500">Workspace</span>
+            <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-[11px] font-semibold tracking-wide ${
+              isDemo ? 'bg-[#26364a] text-slate-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+            }`}>
+              {orgInitials}
             </span>
-            <span className="rounded border border-white/[0.08] px-1.5 py-1 text-[8px] font-medium uppercase tracking-[0.1em] text-slate-600">Demo</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium text-slate-200">
+                {tenant?.name || 'ASTRA Demo'}
+              </span>
+              <span className="mt-0.5 block text-[10px] text-slate-500">
+                {isDemo ? 'Demo Workspace' : 'Enterprise Tenant'}
+              </span>
+            </span>
+            <span className={`rounded border px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.1em] ${
+              isDemo ? 'border-white/[0.08] text-slate-600' : 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300 font-bold'
+            }`}>
+              {isDemo ? 'Demo' : 'Live'}
+            </span>
           </div>
         </div>
 
@@ -194,19 +264,49 @@ export function AppShell({ children }: AppShellProps) {
           </Link>
         </div>
 
+        {/* User Identity / Session Footer */}
         <div className="border-t border-white/[0.07] p-3">
-          <div className="rounded-xl border border-amber-300/10 bg-amber-300/[0.035] p-3">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-amber-200/90">Demo workspace</span>
+          {user ? (
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-[10px] font-semibold text-cyan-300">
+                  {user.full_name.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium text-slate-200">{user.full_name}</div>
+                  <div className="truncate text-[10px] text-slate-500 capitalize">{user.role.replace('_', ' ')}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Sign out to demo"
+                  className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-white/5 transition"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <p className="mt-2 text-[11px] leading-[1.55] text-slate-500">Sample records may be shown here. Confirm source labels before treating a finding as live telemetry.</p>
-          </div>
-          <div className="mt-3 flex items-center gap-2.5 px-1 py-1.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-[#202d3e] text-[10px] font-semibold text-slate-300">AN</div>
-            <div className="min-w-0 flex-1"><div className="truncate text-xs font-medium text-slate-300">Analyst</div><div className="text-[10px] text-slate-600">Demo session</div></div>
-            <Activity className="h-4 w-4 text-slate-600" />
-          </div>
+          ) : (
+            <div>
+              <div className="rounded-xl border border-amber-300/10 bg-amber-300/[0.035] p-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-amber-200/90">Demo workspace</span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-[1.45] text-slate-500">
+                  Create your own organization to manage real brand assets and settings.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAuthModalOpen(true)}
+                  className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-cyan-400/10 hover:bg-cyan-400/20 border border-cyan-400/30 text-cyan-300 text-xs font-semibold transition flex items-center justify-center gap-1.5"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  Sign In / Register
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -214,14 +314,35 @@ export function AppShell({ children }: AppShellProps) {
         <header className="astra-topbar z-20 flex h-[68px] shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-lg border border-white/10 p-2 text-slate-400 hover:bg-white/5 hover:text-white md:hidden"><Menu className="h-4 w-4" /></button>
-            <div className="hidden items-center gap-2 text-xs text-slate-600 sm:flex"><span>Workspace</span><span>/</span></div>
+            <div className="hidden items-center gap-2 text-xs text-slate-600 sm:flex">
+              <span>{tenant?.name || 'Workspace'}</span>
+              <span>/</span>
+            </div>
             <h1 className="truncate text-[13px] font-medium text-slate-200">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.09] bg-white/[0.025] px-2.5 text-xs text-slate-500 transition hover:border-white/15 hover:text-slate-300 sm:px-3" aria-label="Search cases, brands and indicators">
               <Search className="h-3.5 w-3.5" /><span className="hidden lg:inline">Search anything</span><kbd className="hidden rounded border border-white/[0.08] bg-black/20 px-1.5 py-0.5 font-mono text-[9px] text-slate-600 sm:inline-flex"><Command className="mr-0.5 h-2.5 w-2.5" />K</kbd>
             </button>
-            <div className="hidden h-8 items-center gap-2 rounded-lg border border-amber-300/10 bg-amber-300/[0.035] px-2.5 text-[10px] font-medium text-amber-200/80 sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-amber-300" />DEMO</div>
+            
+            {/* Live / Demo Status Pill */}
+            {isDemo ? (
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
+                className="hidden h-8 items-center gap-2 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] hover:bg-amber-300/[0.12] px-2.5 text-[10px] font-medium text-amber-200 transition sm:flex cursor-pointer"
+                title="Click to sign up or log in"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                DEMO MODE · SIGN IN
+              </button>
+            ) : (
+              <div className="hidden h-8 items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.06] px-2.5 text-[10px] font-medium text-emerald-300 sm:flex">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                LIVE ORG: {tenant.name}
+              </div>
+            )}
+
             <Link href="/alerts" aria-label="Open alert feed" title="Open alert feed" className="relative rounded-lg border border-white/[0.09] p-2 text-slate-500 transition hover:bg-white/[0.04] hover:text-slate-300">
               <Bell className="h-4 w-4" />
               {unreadAlerts > 0 && (
@@ -234,6 +355,15 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={(authData: AuthResponse) => {
+            setUser(authData.user);
+            setTenant(authData.tenant);
+            window.location.reload();
+          }}
+        />
         <main className="astra-main min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

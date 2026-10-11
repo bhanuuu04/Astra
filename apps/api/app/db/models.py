@@ -3,10 +3,12 @@ from typing import Any, Dict, List, Optional
 import uuid
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
     Index,
+    Integer,
     JSON,
     String,
     Text,
@@ -27,12 +29,27 @@ class Tenant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class TenantSettings(Base):
+    __tablename__ = "tenant_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, index=True)
+    quarantine_threshold: Mapped[int] = mapped_column(Integer, default=80, nullable=False)
+    slack_webhook_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    alert_critical_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    notification_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    auto_quarantine_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

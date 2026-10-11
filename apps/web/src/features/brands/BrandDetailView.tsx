@@ -414,6 +414,14 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
                     </div>
 
                     <div className="flex justify-end pt-1">
+                      {asset.verification_status !== 'verified' && (
+                        <button
+                          onClick={() => { setManualVerifyAsset(asset); setManualReason(''); }}
+                          className="mr-2 text-[10px] text-cyan-400 hover:underline"
+                        >
+                          Analyst Attestation
+                        </button>
+                      )}
                       <button
                         onClick={() => deleteAssetMutation.mutate(asset.id)}
                         title="Delete asset"

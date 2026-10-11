@@ -66,14 +66,20 @@ def add_brand_asset(session: Session, brand_id: uuid.UUID, asset_data: BrandAsse
     if asset_data.asset_type in ("domain", "handle"):
         val = val.lower().lstrip("@")
 
+    # Normalize mobile app pkg type
+    asset_type = asset_data.asset_type
+    if asset_type == "mobile_app":
+        asset_type = "mobile_app_pkg"
+
     asset = BrandAsset(
         id=uuid.uuid4(),
         tenant_id=brand.tenant_id,
         brand_id=brand_id,
-        asset_type=asset_data.asset_type,
+        asset_type=asset_type,
         canonical_value=val,
         object_key=asset_data.object_key,
         sha256=asset_data.sha256,
+        asset_metadata=asset_data.metadata or {},
         verification_status="unverified",
         verification_method=None,
         verified_at=None,
@@ -85,3 +91,22 @@ def add_brand_asset(session: Session, brand_id: uuid.UUID, asset_data: BrandAsse
 
 def get_brand_assets(session: Session, brand_id: uuid.UUID) -> List[BrandAsset]:
     return list(session.scalars(select(BrandAsset).where(BrandAsset.brand_id == brand_id)).all())
+
+
+def get_brand_asset(session: Session, brand_id: uuid.UUID, asset_id: uuid.UUID) -> Optional[BrandAsset]:
+    return session.scalar(
+        select(BrandAsset).where(
+            BrandAsset.brand_id == brand_id,
+            BrandAsset.id == asset_id,
+        )
+    )
+
+
+def delete_brand_asset(session: Session, brand_id: uuid.UUID, asset_id: uuid.UUID) -> bool:
+    asset = get_brand_asset(session, brand_id, asset_id)
+    if not asset:
+        return False
+    session.delete(asset)
+    session.commit()
+    return True
+

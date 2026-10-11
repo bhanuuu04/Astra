@@ -31,6 +31,8 @@ const brandEnrollmentSchema = z.object({
   ),
   twitterHandle: z.string().optional(),
   instagramHandle: z.string().optional(),
+  appPackageId: z.string().optional(),
+  certFingerprint: z.string().optional(),
   supportPhone: z.string().optional(),
   upiId: z.string().optional(),
 });
@@ -58,6 +60,8 @@ export function BrandRegistryView() {
       primaryDomain: '',
       twitterHandle: '',
       instagramHandle: '',
+      appPackageId: '',
+      certFingerprint: '',
       supportPhone: '',
       upiId: '',
     },
@@ -65,7 +69,7 @@ export function BrandRegistryView() {
 
   const enrollMutation = useMutation({
     mutationFn: async (values: BrandEnrollmentFormValues) => {
-      const assets = [
+      const assets: Array<{ asset_type: string; canonical_value: string; metadata?: Record<string, any> }> = [
         { asset_type: 'domain', canonical_value: values.primaryDomain },
       ];
       if (values.twitterHandle) {
@@ -73,6 +77,13 @@ export function BrandRegistryView() {
       }
       if (values.instagramHandle) {
         assets.push({ asset_type: 'handle', canonical_value: `instagram:${values.instagramHandle}` });
+      }
+      if (values.appPackageId) {
+        assets.push({
+          asset_type: 'mobile_app_pkg',
+          canonical_value: values.appPackageId.trim(),
+          metadata: values.certFingerprint?.trim() ? { cert_fingerprint: values.certFingerprint.trim().toUpperCase() } : {},
+        });
       }
       if (values.supportPhone) {
         assets.push({ asset_type: 'phone', canonical_value: values.supportPhone });
@@ -185,7 +196,7 @@ export function BrandRegistryView() {
                       <Smartphone className="w-3.5 h-3.5 text-emerald-400" /> Official Apps:
                     </span>
                     <span className="font-semibold text-slate-200">
-                      {brand.assets?.filter(a => a.asset_type === 'mobile_app').length ?? 0}
+                      {brand.assets?.filter(a => a.asset_type === 'mobile_app' || a.asset_type === 'mobile_app_pkg').length ?? 0}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
@@ -281,6 +292,29 @@ export function BrandRegistryView() {
                     {...register('instagramHandle')}
                     placeholder="e.g. nilapay.official"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Mobile App Package ID
+                  </label>
+                  <input
+                    {...register('appPackageId')}
+                    placeholder="e.g. com.nilapay.app"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Signing Cert SHA-256
+                  </label>
+                  <input
+                    {...register('certFingerprint')}
+                    placeholder="e.g. 14:28:AB:39:... or hex"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono text-[11px]"
                   />
                 </div>
               </div>

@@ -11,10 +11,24 @@ export type BrandAsset = {
   brand_id: string;
   asset_type: string;
   canonical_value: string;
+  verification_status: 'verified' | 'pending_challenge' | 'unverified';
+  verification_method?: string | null;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  metadata?: Record<string, any> | null;
   object_key?: string | null;
   sha256?: string | null;
-  verified_at?: string | null;
   created_at: string;
+};
+
+export type DnsChallengeInstructions = {
+  method: string;
+  domain?: string | null;
+  record_type?: string | null;
+  record_name?: string | null;
+  record_value?: string | null;
+  instructions: string[];
+  verification_check?: string | null;
 };
 
 export type Brand = {
@@ -252,7 +266,10 @@ export async function getBrand(brandId: string): Promise<Brand | null> {
   }
 }
 
-export async function createBrand(name: string, assets?: { asset_type: string; canonical_value: string }[]): Promise<Brand | null> {
+export async function createBrand(
+  name: string,
+  assets?: { asset_type: string; canonical_value: string; metadata?: Record<string, any> }[]
+): Promise<Brand | null> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/brands`, {
       method: "POST",
@@ -266,18 +283,69 @@ export async function createBrand(name: string, assets?: { asset_type: string; c
   }
 }
 
-export async function addBrandAsset(brandId: string, assetType: string, canonicalValue: string): Promise<BrandAsset | null> {
+export async function addBrandAsset(
+  brandId: string,
+  assetType: string,
+  canonicalValue: string,
+  metadata?: Record<string, any>
+): Promise<BrandAsset | null> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ asset_type: assetType, canonical_value: canonicalValue }),
+      body: JSON.stringify({
+        asset_type: assetType,
+        canonical_value: canonicalValue,
+        metadata: metadata || {},
+      }),
     });
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {
     throw error;
   }
+}
+
+export async function initiateDnsChallenge(
+  brandId: string,
+  assetId: string
+): Promise<DnsChallengeInstructions> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets/${assetId}/dns-challenge`, {
+    method: "POST",
+  });
+  return await res.json();
+}
+
+export async function verifyDnsRecord(
+  brandId: string,
+  assetId: string
+): Promise<BrandAsset> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets/${assetId}/verify-dns`, {
+    method: "POST",
+  });
+  return await res.json();
+}
+
+export async function verifyAssetManual(
+  brandId: string,
+  assetId: string,
+  reason: string
+): Promise<BrandAsset> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets/${assetId}/verify-manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ asset_id: assetId, reason }),
+  });
+  return await res.json();
+}
+
+export async function deleteBrandAsset(
+  brandId: string,
+  assetId: string
+): Promise<void> {
+  await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets/${assetId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function ingestSightingsBatch(sightings: any[]): Promise<{ ingested_count: number; sighting_ids: string[] } | null> {

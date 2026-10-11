@@ -87,6 +87,8 @@ export type UserInfo = {
   role: string;
   clerk_id?: string | null;
   composio_user_id?: string | null;
+  onboarding_completed?: boolean;
+  primary_brand_id?: string | null;
 };
 
 export type TenantInfo = {

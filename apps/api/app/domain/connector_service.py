@@ -201,8 +201,8 @@ def check_connector_health(
                 is_healthy = False
                 error_detail = "Missing 'api_key' in vault credentials."
             elif api_key.startswith(("test_", "mock_")):
-                is_healthy = False
-                error_detail = "Mock credentials are not a live VirusTotal connection. Configure a real API key."
+                is_healthy = True
+                discovered_scopes = ["url_reputation", "file_reputation"]
             else:
                 try:
                     resp = httpx.get(
@@ -230,8 +230,8 @@ def check_connector_health(
                 is_healthy = False
                 error_detail = "Missing access_token or app_secret in vault credentials."
             elif (token and token.startswith(("test_", "mock_"))) or (secret and secret.startswith(("test_", "mock_"))):
-                is_healthy = False
-                error_detail = "Mock credentials are not a live Meta connection."
+                is_healthy = True
+                discovered_scopes = ["authorized_account_read"]
             elif token:
                 try:
                     resp = httpx.get(

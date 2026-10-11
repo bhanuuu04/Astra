@@ -251,14 +251,20 @@ def test_tenant_a_cannot_simulate_tenant_b_response_action(client: TestClient, t
     assert response.json()["detail"] == "Response action not found"
 
 
-def test_demo_reset_disabled_by_default(client: TestClient, tenants_setup):
+def test_demo_reset_disabled_by_default(client: TestClient, tenants_setup, monkeypatch):
     """Verify that /api/v1/demo/reset is disabled and rejects callers."""
-    tenant_a_id = tenants_setup["tenant_a_id"]
-    admin_headers = make_auth_header(tenant_a_id, role=ROLE_ORG_ADMIN, actor=f"admin-{tenant_a_id}@tenant.org")
+    from app.core.config import get_settings
+    get_settings.cache_clear()
+    monkeypatch.setenv("ALLOW_DEMO_RESET", "false")
+    try:
+        tenant_a_id = tenants_setup["tenant_a_id"]
+        admin_headers = make_auth_header(tenant_a_id, role=ROLE_ORG_ADMIN, actor=f"admin-{tenant_a_id}@tenant.org")
 
-    response = client.post("/api/v1/demo/reset", headers=admin_headers)
-    assert response.status_code == 403
-    assert "Demo environment reset is disabled" in response.json()["detail"]
+        response = client.post("/api/v1/demo/reset", headers=admin_headers)
+        assert response.status_code == 403
+        assert "Demo environment reset is disabled" in response.json()["detail"]
+    finally:
+        get_settings.cache_clear()
 
 
 def test_unverified_raw_bearer_token_rejected_401(client: TestClient, tenants_setup):

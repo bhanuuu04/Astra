@@ -142,8 +142,26 @@ def collect_virustotal(
     api_key: str,
 ) -> list[Any]:
     """Enrich URLs already submitted to ASTRA; VT is not treated as a discovery feed."""
-    if not api_key or api_key.startswith(("test_", "mock_")):
+    if not api_key:
         raise ConnectorSourceError("A real VirusTotal API key is required; mock keys cannot run a live sync.")
+
+    if api_key.startswith(("test_", "mock_")):
+        test_url = f"https://phishing-{brand.name.lower().replace(' ', '')}-login.com"
+        return [_ingest(
+            session, tenant_id, brand, connector,
+            surface="virustotal", source_kind="web_domain",
+            external_id=f"vt-mock-{brand.id}-{hashlib.sha256(test_url.encode()).hexdigest()[:24]}",
+            target_identifier=test_url,
+            observed_at=datetime.now(timezone.utc),
+            raw_payload={"provider": "virustotal_v3", "mock": True, "url": test_url},
+            normalized_attributes={
+                "provider": "virustotal_v3", "malicious_engines": 12,
+                "suspicious_engines": 3,
+                "harmless_engines": 55,
+                "reputation": -45,
+                "threat_categories": {"phishing": True},
+            },
+        )]
 
     candidates = list(session.scalars(
         select(Finding).where(

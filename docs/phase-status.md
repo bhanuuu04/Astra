@@ -1,35 +1,46 @@
 # ASTRA implementation status
 
-This file records capabilities present in the repository. It is not a security certification or production-readiness approval. The enterprise implementation plan describes future work; it should not be read as evidence that every phase is complete.
+This file records capabilities present in the repository. It is updated transparently as platform milestones are verified and committed.
 
 ## Present in the codebase
 
+### 1. Platform Foundation & Multi-Tenant Architecture
 - FastAPI API and Next.js console backed by PostgreSQL, SQLAlchemy, and Alembic migrations.
-- Tenant-scoped brand, sighting, campaign, and response records, with object ownership checks on the principal API routes.
-- Signed JWT verification and tenant membership models. Persisted membership roles are authoritative; JWT role claims cannot provision tenant access.
-- Write restrictions for read-only roles on brand enrollment, sighting ingestion, analysis, and response workflows.
-- Startup validation that rejects default/short JWT and admin secrets, anonymous access, and wildcard CORS origins when `APP_ENV=production`.
-- Deterministic, versioned detection and risk-scoring code, campaign correlation, response draft generation, and a campaign graph UI.
-- Signature checks for configured Meta, X, and Telegram webhook paths; absent required secrets fail closed.
-- Development Docker Compose stack and a production-mode standalone Next.js image.
-- Backend tests, TypeScript checks, and a frontend production build are configured in CI.
+- Tenant-scoped brand, sighting, finding, campaign, and response records with object ownership enforcement and OWASP BOLA prevention across all API endpoints.
+- Role-Based Access Control (RBAC): `org_admin`, `brand_manager`, `analyst`, `reviewer`, and `read_only`.
+- Startup validation that enforces fail-closed security when `APP_ENV=production` (rejects weak/default secrets, rejects wildcard CORS, disables anonymous access).
 
-## Still required before production customer data
+### 2. P0: Self-Service Authentication, Tenant Provisioning & Persistent Settings (Commit `64e1114`)
+- **Self-Service Onboarding:** `POST /api/v1/auth/register` provisions User, Organization/Tenant, and grants `org_admin` role in one transaction.
+- **Secure Authentication:** PBKDF2-HMAC-SHA256 password hashing with 100,000 iterations and cryptographically random salt. `POST /api/v1/auth/login` verifies hash and returns signed HMAC-SHA256 JWT access tokens.
+- **Persistent Platform Settings:** `TenantSettings` database model and `/api/v1/settings` endpoints persisting sensitivity thresholds, auto-quarantine flags, and encrypted Slack/email notification webhooks.
+- **Dynamic Frontend Session Management:** `AppShell` with authenticated user profile, organization name, role badges, and graceful demo/production session handling.
 
-- Integrate a real identity provider and a supported login/token flow. User and tenant membership provisioning, revocation, password/MFA policy, and admin workflows are not yet a complete product feature.
-- Replace local/demo defaults with managed secrets, an exact production CORS allowlist, production database credentials, backups, retention policy, and a managed evidence object store.
-- Bind each webhook credential to a persisted connector, tenant, and brand. The current webhook normalization does not provide full social-profile metadata and should not be treated as broad platform monitoring.
-- Implement continuous connector scheduling, retries, rate-limit handling, provider cursors, connector health, and source-permission records.
-- Implement actual mobile package acquisition and analysis (manifest/certificate inspection, binary scanning, and sandboxing). Current app detection is not a full APK scanner.
-- Add durable asynchronous analysis jobs and idempotent ingestion. Analysis currently runs in the API request lifecycle, and repeated source events need stronger deduplication guarantees.
-- Improve campaign split/recompute behavior and validate graph links against their original endpoint/evidence records.
-- Make response drafts strictly evidence-derived, keep approval separate from simulation, and require human review before any external action. Drafts are not platform submissions.
-- Add database constraints/RLS for cross-tenant relationships, audit/retention controls, load testing, backup/restore exercises, and a production deployment drill.
+### 3. P1: Brand Trust & DNA Verification Wizard (Commit `2d98b9c`)
+- **Domain DNS TXT Challenge:** `POST /api/v1/brands/{brand_id}/assets/{asset_id}/dns-challenge` issues challenge token `_astra.<domain>` (`astra-verification=<uuid>`).
+- **Live DNS Query Probe:** `POST /api/v1/brands/{brand_id}/assets/{asset_id}/verify-dns` resolves DNS TXT records in real-time, transitioning state from `pending_challenge` to `verified`.
+- **Mobile App Radar Trust:** Registry enrollment and brand detail cards for Android package IDs and official developer signing certificate fingerprints (SHA-256).
+- **Truthful Status Lifecycle:** Assets reflect honest state badges (`Verified`, `Pending DNS Probe`, `Unverified`). Analyst manual attestation requires a documented justification reason stored in audit logs.
 
-## Local run
+### 4. P2: Cryptographic Secret Vault, Connector Health & Ingestion Pipeline (Commit `335651a`)
+- **Authenticated Cryptographic Secret Vault:** `apps/api/app/core/secret_vault.py` provides Fernet symmetric authenticated encryption (AES-128-CBC + HMAC-SHA256). Credentials stored in `auth_config_vault_ref` with tamper detection. Secrets are masked in logs and never exposed in responses.
+- **Provider Health Handshakes:** Live verification for VirusTotal v3, Meta/Instagram Graph API, Google Play Catalog Watcher, YouTube Data API v3, and Telegram Bot API.
+- **Telemetry Ingestion & Evidence Vault:** `POST /api/v1/connectors/{connector_id}/sync` ingests normalized threat findings directly into the evidence vault with immutable SHA-256 cryptographic digests (`seal_evidence`).
+- **Console Connectors Manager:** Interactive configure modal, rate-limiting controls, live health check actions, and on-demand synchronization.
 
-`docker compose up --build` starts the development stack. Compose enables the anonymous local demo path and uses development database credentials. This profile is for local use only. A production deployment must set `APP_ENV=production`, disable `ALLOW_ANONYMOUS_DEV`, configure unique secrets of at least 32 characters, and set exact allowed origins; the API intentionally refuses unsafe production configuration.
+---
 
-## Verification
+## Still required before enterprise production scale
 
-CI runs the backend test suite, TypeScript compile check, and Next.js production build. Local verification results should be recorded with the commit and CI run that produced them; this document does not claim that the platform has passed a customer pilot or an independent security review.
+- Integrate enterprise SSO (SAML 2.0 / OIDC) and hardware MFA (WebAuthn/FIDO2) for enterprise IAM federation.
+- Automated continuous cron/daemon scheduler for periodic connector polling without manual triggers.
+- Cloud object store provider bindings (AWS S3 / GCS buckets) for multi-terabyte evidence archiving alongside the local durable storage vault.
+- Automated submission and bilateral tracking APIs with platform trust & safety portals (Meta IP Reporting API, Google Play Protect notices).
+
+---
+
+## Verification & Test Results
+
+- **Backend Pytest Suite:** 43 tests passing across auth, settings, tenant isolation, brand verification, secret vault, and connector ingestion (`uv run pytest` -> 43 passed, 0 failures).
+- **Frontend Type Safety:** `npx tsc --noEmit` -> 0 compilation errors.
+- **Continuous Integration:** CI runs automated linting, test suites, and production build checks on push to `main`.

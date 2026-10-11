@@ -12,6 +12,8 @@ def live() -> dict[str, str]:
 
 
 @router.get("/health/ready")
+@router.get("/healthz")
+@router.get("/health")
 def ready() -> dict[str, str]:
     try:
         with engine.connect() as connection:
@@ -19,3 +21,4 @@ def ready() -> dict[str, str]:
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database is not ready") from exc
     return {"status": "ready"}
+

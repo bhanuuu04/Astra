@@ -2,15 +2,15 @@
 
 ### Digital Risk Protection, connected by evidence.
 
-ASTRA is an AI-assisted Social & App Monitoring platform for detecting fake profiles, impersonation, scam accounts, lookalike websites, and suspicious mobile apps. It is designed to connect related sightings into explainable campaigns so analysts can understand exposure, review evidence, and prepare an authorized response from one workspace.
+ASTRA is an early-stage Digital Risk Protection platform for reviewing suspected fake profiles, impersonation, scam accounts, lookalike websites, and suspicious mobile apps. It provides a web console, FastAPI service, tenant-scoped records, deterministic analysis, campaign linking, and response-draft workflows.
 
-> **Hackathon promise:** Turn scattered social, web, and app sightings into one evidence-backed campaign and an analyst-ready response packet.
+> **Readiness:** ASTRA is not yet ready for production customer data. Source coverage is limited, detection is primarily heuristic, and production identity, connector operations, and end-to-end evidence handling still require implementation and deployment validation.
+
+For the authoritative architectural specification and engineering roadmap, see [ASTRA Enterprise Platform Implementation Plan](ASTRA%20Enterprise%20Platform%20Implementation%20Plan.md).
 
 ## Current project status
 
-The repository now contains the **Phase 1 foundation scaffold**: a Next.js dashboard, FastAPI service, PostgreSQL/pgvector Compose setup, SQLAlchemy models, initial Alembic migration, health endpoints, and a database-backed overview endpoint.
-
-Phases 2–6 remain planned. Brand enrollment, evidence ingestion, detectors, campaign linking, response generation, and demo fixtures are not implemented yet. The starter has not been runtime-verified in this environment.
+Implemented code and planned enterprise capabilities are tracked separately in [docs/phase-status.md](docs/phase-status.md). A roadmap describes the intended destination; it does not certify production readiness.
 
 ## Start locally
 
@@ -35,7 +35,7 @@ Open:
 - API readiness: http://localhost:8000/health/ready
 - PostgreSQL: localhost:5433 (local development only)
 
-The first start builds the containers, waits for PostgreSQL, applies the initial Alembic migration, and starts the web console and API. The overview currently shows the database-backed counts for brands, sightings, and campaigns; until seed/ingestion arrives, these counts are zero. If the API is unavailable, the console shows a connection notice.
+The first start builds the containers, waits for PostgreSQL, applies Alembic migrations, and starts the web console and API. Local demo access is enabled only by the Compose development configuration. Do not expose this setup to the public internet.
 
 Stop the stack with Ctrl+C. Local development credentials in `compose.yaml` are for a local-only environment and must not be reused for a public deployment.
 

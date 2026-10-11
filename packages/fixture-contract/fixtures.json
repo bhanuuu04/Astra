@@ -1,0 +1,239 @@
+{
+  "_version": "2.0.0",
+  "_label": "SYNTHETIC DEMO DATA — NilaPay fictional brand, all evidence fabricated",
+
+  "tenant": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "name": "Demo Tenant"
+  },
+
+  "brand": {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "name": "NilaPay",
+    "legalEntity": "NilaPay Financial Technologies Pvt. Ltd.",
+    "status": "active",
+    "officialDomains": ["nilapay.in", "nilapay.app", "support.nilapay.in"],
+    "officialHandles": [
+      { "platform": "x_twitter",  "handle": "nilapay_official", "verified": true },
+      { "platform": "instagram",  "handle": "nilapay.official", "verified": true },
+      { "platform": "telegram",   "handle": "nilapay_support_bot", "verified": true },
+      { "platform": "linkedin",   "handle": "nilapay-fintech", "verified": true }
+    ],
+    "officialMobileApps": [
+      {
+        "platform": "android",
+        "name": "NilaPay — Send & Receive",
+        "packageName": "in.nilapay.app",
+        "certFingerprint": "SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99",
+        "storeUrl": "https://play.google.com/store/apps/details?id=in.nilapay.app"
+      }
+    ],
+    "supportPhone": "+91-1800-420-0042",
+    "upiIds": ["nilapay@axisbank", "support@nilapay"],
+    "protectedExecutives": [
+      { "name": "Priya Nair",   "role": "CEO", "handles": ["priya_nair_nilapay"] },
+      { "name": "Rahul Mehta",  "role": "CTO", "handles": ["rahul_mehta_cto"] }
+    ]
+  },
+
+  "sightings": [
+    {
+      "id": "00000000-0000-0000-0000-000000000010",
+      "surface": "instagram",
+      "sourceKind": "fixture",
+      "observedAt": "2026-10-10T08:15:00Z",
+      "isBenign": false,
+      "expectedCampaign": "campaign-alpha",
+      "expectedSignalTypes": ["brand_impersonation", "deceptive_verification"],
+      "sharedPivots": ["logo_hash:abc123def456", "phone:+911800420fraud"],
+      "sender": {
+        "platform": "instagram",
+        "username": "nilapay.support.helpdesk",
+        "displayName": "NilaPay Support ✓",
+        "bio": "Official NilaPay Customer Assistance. DM for urgent KYC issues.",
+        "followerCount": 82,
+        "followingCount": 1540,
+        "isVerifiedBadge": false,
+        "isFakeBadgeEmoji": true,
+        "avatarHash": "abc123def456"
+      },
+      "content": "URGENT: Your NilaPay KYC is expiring in 24 hours. Failure to re-verify will freeze your wallet. Re-verify immediately at https://nilapay-kyc-verify.top/rekyc. Call support: +91-1800-420-fraud",
+      "rawRef": "https://www.instagram.com/nilapay.support.helpdesk"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000011",
+      "surface": "web",
+      "sourceKind": "fixture",
+      "observedAt": "2026-10-09T14:30:00Z",
+      "isBenign": false,
+      "expectedCampaign": "campaign-alpha",
+      "expectedSignalTypes": ["phishing_domain_tld", "brand_impersonation"],
+      "sharedPivots": ["upi:fraud-upi@axisbank", "phone:+911800420fraud"],
+      "sender": {
+        "platform": "web",
+        "username": "nilapay-kyc-verify.top",
+        "displayName": "NilaPay KYC Verification Portal",
+        "followerCount": 0,
+        "followingCount": 0,
+        "isVerifiedBadge": false
+      },
+      "content": "Welcome to NilaPay eKYC portal. Enter your Aadhaar number, PAN card details and OTP to complete verification. UPI payment support: fraud-upi@axisbank. Helpline: +91-1800-420-fraud",
+      "rawRef": "https://nilapay-kyc-verify.top/rekyc",
+      "domainAge": "3 days",
+      "registrar": "GoDaddy LLC",
+      "logoHash": "abc123def456"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000012",
+      "surface": "apk",
+      "sourceKind": "fixture",
+      "observedAt": "2026-10-08T22:10:00Z",
+      "isBenign": false,
+      "expectedCampaign": "campaign-alpha",
+      "expectedSignalTypes": ["counterfeit_mobile_app"],
+      "sharedPivots": ["upi:fraud-upi@axisbank", "logo_hash:abc123def456"],
+      "sender": {
+        "platform": "apk_sideload",
+        "username": "in.nilapay.recharge.offers",
+        "displayName": "NilaPay Recharge & Cashback",
+        "followerCount": 0,
+        "followingCount": 0,
+        "isVerifiedBadge": false
+      },
+      "content": "APK sideload promoted via Telegram. Package: in.nilapay.recharge.offers. Cert fingerprint mismatch vs Brand DNA. Requests READ_SMS, READ_CONTACTS, SEND_SMS permissions. Embedded UPI payee: fraud-upi@axisbank",
+      "rawRef": "https://t.me/nilapay_cashback_bot/offer.apk",
+      "packageName": "in.nilapay.recharge.offers",
+      "certFingerprint": "SHA256:FF:EE:DD:CC:BB:AA:99:88:77:66:55:44:33:22:11:00:FF:EE:DD:CC:BB:AA:99:88:77:66:55:44:33:22:11:00",
+      "sha256": "9f83e204c3210b4105aef89d1b702ec45819024f2b1c8a147e83492750e26d83",
+      "permissions": ["READ_SMS", "READ_CONTACTS", "SEND_SMS", "ACCESS_FINE_LOCATION"]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000013",
+      "surface": "telegram",
+      "sourceKind": "fixture",
+      "observedAt": "2026-10-10T11:05:00Z",
+      "isBenign": false,
+      "expectedCampaign": "campaign-alpha",
+      "expectedSignalTypes": ["scam_account", "credential_harvesting"],
+      "sharedPivots": ["upi:fraud-upi@axisbank", "phone:+911800420fraud"],
+      "sender": {
+        "platform": "telegram",
+        "username": "NilaPay_Cashback_Rewards",
+        "displayName": "NilaPay Cashback & Rewards Hub",
+        "followerCount": 1240,
+        "followingCount": 0,
+        "isVerifiedBadge": false
+      },
+      "content": "🎉 NilaPay is giving FLAT ₹500 cashback on first recharge! Just send ₹1 to fraud-upi@axisbank to verify your account. Support: +91-1800-420-fraud. Offer valid 24 hours only!",
+      "rawRef": "https://t.me/NilaPay_Cashback_Rewards"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000020",
+      "surface": "instagram",
+      "sourceKind": "fixture",
+      "observedAt": "2026-10-09T17:45:00Z",
+      "isBenign": true,
+      "expectedCampaign": null,
+      "expectedSignalTypes": [],
+      "sharedPivots": [],
+      "sender": {
+        "platform": "instagram",
+        "username": "nilapay_fans_india",
+        "displayName": "NilaPay Fans India 🇮🇳",
+        "bio": "Unofficial fan community for NilaPay users. Not affiliated with NilaPay.",
+        "followerCount": 3200,
+        "followingCount": 890,
+        "isVerifiedBadge": false,
+        "isFakeBadgeEmoji": false
+      },
+      "content": "Loving the new NilaPay UPI interface! The cashback feature is amazing. This is a fan page - we are NOT affiliated with NilaPay official. Visit nilapay.in for official support.",
+      "rawRef": "https://www.instagram.com/nilapay_fans_india",
+      "_note": "BENIGN near-match — fan page, must stay OUTSIDE campaign-alpha"
+    }
+  ],
+
+  "expectedCampaigns": [
+    {
+      "id": "campaign-alpha",
+      "title": "NilaPay KYC Scam Campaign — Multi-surface",
+      "status": "proposed",
+      "memberSightingIds": [
+        "00000000-0000-0000-0000-000000000010",
+        "00000000-0000-0000-0000-000000000011",
+        "00000000-0000-0000-0000-000000000012",
+        "00000000-0000-0000-0000-000000000013"
+      ],
+      "edges": [
+        {
+          "fromSightingId": "00000000-0000-0000-0000-000000000010",
+          "toSightingId": "00000000-0000-0000-0000-000000000011",
+          "pivotType": "logo_hash",
+          "confidence": 0.92,
+          "strength": "medium",
+          "reason": "Identical avatar perceptual hash (abc123def456) used on both fake Instagram profile and phishing web page logo"
+        },
+        {
+          "fromSightingId": "00000000-0000-0000-0000-000000000011",
+          "toSightingId": "00000000-0000-0000-0000-000000000012",
+          "pivotType": "upi",
+          "confidence": 1.0,
+          "strength": "strong",
+          "reason": "Exact UPI ID 'fraud-upi@axisbank' found on phishing web page and embedded in counterfeit APK payee config"
+        },
+        {
+          "fromSightingId": "00000000-0000-0000-0000-000000000013",
+          "toSightingId": "00000000-0000-0000-0000-000000000011",
+          "pivotType": "upi",
+          "confidence": 1.0,
+          "strength": "strong",
+          "reason": "Exact UPI ID 'fraud-upi@axisbank' reused across Telegram scam channel and phishing web page"
+        },
+        {
+          "fromSightingId": "00000000-0000-0000-0000-000000000010",
+          "toSightingId": "00000000-0000-0000-0000-000000000013",
+          "pivotType": "phone",
+          "confidence": 0.98,
+          "strength": "strong",
+          "reason": "Same fraudulent support phone '+91-1800-420-fraud' promoted on both fake Instagram profile and Telegram scam channel"
+        }
+      ],
+      "riskScore": 94.0,
+      "scoreBreakdown": {
+        "identity_similarity": 0.96,
+        "harm_weight": 0.98,
+        "exposure": 0.82,
+        "freshness": 1.0
+      }
+    }
+  ],
+
+  "benignFixtures": [
+    {
+      "sightingId": "00000000-0000-0000-0000-000000000020",
+      "reason": "Fan/community page explicitly disclaims NilaPay affiliation; no payment pivots, no credential requests, no phishing domain. Must NOT appear in campaign-alpha.",
+      "ablationNote": "With Brand DNA enabled: LOW risk (fan page recognized). Without Brand DNA: would be flagged as medium-risk impersonation. This delta proves Brand DNA value."
+    }
+  ],
+
+  "recurrenceFixture": {
+    "id": "00000000-0000-0000-0000-000000000030",
+    "surface": "web",
+    "sourceKind": "fixture",
+    "observedAt": "2026-10-11T00:00:00Z",
+    "isBenign": false,
+    "expectedCampaign": "campaign-alpha",
+    "expectedSignalTypes": ["phishing_domain_tld", "brand_impersonation"],
+    "sharedPivots": ["upi:fraud-upi@axisbank"],
+    "_note": "Recurrence fixture — same UPI pivot reappears on a new domain 2 days later; links back to campaign-alpha to demonstrate infrastructure recurrence metric",
+    "sender": {
+      "platform": "web",
+      "username": "nilapay-ekyc-portal.com",
+      "displayName": "NilaPay eKYC Portal",
+      "followerCount": 0,
+      "followingCount": 0,
+      "isVerifiedBadge": false
+    },
+    "content": "Complete your NilaPay eKYC renewal. Pay ₹1 verification fee to fraud-upi@axisbank. Helpline: support@nilapay-ekyc-portal.com",
+    "rawRef": "https://nilapay-ekyc-portal.com"
+  }
+}

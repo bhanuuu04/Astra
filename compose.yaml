@@ -1,6 +1,6 @@
 services:
   db:
-    image: pgvector/pgvector:pg18-trixie
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: astra
       POSTGRES_USER: astra

@@ -15,3 +15,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+.freebuff/
+apps/api/storage/
+apps/web/tsconfig.tsbuildinfo
+gemini_generated_video_d1cfd95c.mp4

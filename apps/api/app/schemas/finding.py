@@ -3,13 +3,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FindingIngest(BaseModel):
     """Single finding ingestion request."""
     brand_id: uuid.UUID
-    surface: str = Field(..., description="Platform: instagram, x, google_play, telegram, etc.")
+    connector_id: Optional[uuid.UUID] = None
+    surface: str = Field(..., description="Platform: instagram, x, google_play, telegram, virustotal, etc.")
     external_id: str = Field(..., description="External platform identifier")
     target_identifier: str = Field(..., description="Handle, package name, or URL being reported")
     observed_at: datetime
@@ -59,8 +60,7 @@ class FindingResponse(BaseModel):
     # Optional nested signal breakdown
     signals: Optional[List[FindingTriageSignal]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FindingListResponse(BaseModel):

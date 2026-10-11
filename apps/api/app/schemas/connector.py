@@ -3,14 +3,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConnectorCreate(BaseModel):
     """Create a new connector."""
-    connector_type: str = Field(..., description="Type: meta_graph, google_play, virustotal, telegram_bot, x_twitter")
+    connector_type: str = Field(..., description="Type: meta_graph, google_play, virustotal, telegram_bot, youtube, x_twitter")
     name: str = Field(..., min_length=3, max_length=128, description="Human-readable connector name")
-    auth_config: Optional[Dict[str, str]] = Field(default=None, description="Authentication credentials (encrypted)")
+    auth_config: Optional[Dict[str, str]] = Field(default=None, description="Authentication credentials (encrypted into secret vault)")
     permitted_scopes: Optional[List[str]] = Field(default_factory=list, description="OAuth scopes or permissions")
     rate_limit_rpm: Optional[int] = Field(default=60, description="Rate limit in requests per minute")
 
@@ -25,7 +25,7 @@ class ConnectorUpdate(BaseModel):
 
 
 class ConnectorResponse(BaseModel):
-    """Connector response."""
+    """Connector response with health and sync telemetry."""
     id: uuid.UUID
     tenant_id: uuid.UUID
     connector_type: str
@@ -38,18 +38,26 @@ class ConnectorResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     
-    # DO NOT expose auth_config_vault_ref in response
-
-    class Config:
-        from_attributes = True
+    # DO NOT expose auth_config_vault_ref or secret credentials in response
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConnectorHealthCheck(BaseModel):
     """Connector health check response."""
     connector_id: uuid.UUID
-    status: str  # active, degraded, error
+    status: str  # active, degraded, error, unconfigured
     last_check: datetime
     next_sync_expected: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+
+class ConnectorSyncResponse(BaseModel):
+    """Result of running live telemetry ingestion sync on a connector."""
+    connector_id: uuid.UUID
+    status: str
+    synced_findings_count: int
+    finding_ids: List[uuid.UUID] = Field(default_factory=list)
+    synced_at: datetime
     error_message: Optional[str] = None
 
 

@@ -956,10 +956,20 @@ export type Connector = {
   connector_type: string;
   status: 'active' | 'degraded' | 'error' | 'unconfigured';
   rate_limit_rpm: number;
+  permitted_scopes?: string[];
   last_successful_sync_at?: string | null;
   last_health_check_at?: string | null;
   error_message?: string | null;
   created_at: string;
+};
+
+export type ConnectorSyncResponse = {
+  connector_id: string;
+  status: string;
+  synced_findings_count: number;
+  finding_ids: string[];
+  synced_at: string;
+  error_message?: string | null;
 };
 
 export async function listConnectors(): Promise<{ connectors: Connector[]; total: number }> {
@@ -970,6 +980,39 @@ export async function listConnectors(): Promise<{ connectors: Connector[]; total
   } catch (error) {
     throw error;
   }
+}
+
+export async function createConnector(payload: {
+  connector_type: string;
+  name: string;
+  auth_config?: Record<string, string>;
+  rate_limit_rpm?: number;
+  permitted_scopes?: string[];
+}): Promise<Connector> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return await res.json();
+}
+
+export async function updateConnector(
+  id: string,
+  payload: {
+    name?: string;
+    auth_config?: Record<string, string>;
+    rate_limit_rpm?: number;
+    permitted_scopes?: string[];
+    status?: string;
+  }
+): Promise<Connector> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return await res.json();
 }
 
 export async function checkConnectorHealth(id: string): Promise<Connector | null> {
@@ -983,7 +1026,7 @@ export async function checkConnectorHealth(id: string): Promise<Connector | null
         connector_type: 'template',
         status: 'unconfigured',
         rate_limit_rpm: 60,
-        error_message: 'Demo template — not connected to an authorized data feed.',
+        error_message: 'Demo template — configure credentials to connect to live feed.',
         created_at: new Date().toISOString(),
       };
     }
@@ -999,6 +1042,19 @@ export async function checkConnectorHealth(id: string): Promise<Connector | null
   } catch (error) {
     throw error;
   }
+}
+
+export async function syncConnector(id: string): Promise<ConnectorSyncResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors/${id}/sync`, {
+    method: "POST",
+  });
+  return await res.json();
+}
+
+export async function deleteConnector(id: string): Promise<void> {
+  await astraFetch(`${apiBaseUrl}/api/v1/connectors/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {

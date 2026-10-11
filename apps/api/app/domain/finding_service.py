@@ -251,7 +251,7 @@ def ingest_finding(
     finding = Finding(
         tenant_id=tenant_id,
         brand_id=finding_data.brand_id,
-        connector_id=None,  # TODO: resolve from ingestion context
+        connector_id=finding_data.connector_id,
         source_kind=finding_data.source_kind,
         surface=finding_data.surface,
         external_id=finding_data.external_id,

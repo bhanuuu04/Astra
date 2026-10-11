@@ -4,7 +4,7 @@
 
 ASTRA is an early-stage Digital Risk Protection platform for reviewing suspected fake profiles, impersonation, scam accounts, lookalike websites, and suspicious mobile apps. It provides a web console, FastAPI service, tenant-scoped records, deterministic analysis, campaign linking, and response-draft workflows.
 
-> **Readiness:** ASTRA is not yet ready for production customer data. Source coverage is limited, detection is primarily heuristic, and production identity, connector operations, and end-to-end evidence handling still require implementation and deployment validation.
+> **Readiness:** ASTRA is not yet ready for production customer data. Some on-demand provider reads are implemented (YouTube search, Telegram bot updates, Google Play reviews for apps the account can access, and VirusTotal enrichment of analyst-submitted URLs). There is no scheduled monitoring, broad Meta/Instagram account discovery, public Play Store search, or automated takedown submission. Connector findings are not yet correlated into the campaign graph. Detection is primarily heuristic, and production identity, evidence storage, and deployment still require validation.
 
 For the authoritative architectural specification and engineering roadmap, see [ASTRA Enterprise Platform Implementation Plan](ASTRA%20Enterprise%20Platform%20Implementation%20Plan.md).
 

@@ -29,7 +29,8 @@ body { font-family: var(--font-sans); }
 
 .astra-shell {
   background:
-    radial-gradient(ellipse at 85% -12%, rgba(42, 104, 124, 0.10), transparent 38%),
+    radial-gradient(ellipse at 82% -14%, rgba(105, 83, 190, 0.11), transparent 36%),
+    radial-gradient(ellipse at 8% 70%, rgba(31, 111, 130, 0.055), transparent 34%),
     var(--astra-bg);
 }
 

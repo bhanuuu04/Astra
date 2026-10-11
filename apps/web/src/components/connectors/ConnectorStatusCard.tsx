@@ -97,6 +97,7 @@ export function ConnectorStatusCard({
   isDeleting = false,
 }: ConnectorStatusCardProps) {
   const isTemplate = connector.id.startsWith('conn-');
+  const isPushConnector = ['meta_graph', 'meta_graph_api', 'meta_webhook', 'instagram'].includes(connector.connector_type.toLowerCase());
   const config = STATUS_CONFIG[connector.status] || STATUS_CONFIG.unconfigured;
   const Icon = config.icon;
 
@@ -188,6 +189,11 @@ export function ConnectorStatusCard({
         {connector.error_message && (
           <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 mb-4">
             <p className="text-xs text-rose-300 font-mono leading-relaxed">{connector.error_message}</p>
+          </div>
+        )}
+        {isPushConnector && !isTemplate && (
+          <div className="mb-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2.5">
+            <p className="text-xs leading-relaxed text-cyan-200">Push/webhook source. Configure Meta webhook delivery separately; ASTRA does not poll public Instagram accounts.</p>
           </div>
         )}
       </div>

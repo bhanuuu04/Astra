@@ -1,48 +1,61 @@
-import logging
-import re
-from typing import Any, Dict, List, Optional
+"""Android Publisher API access for customer-owned, enrolled applications."""
+from __future__ import annotations
 
-logger = logging.getLogger(__name__)
+from typing import Any, Optional
+from urllib.parse import quote
+
+import httpx
+
+from app.integrations.connector_sources import ConnectorSourceError, google_play_access_token
 
 
 def inspect_app_listing(
     package_name: str,
     brand_name: str,
     service_account_json: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Inspect an Android application listing for impersonation and review sentiment anomalies."""
-    is_brand_mimic = brand_name.lower().replace(" ", "") in package_name.lower().replace(".", "")
-    is_rogue = "fake" in package_name.lower() or "patch" in package_name.lower() or "updater" in package_name.lower()
+) -> dict[str, Any]:
+    """Fetch actual recent reviews for an app accessible to the configured account.
 
-    # Suspicious user reviews flags
-    mock_reviews = [
-        {"user": "Rahul K.", "rating": 1, "comment": "Beware! This app asked for my bank UPI PIN and SMS OTP. Completely fake!", "sentiment": "fraud_alert"},
-        {"user": "Sneha M.", "rating": 1, "comment": "Not official Astra! Lost funds right after installation.", "sentiment": "fraud_alert"},
-        {"user": "BotUser_99", "rating": 5, "comment": "Very fast update, solved my account suspension instantly.", "sentiment": "inorganic_promotion"},
-    ]
+    The Android Publisher API is scoped to apps a developer account can access;
+    it is not a public Play Store search API.
+    """
+    if not service_account_json:
+        raise ConnectorSourceError("Google Play service-account credentials are not configured.")
+    token = google_play_access_token(service_account_json)
+    try:
+        response = httpx.get(
+            f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{quote(package_name, safe='')}/reviews",
+            params={"maxResults": 100},
+            headers={"authorization": f"Bearer {token}"},
+            timeout=15.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPError as exc:
+        raise ConnectorSourceError(f"Google Play review lookup failed for {package_name}: {exc}") from exc
 
-    scam_keywords = ["fake", "beware", "lost", "stole", "otp", "pin", "scam", "fraud"]
-    fraud_review_count = sum(
-        1 for r in mock_reviews if any(kw in r["comment"].lower() for kw in scam_keywords)
-    )
-
-    risk_score = 30
-    if is_brand_mimic:
-        risk_score += 35
-    if is_rogue:
-        risk_score += 25
-    if fraud_review_count > 0:
-        risk_score += 10
+    reviews = []
+    for review in payload.get("reviews", []):
+        comments = review.get("comments") or []
+        user_comment = (comments[-1].get("userComment") or {}) if comments else {}
+        text = user_comment.get("text", "")
+        lowered = text.casefold()
+        indicators = [word for word in ("fake", "scam", "fraud", "otp", "stole", "phishing", "impersonat") if word in lowered]
+        reviews.append({
+            "review_id": review.get("reviewId"),
+            "text": text,
+            "star_rating": user_comment.get("starRating"),
+            "language": user_comment.get("reviewerLanguage"),
+            "last_modified": user_comment.get("lastModified"),
+            "risk_indicators": indicators,
+        })
 
     return {
-        "source": "google_play_analyzer",
+        "source": "google_play_android_publisher_api",
+        "is_live_api": True,
         "package_name": package_name,
         "target_brand": brand_name,
-        "is_official_developer": False if is_rogue else True,
-        "risk_score": min(risk_score, 99),
-        "verdict": "high_risk_impersonation" if risk_score >= 80 else "benign",
-        "reviews_analyzed": len(mock_reviews),
-        "fraud_review_ratio": f"{fraud_review_count}/{len(mock_reviews)}",
-        "suspicious_reviews": mock_reviews,
-        "recommendation": "File Google Play Protect takedown notice and add SHA-256 to malicious APK blacklist." if risk_score >= 80 else "Monitor for unauthorized package updates.",
+        "reviews_analyzed": len(reviews),
+        "reviews": reviews,
+        "note": "Reviews are available only for apps the configured Android Publisher account can access; this endpoint does not search public Play listings.",
     }

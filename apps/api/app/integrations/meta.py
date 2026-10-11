@@ -33,14 +33,10 @@ async def get_instagram_user_metadata(user_id: str, access_token: Optional[str] 
     token = access_token or get_settings().meta_page_access_token
     if not token:
         return {
-            "source": "meta_graph_api_mock",
+            "source": "meta_graph_api",
             "is_live_api": False,
             "user_id": user_id,
-            "username": f"user_{user_id}",
-            "name": "Simulated Instagram Account",
-            "followers_count": 140,
-            "is_verified": False,
-            "note": "Local mock metadata. Configure META_PAGE_ACCESS_TOKEN for live Graph API sync.",
+            "error": "An authorized Meta access token is required. No account metadata was fetched.",
         }
 
     try:

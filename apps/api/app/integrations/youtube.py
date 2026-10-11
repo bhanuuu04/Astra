@@ -21,8 +21,8 @@ async def search_brand_impersonation(
     key = api_key or get_settings().youtube_api_key
     query = f"{brand_name} {query_suffix}".strip()
 
-    if not key:
-        return _mock_youtube_results(brand_name, query)
+    if not key or key.startswith(("test_", "mock_")):
+        raise ValueError("A real YouTube Data API key is required; ASTRA does not return simulated search results from the live scan endpoint.")
 
     try:
         params = {
@@ -75,51 +75,10 @@ async def search_brand_impersonation(
                     "items": items,
                 }
             else:
-                logger.warning(f"YouTube API returned {resp.status_code}: {resp.text}")
-                return _mock_youtube_results(brand_name, query)
+                logger.warning(f"YouTube API returned status {resp.status_code}.")
+                raise ValueError(f"YouTube Data API request failed with status {resp.status_code}.")
     except Exception as e:
-        logger.warning(f"Error querying YouTube API: {e}")
-        return _mock_youtube_results(brand_name, query)
-
-
-def _mock_youtube_results(brand_name: str, query: str) -> Dict[str, Any]:
-    """Realistic demonstration telemetry when YOUTUBE_API_KEY is not configured."""
-    return {
-        "source": "youtube_telemetry_simulator",
-        "is_live_api": False,
-        "query": query,
-        "total_found": 2,
-        "items": [
-            {
-                "video_id": "v_fake_ast01",
-                "url": "https://www.youtube.com/watch?v=v_fake_ast01",
-                "title": f"URGENT: How to verify your {brand_name} account without suspension (2026 Tutorial)",
-                "channel_title": f"{brand_name} Official Support Global",
-                "channel_id": "UC_fake_brand_help",
-                "published_at": "2026-04-10T08:12:00Z",
-                "description": f"Download the compliance update APK from https://astra-mobile-update.top or contact WhatsApp support: +91 98765 43210. Join our official Telegram: t.me/astra_support_bot",
-                "indicators": {
-                    "telegrams": ["t.me/astra_support_bot"],
-                    "phones": ["+919876543210"],
-                    "domains": ["astra-mobile-update.top"],
-                },
-                "risk_score": 92,
-            },
-            {
-                "video_id": "v_fake_ast02",
-                "url": "https://www.youtube.com/watch?v=v_fake_ast02",
-                "title": f"{brand_name} Airdrop Claim Guide (Instant Deposit)",
-                "channel_title": "Crypto Security Fast Desk",
-                "channel_id": "UC_crypto_drainer",
-                "published_at": "2026-04-09T14:30:00Z",
-                "description": "Send test deposit to fraudster@okhdfcbank to unlock enterprise tier tokens.",
-                "indicators": {
-                    "telegrams": [],
-                    "phones": [],
-                    "upis": ["fraudster@okhdfcbank"],
-                },
-                "risk_score": 88,
-            },
-        ],
-        "note": "Simulator data active (Provide YOUTUBE_API_KEY in .env for live Google Cloud queries).",
-    }
+        if isinstance(e, ValueError):
+            raise
+        logger.warning("Error querying YouTube API; no simulated results returned.")
+        raise ValueError("YouTube Data API request failed due to a network error. Check provider status and API credentials.") from e

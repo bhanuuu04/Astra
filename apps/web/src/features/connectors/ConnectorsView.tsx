@@ -29,37 +29,40 @@ import { ConnectorStatusCard, type ConnectorData } from '@/components/connectors
 
 const CONNECTOR_PRESETS: Record<string, { name: string; defaultKey: string; keyLabel: string; keyPlaceholder: string; extraField?: string }> = {
   virustotal: {
-    name: 'VirusTotal Intelligence API',
+    name: 'VirusTotal URL Reputation Enrichment',
     defaultKey: 'api_key',
     keyLabel: 'VirusTotal API Key (v3)',
-    keyPlaceholder: 'e.g. 7f8a9b... or test_mock_key',
+    keyPlaceholder: 'Enter a real VirusTotal API key',
   },
   meta_graph: {
     name: 'Meta / Instagram Graph API',
     defaultKey: 'access_token',
     keyLabel: 'Page Access Token',
-    keyPlaceholder: 'e.g. EAA... or test_mock_token',
+    keyPlaceholder: 'Enter an authorized Meta access token',
     extraField: 'app_secret',
   },
   google_play: {
-    name: 'Google Play Store Catalog Watcher',
+    name: 'Google Play Reviews (owned apps)',
     defaultKey: 'service_account_json',
     keyLabel: 'Service Account JSON / Credentials',
-    keyPlaceholder: 'e.g. {"type": "service_account", ...} or test_mock_key',
+    keyPlaceholder: 'Paste service-account JSON with Android Publisher access',
   },
   youtube: {
     name: 'YouTube Brand Impersonation Scanner',
     defaultKey: 'api_key',
     keyLabel: 'YouTube Data API v3 Key',
-    keyPlaceholder: 'e.g. AIzaSy... or test_mock_key',
+    keyPlaceholder: 'Enter a real YouTube Data API v3 key',
   },
   telegram_bot: {
-    name: 'Telegram Scam Channel Monitor',
+    name: 'Telegram Bot Updates',
     defaultKey: 'bot_token',
     keyLabel: 'Telegram Bot Token',
-    keyPlaceholder: 'e.g. 123456789:ABCdef... or test_mock_token',
+    keyPlaceholder: 'Enter a real Telegram bot token',
   },
 };
+
+const supportsPullSync = (connector: ConnectorData) =>
+  !['meta_graph', 'meta_graph_api', 'meta_webhook', 'instagram'].includes(connector.connector_type.toLowerCase());
 
 export function ConnectorsView() {
   const queryClient = useQueryClient();
@@ -108,8 +111,10 @@ export function ConnectorsView() {
       await queryClient.invalidateQueries({ queryKey: ['connectors'] });
       await queryClient.invalidateQueries({ queryKey: ['findings'] });
       setNotification({
-        message: `Sync complete! Successfully ingested ${res.synced_findings_count} findings into evidence vault.`,
-        type: 'success',
+        message: res.error_message
+          ? `Partial sync: ${res.synced_findings_count} records ingested. ${res.error_message}`
+          : `Provider sync complete. ${res.synced_findings_count} source records ingested for analyst review.`,
+        type: res.status === 'degraded' ? 'error' : 'success',
       });
     } catch (err: any) {
       setNotification({ message: err.message || 'Sync failed', type: 'error' });
@@ -268,7 +273,7 @@ export function ConnectorsView() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-50 sm:text-3xl">Authorized Data Connectors</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-            Manage authenticated threat intelligence sources, webhooks, and APK monitors with cryptographic credential vaulting and SHA-256 evidence sealing.
+            Configure authorized providers and run supported collections on demand. A saved API key does not start continuous monitoring.
           </p>
         </div>
 
@@ -299,7 +304,7 @@ export function ConnectorsView() {
             <span>Unconfigured Ingestion Pipelines (Template Mode)</span>
           </div>
           <p className="mt-1 text-slate-300 leading-relaxed">
-            No live data connectors are active in this tenant yet. Click on any card below or the <strong>Configure New Connector</strong> button to store credentials into the AES-encrypted secret vault and start live telemetry streaming.
+            No provider connections are configured. Configure credentials, run a live health check, then use on-demand sync where the provider exposes an authorized read API. ASTRA does not run background polling yet.
           </p>
         </div>
       )}
@@ -334,7 +339,7 @@ export function ConnectorsView() {
             connector={connector}
             onHealthCheck={handleHealthCheck}
             isChecking={checkingId === connector.id}
-            onSync={handleSync}
+            onSync={supportsPullSync(connector) ? handleSync : undefined}
             isSyncing={syncingId === connector.id}
             onConfigure={handleOpenConfigure}
             onDelete={handleDelete}
@@ -374,9 +379,9 @@ export function ConnectorsView() {
                   }}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="virustotal">VirusTotal v3 Intelligence</option>
-                  <option value="meta_graph">Meta / Instagram Graph API</option>
-                  <option value="google_play">Google Play Store Catalog Watcher</option>
+                  <option value="virustotal">VirusTotal URL Reputation Enrichment</option>
+                  <option value="meta_graph">Meta / Instagram Graph API (authorized account only)</option>
+                  <option value="google_play">Google Play Reviews (developer account apps)</option>
                   <option value="youtube">YouTube Data API v3</option>
                   <option value="telegram_bot">Telegram Bot API</option>
                 </select>
@@ -399,13 +404,13 @@ export function ConnectorsView() {
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
                   <span>{CONNECTOR_PRESETS[selectedType]?.keyLabel || 'Authentication Key'}</span>
-                  <span className="text-[10px] text-cyan-400 font-mono">Encrypted with Fernet AES</span>
+                  <span className="text-[10px] text-cyan-400 font-mono">Encrypted before storage</span>
                 </label>
                 <input
                   type="password"
                   value={primaryCredential}
                   onChange={(e) => setPrimaryCredential(e.target.value)}
-                  placeholder={CONNECTOR_PRESETS[selectedType]?.keyPlaceholder || 'Enter token or test_mock_key'}
+                  placeholder={CONNECTOR_PRESETS[selectedType]?.keyPlaceholder || 'Enter provider credential'}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
                 />
               </div>
@@ -441,10 +446,10 @@ export function ConnectorsView() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Test / Demo Hint
+                    Live connector note
                   </label>
                   <p className="text-[11px] text-slate-500 mt-2 leading-tight">
-                    Use prefix <code className="text-cyan-400 font-mono">test_</code> for simulated mock verification.
+                    Sync collects only provider-authorized records. Mock/test keys are rejected.
                   </p>
                 </div>
               </div>
@@ -472,7 +477,7 @@ export function ConnectorsView() {
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 py-3 text-xs text-slate-500">
         <span>Verified tenant isolation & cryptographic secret protection active</span>
-        <span>Polling rate: 30s background sync</span>
+        <span>Collection: analyst-triggered; no background schedule</span>
       </footer>
     </div>
   );

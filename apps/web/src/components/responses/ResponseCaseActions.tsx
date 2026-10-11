@@ -66,14 +66,17 @@ export function ResponseCaseActions({
 
         {/* Approved state: Show dispatch */}
         {lifecycleState === 'approved' && (
-          <Button
-            onClick={() => handleAction(() => onDispatch(caseId))}
-            disabled={loading}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white gap-1.5"
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            Dispatch Takedown Notice
-          </Button>
+          <div className="space-y-2">
+            <p className="max-w-xl text-xs leading-relaxed text-slate-400">Submit the approved notice through the provider’s official portal first. Then record that submission here; ASTRA does not send it.</p>
+            <Button
+              onClick={() => handleAction(() => onDispatch(caseId))}
+              disabled={loading}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white gap-1.5"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              I Submitted via Provider Portal
+            </Button>
+          </div>
         )}
 
         {/* Submitted or Acknowledged: Show resolve */}
@@ -84,7 +87,7 @@ export function ResponseCaseActions({
             className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            Confirm Resolution & Close Case
+            Record Outcome & Close Case
           </Button>
         )}
 

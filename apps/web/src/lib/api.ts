@@ -608,12 +608,12 @@ export async function checkVirusTotal(url?: string, fileHash?: string): Promise<
   }
 }
 
-export async function scanYouTube(brandName?: string): Promise<any> {
+export async function scanYouTube(brandId: string): Promise<any> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/integrations/youtube/scan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brand_name: brandName || "Astra Security" }),
+      body: JSON.stringify({ brand_id: brandId }),
     });
     if (!res.ok) return null;
     return await res.json();
@@ -826,7 +826,10 @@ export async function listResponseCases(params?: {
       });
     }
     const res = await astraFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return { cases: [], total: 0, limit: 50, offset: 0 };
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to load response cases" }));
+      throw new Error(err.detail || "Failed to load response cases");
+    }
     return await res.json();
   } catch (error) {
     throw error;
@@ -856,9 +859,11 @@ export async function createResponseDraft(payload: {
   evidence_manifest?: string[];
 }): Promise<ResponseCase | null> {
   try {
-    const defaultFindingId = payload.finding_id || "00000000-0000-0000-0000-000000000001";
+    if (!payload.finding_id) {
+      throw new Error("Choose a real finding before creating a response draft.");
+    }
     const body = {
-      finding_id: defaultFindingId,
+      finding_id: payload.finding_id,
       cluster_id: payload.campaign_cluster_id,
       target_provider: payload.target_provider,
       case_type: payload.case_type || "infringement_takedown",
@@ -922,17 +927,17 @@ export async function dispatchResponseCase(id: string, channel: string = 'manual
   }
 }
 
-export async function resolveResponseCase(id: string, outcome: string, notes?: string): Promise<ResponseCase | null> {
+export async function resolveResponseCase(id: string, notes: string, externalCaseReference?: string): Promise<ResponseCase | null> {
   try {
-    const resolutionText = notes && notes.length >= 10
-      ? notes
-      : `Resolved with outcome: ${outcome}. Verification completed by brand protection analyst.`;
+    if (notes.trim().length < 10) {
+      throw new Error("Enter at least 10 characters describing the observed outcome.");
+    }
     const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        resolution_notes: resolutionText,
-        external_case_reference: outcome,
+        resolution_notes: notes.trim(),
+        external_case_reference: externalCaseReference?.trim() || undefined,
       }),
     });
     if (!res.ok) {

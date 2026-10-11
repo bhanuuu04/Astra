@@ -1,16 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Send, 
   RefreshCw, 
-  CheckCircle2, 
-  Clock, 
-  ShieldAlert, 
-  ExternalLink,
-  Plus,
-  FileText
+  CheckCircle2
 } from 'lucide-react';
 import { 
   listResponseCases, 
@@ -18,6 +13,8 @@ import {
   dispatchResponseCase, 
   resolveResponseCase, 
   createResponseDraft,
+  listFindings,
+  type Finding,
   type ResponseCase 
 } from '@/lib/api';
 import { ResponseCaseTimeline } from '@/components/responses/ResponseCaseTimeline';
@@ -29,75 +26,23 @@ export function ResponseCasesView() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [selectedFindingId, setSelectedFindingId] = useState<string>('');
+  const [targetProvider, setTargetProvider] = useState('cloudflare_abuse');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: casesError } = useQuery({
     queryKey: ['response_cases'],
     queryFn: () => listResponseCases(),
   });
 
-  const cases = data?.cases || [];
+  const { data: findingsData } = useQuery({
+    queryKey: ['response_draft_findings'],
+    queryFn: () => listFindings({ limit: 50, offset: 0 }),
+  });
 
-  // Demo fallback cases if no database response cases yet
-  const displayCases: ResponseCase[] = cases.length > 0 
-    ? cases 
-    : [
-        {
-          id: 'case-demo-001',
-          tenant_id: 'default_tenant',
-          target_provider: 'Cloudflare Abuse Desk',
-          case_type: 'phishing_domain_takedown',
-          lifecycle_state: 'draft',
-          draft_subject: 'ASTRA Security Incident: Fraudulent Impersonation on login-astra-update.cc',
-          draft_body: 'Notice of Trademark & Phishing Abuse: The domain login-astra-update.cc is hosting an unauthorized credential interceptor impersonating official Astra Brand DNA.',
-          drafted_by: 'Analyst Sarah Chen',
-          created_at: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-        },
-        {
-          id: 'case-demo-002',
-          tenant_id: 'default_tenant',
-          target_provider: 'Telegram Trust & Safety',
-          case_type: 'impersonation_channel',
-          lifecycle_state: 'approved',
-          draft_subject: 'Emergency Takedown: Impersonation Account @AstraHelpDesk_VIP',
-          draft_body: 'The Telegram handle @AstraHelpDesk_VIP is soliciting private keys and distributing trojanized APK packages.',
-          drafted_by: 'Analyst Sarah Chen',
-          approved_by: 'Security Lead Mark Taylor',
-          created_at: new Date(Date.now() - 1000 * 3600 * 3).toISOString(),
-          approved_at: new Date(Date.now() - 1000 * 3600 * 1).toISOString(),
-        },
-        {
-          id: 'case-demo-003',
-          tenant_id: 'default_tenant',
-          target_provider: 'Google Play Protect',
-          case_type: 'counterfeit_mobile_apk',
-          lifecycle_state: 'submitted',
-          draft_subject: 'Malware Report: Troj/FakeAstra-Android.apk (SHA-256 sealed)',
-          draft_body: 'Formal notice requesting blacklisting and killswitch dispatch for package org.astra.foundation.airdrop.',
-          drafted_by: 'Analyst Alex Rivera',
-          approved_by: 'Security Lead Mark Taylor',
-          dispatched_by: 'Astra Takedown Dispatcher',
-          created_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-          approved_at: new Date(Date.now() - 1000 * 3600 * 20).toISOString(),
-          dispatched_at: new Date(Date.now() - 1000 * 3600 * 18).toISOString(),
-        },
-        {
-          id: 'case-demo-004',
-          tenant_id: 'default_tenant',
-          target_provider: 'Namecheap Registrar Abuse',
-          case_type: 'typosquat_domain',
-          lifecycle_state: 'resolved',
-          draft_subject: 'Domain Suspension Notice: astra-security-login.top',
-          draft_body: 'Host records deactivated following validated evidence dossier submission.',
-          drafted_by: 'Analyst Sarah Chen',
-          approved_by: 'Security Lead Mark Taylor',
-          dispatched_by: 'Astra Takedown Dispatcher',
-          resolved_by: 'Namecheap Incident Support',
-          created_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
-          approved_at: new Date(Date.now() - 1000 * 3600 * 45).toISOString(),
-          dispatched_at: new Date(Date.now() - 1000 * 3600 * 40).toISOString(),
-          resolved_at: new Date(Date.now() - 1000 * 3600 * 8).toISOString(),
-        },
-      ];
+  const cases = data?.cases || [];
+  const displayCases: ResponseCase[] = cases;
+  const eligibleFindings: Finding[] = (findingsData?.findings || []).filter((finding) => finding.raw_evidence_id && finding.triage_status === 'confirmed_threat');
+  const selectedFinding = eligibleFindings.find((finding) => finding.id === selectedFindingId) || eligibleFindings[0];
 
   const activeCase = displayCases.find(c => c.id === selectedCaseId) || displayCases[0];
 
@@ -117,7 +62,7 @@ export function ResponseCasesView() {
     setActionError(null);
     try {
       await dispatchResponseCase(id);
-      setActionSuccess('Response case dispatched to provider.');
+      setActionSuccess('Manual portal submission recorded. ASTRA did not send the notice.');
       setTimeout(() => setActionSuccess(null), 4000);
       await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
     } catch (err: any) {
@@ -127,13 +72,46 @@ export function ResponseCasesView() {
 
   const handleResolve = async (id: string) => {
     setActionError(null);
+    const notes = window.prompt('Record the provider or analyst observed outcome (at least 10 characters):');
+    if (!notes) return;
+    const reference = window.prompt('Provider ticket/reference ID (optional):') || undefined;
     try {
-      await resolveResponseCase(id, 'abatement_confirmed', 'Verified threat removed and confirmed by analyst');
-      setActionSuccess('Response case marked as resolved.');
+      await resolveResponseCase(id, notes, reference);
+      setActionSuccess('Recorded analyst-provided outcome.');
       setTimeout(() => setActionSuccess(null), 4000);
       await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
     } catch (err: any) {
       setActionError(err.message || 'Failed to resolve response case.');
+    }
+  };
+
+  const handleCreateDraft = async () => {
+    if (!selectedFinding) return;
+    setActionError(null);
+    try {
+      const created = await createResponseDraft({
+        finding_id: selectedFinding.id,
+        target_provider: targetProvider,
+        case_type: 'suspected_impersonation_or_abuse',
+        draft_subject: `Evidence review: ${selectedFinding.target_identifier}`,
+        draft_body: [
+          'Review this report and validate the source evidence before submission.',
+          `Target: ${selectedFinding.target_identifier}`,
+          `Surface: ${selectedFinding.surface}`,
+          `Observed at: ${selectedFinding.observed_at}`,
+          `ASTRA triage status: ${selectedFinding.triage_status}; heuristic priority: ${selectedFinding.triage_priority}.`,
+          'This draft is advisory. Confirm the applicable provider process and make any required edits before manually submitting.',
+        ].join('\n'),
+        submission_payload: { source_finding_id: selectedFinding.id, source_mode: selectedFinding.data_mode },
+        evidence_manifest: [selectedFinding.raw_evidence_id!],
+      });
+      if (created) {
+        setSelectedCaseId(created.id);
+        setActionSuccess('Evidence-linked response draft created.');
+        await queryClient.invalidateQueries({ queryKey: ['response_cases'] });
+      }
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create response draft.');
     }
   };
 
@@ -182,6 +160,13 @@ export function ResponseCasesView() {
             Active Response Cases ({displayCases.length})
           </p>
 
+          {casesError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">Could not load response cases. Check the API connection and retry.</p>}
+          {isLoading ? (
+            <p className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">Loading response cases…</p>
+          ) : displayCases.length === 0 && !casesError && (
+            <p className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs leading-relaxed text-slate-400">No response cases have been created for this organization.</p>
+          )}
+
           {displayCases.map((rc) => {
             const isSelected = activeCase?.id === rc.id;
             const stateColors = {
@@ -228,6 +213,26 @@ export function ResponseCasesView() {
 
         {/* Right Detail & Timeline Column */}
         <div className="lg:col-span-7">
+          <div className="mb-5 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+            <h3 className="text-sm font-semibold text-slate-100">Create a response draft from finding evidence</h3>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">Only analyst-confirmed findings with persisted evidence can be used. The draft is editable and ASTRA will not submit it.</p>
+            {eligibleFindings.length > 0 ? (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <select value={selectedFinding?.id || ''} onChange={(event) => setSelectedFindingId(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200">
+                  {eligibleFindings.map((finding) => <option key={finding.id} value={finding.id}>{finding.surface}: {finding.target_identifier}</option>)}
+                </select>
+                <select value={targetProvider} onChange={(event) => setTargetProvider(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200">
+                  <option value="meta_takedown">Meta abuse portal</option>
+                  <option value="google_abuse">Google abuse portal</option>
+                  <option value="cloudflare_abuse">Cloudflare abuse portal</option>
+                  <option value="registrar_dmca">Domain registrar</option>
+                </select>
+                <Button onClick={handleCreateDraft} className="bg-cyan-600 text-white hover:bg-cyan-500">Create Draft</Button>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-slate-500">No findings with stored evidence are available yet.</p>
+            )}
+          </div>
           {activeCase && (
             <div className="p-6 rounded-xl border border-slate-800 bg-slate-900 space-y-6 sticky top-4">
               <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-800">

@@ -24,9 +24,10 @@ This file records capabilities present in the repository. It is updated transpar
 
 ### 4. P2: Cryptographic Secret Vault, Connector Health & Ingestion Pipeline (Commit `335651a`)
 - **Authenticated Cryptographic Secret Vault:** `apps/api/app/core/secret_vault.py` provides Fernet symmetric authenticated encryption (AES-128-CBC + HMAC-SHA256). Credentials stored in `auth_config_vault_ref` with tamper detection. Secrets are masked in logs and never exposed in responses.
-- **Provider Health Handshakes:** Live verification for VirusTotal v3, Meta/Instagram Graph API, Google Play Catalog Watcher, YouTube Data API v3, and Telegram Bot API.
-- **Telemetry Ingestion & Evidence Vault:** `POST /api/v1/connectors/{connector_id}/sync` ingests normalized threat findings directly into the evidence vault with immutable SHA-256 cryptographic digests (`seal_evidence`).
-- **Console Connectors Manager:** Interactive configure modal, rate-limiting controls, live health check actions, and on-demand synchronization.
+- **Provider Health Checks:** Real credential checks are implemented for VirusTotal, Meta Graph, YouTube, Telegram, and Google Play Android Publisher access. Mock tokens and generic connector types are not reported as healthy.
+- **On-Demand Ingestion:** YouTube uses public `search.list`; Telegram reads only updates delivered to the authorized bot; Google Play reads recent reviews for enrolled apps the developer account can access; VirusTotal enriches analyst-submitted URLs. These are source-limited reads, not broad continuous monitoring.
+- **Evidence Vault:** Provider responses ingested as findings are stored with SHA-256 evidence digests. Live sync does not fabricate findings; unsupported providers return an explicit error.
+- **Console Connectors Manager:** Interactive configure modal, credential vaulting, health checks, and analyst-triggered sync. There is no background poller.
 
 ---
 
@@ -34,13 +35,15 @@ This file records capabilities present in the repository. It is updated transpar
 
 - Integrate enterprise SSO (SAML 2.0 / OIDC) and hardware MFA (WebAuthn/FIDO2) for enterprise IAM federation.
 - Automated continuous cron/daemon scheduler for periodic connector polling without manual triggers.
+- Authorized Meta/Instagram webhook ingestion scoped to the configured tenant, and public-catalog app discovery beyond developer-owned Play apps.
+- Link connector `Finding` records into the campaign graph and support evidence-based cross-surface correlation.
 - Cloud object store provider bindings (AWS S3 / GCS buckets) for multi-terabyte evidence archiving alongside the local durable storage vault.
 - Automated submission and bilateral tracking APIs with platform trust & safety portals (Meta IP Reporting API, Google Play Protect notices).
 
 ---
 
-## Verification & Test Results
+## Verification status
 
-- **Backend Pytest Suite:** 43 tests passing across auth, settings, tenant isolation, brand verification, secret vault, and connector ingestion (`uv run pytest` -> 43 passed, 0 failures).
-- **Frontend Type Safety:** `npx tsc --noEmit` -> 0 compilation errors.
-- **Continuous Integration:** CI runs automated linting, test suites, and production build checks on push to `main`.
+- The prior baseline recorded 43 backend tests and a clean TypeScript check before the current live-connector and response-workflow changes.
+- The current working-tree changes have not been run through the test suite or frontend type check.
+- CI configuration exists, but a successful run for these changes is not recorded here.

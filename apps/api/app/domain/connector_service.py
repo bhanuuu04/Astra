@@ -1,20 +1,24 @@
 """Connector management service for authorized data source configuration and telemetry ingestion."""
 from datetime import datetime, timezone
-import hashlib
-import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 import uuid
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.secret_vault import decrypt_secret_payload, encrypt_secret_payload, mask_secret_dict
-from app.db.models import Brand, Connector, Finding
+from app.core.secret_vault import decrypt_secret_payload, encrypt_secret_payload
+from app.db.models import Brand, BrandAsset, Connector
 from app.domain.audit_service import log_audit_event
-from app.domain.finding_service import ingest_finding
-from app.schemas.finding import FindingIngest
+from app.integrations.connector_sources import (
+    ConnectorSourceError,
+    collect_google_play,
+    collect_telegram,
+    collect_virustotal,
+    collect_youtube,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -196,9 +200,9 @@ def check_connector_health(
             if not api_key:
                 is_healthy = False
                 error_detail = "Missing 'api_key' in vault credentials."
-            elif api_key.startswith("test_") or api_key.startswith("mock_"):
-                is_healthy = True
-                discovered_scopes = ["url_reputation", "file_reputation", "ip_lookup"]
+            elif api_key.startswith(("test_", "mock_")):
+                is_healthy = False
+                error_detail = "Mock credentials are not a live VirusTotal connection. Configure a real API key."
             else:
                 try:
                     resp = httpx.get(
@@ -213,21 +217,21 @@ def check_connector_health(
                         is_healthy = False
                         error_detail = "Invalid VirusTotal API key or authorization rejected."
                     else:
-                        is_healthy = True  # Network reachable, partial scope
-                        discovered_scopes = ["url_reputation"]
+                        is_healthy = False
+                        error_detail = f"VirusTotal health check returned HTTP {resp.status_code}."
                 except Exception as ex:
-                    error_detail = f"VirusTotal endpoint unreachable: {str(ex)}"
+                    error_detail = "VirusTotal endpoint is unreachable. Check provider status and network connectivity."
                     is_healthy = False
 
-        elif c_type in ["meta_graph", "meta_webhook", "instagram"]:
+        elif c_type in ["meta_graph", "meta_graph_api", "meta_webhook", "instagram"]:
             token = creds.get("access_token") or creds.get("accessToken") or creds.get("page_access_token")
             secret = creds.get("app_secret") or creds.get("appSecret")
             if not token and not secret:
                 is_healthy = False
                 error_detail = "Missing access_token or app_secret in vault credentials."
-            elif (token and (token.startswith("test_") or token.startswith("mock_"))) or (secret and secret.startswith("test_")):
-                is_healthy = True
-                discovered_scopes = ["pages_read_engagement", "instagram_basic", "webhook_delivery"]
+            elif (token and token.startswith(("test_", "mock_"))) or (secret and secret.startswith(("test_", "mock_"))):
+                is_healthy = False
+                error_detail = "Mock credentials are not a live Meta connection."
             elif token:
                 try:
                     resp = httpx.get(
@@ -237,34 +241,62 @@ def check_connector_health(
                     )
                     if resp.status_code == 200:
                         is_healthy = True
-                        discovered_scopes = ["pages_read_engagement", "instagram_basic"]
+                        discovered_scopes = ["authorized_account_read"]
                     else:
                         is_healthy = False
                         error_detail = "Invalid Meta Graph API access token or expired grant."
                 except Exception as ex:
-                    error_detail = f"Meta Graph API unreachable: {str(ex)}"
+                    error_detail = "Meta Graph API is unreachable. Check provider status and network connectivity."
                     is_healthy = False
             else:
-                is_healthy = True
-                discovered_scopes = ["webhook_delivery"]
+                is_healthy = False
+                error_detail = "An app secret can verify inbound webhook signatures but cannot perform a provider health check. Configure an authorized access token."
 
         elif c_type in ["google_play", "google_play_abuse"]:
-            service_account = creds.get("service_account_json") or creds.get("serviceAccountJson") or creds.get("api_key")
+            service_account = creds.get("service_account_json") or creds.get("serviceAccountJson")
             if not service_account:
                 is_healthy = False
-                error_detail = "Missing service_account_json or api_key in vault credentials."
+                error_detail = "Missing service_account_json in vault credentials."
             else:
-                is_healthy = True
-                discovered_scopes = ["androidpublisher.readonly", "catalog_metadata"]
+                try:
+                    from app.integrations.connector_sources import google_play_access_token
+                    access_token = google_play_access_token(service_account)
+                    package = session.scalar(
+                        select(BrandAsset.canonical_value)
+                        .join(Brand, Brand.id == BrandAsset.brand_id)
+                        .where(
+                            Brand.tenant_id == tenant_id,
+                            BrandAsset.asset_type.in_(("mobile_app", "mobile_app_pkg")),
+                        )
+                        .limit(1)
+                    )
+                    if not package:
+                        is_healthy = False
+                        error_detail = "Enroll an official Android package ID to verify Android Publisher access."
+                    else:
+                        resp = httpx.get(
+                            f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{quote(package, safe='')}/reviews",
+                            params={"maxResults": 1},
+                            headers={"authorization": f"Bearer {access_token}"},
+                            timeout=8.0,
+                        )
+                        is_healthy = resp.status_code == 200
+                        if is_healthy:
+                            discovered_scopes = ["https://www.googleapis.com/auth/androidpublisher"]
+                        else:
+                            error_detail = f"Android Publisher access check failed ({resp.status_code}); verify that the service account can access enrolled package {package}."
+                except (ConnectorSourceError, httpx.HTTPError) as ex:
+                    is_healthy = False
+                    error_detail = str(ex)
 
-        elif c_type in ["youtube", "youtube_data"]:
+        elif c_type in ["youtube", "youtube_data", "youtube_data_api"]:
             yt_key = creds.get("api_key") or creds.get("apiKey")
             if not yt_key:
                 is_healthy = False
                 error_detail = "Missing api_key in vault credentials."
-            elif yt_key.startswith("test_") or yt_key.startswith("mock_"):
-                is_healthy = True
-                discovered_scopes = ["youtube.readonly"]
+            elif yt_key.startswith(("test_", "mock_")):
+                is_healthy = False
+                error_detail = "Mock credentials are not a live YouTube connection. Configure a real API key."
             else:
                 try:
                     resp = httpx.get(
@@ -274,12 +306,12 @@ def check_connector_health(
                     )
                     if resp.status_code == 200:
                         is_healthy = True
-                        discovered_scopes = ["youtube.readonly"]
+                        discovered_scopes = ["search.list"]
                     else:
                         is_healthy = False
                         error_detail = "Invalid YouTube Data API key."
                 except Exception as ex:
-                    error_detail = f"YouTube API endpoint unreachable: {str(ex)}"
+                    error_detail = "YouTube API is unreachable. Check provider status and network connectivity."
                     is_healthy = False
 
         elif c_type in ["telegram_bot", "telegram"]:
@@ -287,26 +319,25 @@ def check_connector_health(
             if not bot_token:
                 is_healthy = False
                 error_detail = "Missing bot_token in vault credentials."
-            elif bot_token.startswith("test_") or bot_token.startswith("mock_"):
-                is_healthy = True
-                discovered_scopes = ["bot.getUpdates", "bot.webhook"]
+            elif bot_token.startswith(("test_", "mock_")):
+                is_healthy = False
+                error_detail = "Mock credentials are not a live Telegram connection. Configure a real bot token."
             else:
                 try:
                     resp = httpx.get(f"https://api.telegram.org/bot{bot_token}/getMe", timeout=5.0)
-                    if resp.status_code == 200:
+                    if resp.status_code == 200 and resp.json().get("ok") is True:
                         is_healthy = True
-                        discovered_scopes = ["bot.getUpdates", "bot.webhook"]
+                        discovered_scopes = ["getMe", "getUpdates"]
                     else:
                         is_healthy = False
                         error_detail = "Invalid Telegram Bot token."
                 except Exception as ex:
-                    error_detail = f"Telegram Bot API unreachable: {str(ex)}"
+                    error_detail = "Telegram Bot API is unreachable. Check provider status and network connectivity."
                     is_healthy = False
 
         else:
-            # Generic custom provider
-            is_healthy = True
-            discovered_scopes = ["authorized_ingestion"]
+            is_healthy = False
+            error_detail = f"No provider health check is implemented for connector type '{connector.connector_type}'."
 
     except Exception as e:
         is_healthy = False
@@ -333,13 +364,7 @@ def sync_connector_telemetry(
     tenant_id: uuid.UUID,
     connector_id: uuid.UUID
 ) -> Dict[str, Any]:
-    """Execute live telemetry collection and ingest findings into the evidence vault.
-    
-    1. Verifies connector credentials from vault.
-    2. Gathers intelligence based on target brand.
-    3. Normalizes findings through enterprise ingestion contract with SHA-256 evidence sealing.
-    4. Records sync timestamp and updates connector health.
-    """
+    """Collect real provider records; never synthesize findings during live sync."""
     connector = get_connector(session, tenant_id, connector_id)
     if not connector:
         raise ValueError(f"Connector {connector_id} not found")
@@ -347,11 +372,11 @@ def sync_connector_telemetry(
     if not connector.auth_config_vault_ref:
         raise ValueError("Connector has no authentication credentials configured in vault.")
 
-    # Retrieve active brand for tenant
-    brand = session.scalar(
-        select(Brand).where(Brand.tenant_id == tenant_id).order_by(Brand.created_at.desc())
-    )
-    if not brand:
+    # A connector is tenant-scoped, so run its provider query for each enrolled brand.
+    brands = list(session.scalars(
+        select(Brand).where(Brand.tenant_id == tenant_id).order_by(Brand.created_at.asc())
+    ).all())
+    if not brands:
         raise ValueError("No brand registered for this tenant. Please enroll a brand before syncing.")
 
     # Decrypt vault credentials
@@ -363,181 +388,41 @@ def sync_connector_telemetry(
         session.commit()
         raise ValueError(f"Could not decrypt connector credentials: {str(e)}")
 
-    now_utc = datetime.now(timezone.utc)
     c_type = connector.connector_type.lower()
-    items_to_ingest: List[FindingIngest] = []
+    ingested = []
+    source_errors: List[str] = []
+    for brand in brands:
+        try:
+            if c_type in {"virustotal", "virustotal_v3"}:
+                batch = collect_virustotal(session, tenant_id, brand, connector, creds.get("api_key") or creds.get("apiKey", ""))
+            elif c_type in {"youtube", "youtube_data", "youtube_data_api"}:
+                batch = collect_youtube(session, tenant_id, brand, connector, creds.get("api_key") or creds.get("apiKey", ""))
+            elif c_type in {"telegram_bot", "telegram"}:
+                batch = collect_telegram(session, tenant_id, brand, connector, creds.get("bot_token") or creds.get("botToken", ""))
+            elif c_type in {"google_play", "google_play_abuse"}:
+                service_account = creds.get("service_account_json") or creds.get("serviceAccountJson") or ""
+                batch = collect_google_play(session, tenant_id, brand, connector, service_account)
+            elif c_type in {"meta_graph", "meta_graph_api", "instagram", "meta_webhook"}:
+                raise ConnectorSourceError("Meta/Instagram public-account discovery is not available through this connector. Configure an authorized webhook feed; ASTRA will not fabricate profile results or poll accounts outside your granted access.")
+            else:
+                raise ConnectorSourceError(f"No live collection adapter is implemented for connector type '{connector.connector_type}'.")
+            ingested.extend(batch)
+        except ConnectorSourceError as exc:
+            source_errors.append(f"{brand.name}: {exc}")
 
-    # Telemetry generation according to source adapter
-    if c_type in ["virustotal", "virustotal_v3"]:
-        target_domain = f"login-{brand.name.lower().replace(' ', '')}-secure-auth.xyz"
-        items_to_ingest.append(
-            FindingIngest(
-                brand_id=brand.id,
-                connector_id=connector.id,
-                surface="virustotal",
-                source_kind="web_domain",
-                external_id=f"vt-{hashlib.md5(target_domain.encode()).hexdigest()[:12]}",
-                target_identifier=f"https://{target_domain}/login",
-                observed_at=now_utc,
-                data_mode="live",
-                raw_payload={
-                    "source": "virustotal_v3",
-                    "target": target_domain,
-                    "malicious_count": 8,
-                    "suspicious_count": 3,
-                    "reputation_score": -45,
-                    "categories": ["phishing", "credential_harvesting"],
-                    "collected_at": now_utc.isoformat()
-                },
-                normalized_attributes={
-                    "risk_verdict": "malicious",
-                    "domain_age_days": 2,
-                    "threat_type": "phishing_lookalike",
-                    "impersonated_brand": brand.name
-                }
-            )
-        )
+    if source_errors and not ingested:
+        connector.status = "error"
+        connector.error_message = "; ".join(source_errors)
+        session.commit()
+        raise ConnectorSourceError(connector.error_message)
 
-    elif c_type in ["google_play", "google_play_abuse"]:
-        pkg_name = f"com.{brand.name.lower().replace(' ', '')}.security.patch.updater"
-        items_to_ingest.append(
-            FindingIngest(
-                brand_id=brand.id,
-                connector_id=connector.id,
-                surface="google_play",
-                source_kind="mobile_app",
-                external_id=f"play-{hashlib.md5(pkg_name.encode()).hexdigest()[:12]}",
-                target_identifier=pkg_name,
-                observed_at=now_utc,
-                data_mode="live",
-                raw_payload={
-                    "package_name": pkg_name,
-                    "app_title": f"{brand.name} Quick Support & Security Patch",
-                    "publisher": "Unknown Developer Ltd",
-                    "version": "1.0.4",
-                    "declared_permissions": ["READ_SMS", "RECEIVE_SMS", "ACCESS_FINE_LOCATION"],
-                    "collected_at": now_utc.isoformat()
-                },
-                normalized_attributes={
-                    "is_official_developer": False,
-                    "suspicious_permissions": ["READ_SMS", "RECEIVE_SMS"],
-                    "threat_type": "trojanized_mobile_app",
-                    "impersonated_brand": brand.name
-                }
-            )
-        )
-
-    elif c_type in ["youtube", "youtube_data"]:
-        video_id = f"yt_{now_utc.strftime('%H%M%S')}"
-        items_to_ingest.append(
-            FindingIngest(
-                brand_id=brand.id,
-                connector_id=connector.id,
-                surface="youtube",
-                source_kind="social_profile",
-                external_id=f"yt-{video_id}",
-                target_identifier=f"https://youtube.com/watch?v={video_id}",
-                observed_at=now_utc,
-                data_mode="live",
-                raw_payload={
-                    "video_id": video_id,
-                    "title": f"{brand.name} Urgent Customer Care Helpline Number",
-                    "channel": f"{brand.name} Official Helpdesk 24x7",
-                    "description": "Call +91 9876543210 for instant refund or Telegram @helpdesk_refund",
-                    "collected_at": now_utc.isoformat()
-                },
-                normalized_attributes={
-                    "extracted_phone": "+919876543210",
-                    "extracted_telegram": "@helpdesk_refund",
-                    "threat_type": "customer_support_scam",
-                    "impersonated_brand": brand.name
-                }
-            )
-        )
-
-    elif c_type in ["meta_graph", "meta_webhook", "instagram"]:
-        handle = f"@{brand.name.lower().replace(' ', '_')}_official_care"
-        items_to_ingest.append(
-            FindingIngest(
-                brand_id=brand.id,
-                connector_id=connector.id,
-                surface="instagram",
-                source_kind="social_profile",
-                external_id=f"ig-{hashlib.md5(handle.encode()).hexdigest()[:12]}",
-                target_identifier=handle,
-                observed_at=now_utc,
-                data_mode="live",
-                raw_payload={
-                    "platform": "instagram",
-                    "handle": handle,
-                    "display_name": f"{brand.name} Customer Support",
-                    "bio": f"Official {brand.name} Support desk. DM us for account verification.",
-                    "followers": 14,
-                    "is_verified": False,
-                    "collected_at": now_utc.isoformat()
-                },
-                normalized_attributes={
-                    "threat_type": "social_impersonation",
-                    "impersonated_brand": brand.name,
-                    "fake_support_handle": handle
-                }
-            )
-        )
-
-    elif c_type in ["telegram_bot", "telegram"]:
-        tg_channel = f"t.me/{brand.name.lower().replace(' ', '')}_alerts_claim"
-        items_to_ingest.append(
-            FindingIngest(
-                brand_id=brand.id,
-                connector_id=connector.id,
-                surface="telegram",
-                source_kind="messaging",
-                external_id=f"tg-{hashlib.md5(tg_channel.encode()).hexdigest()[:12]}",
-                target_identifier=tg_channel,
-                observed_at=now_utc,
-                data_mode="live",
-                raw_payload={
-                    "channel_url": tg_channel,
-                    "pinned_message": f"Win 50,000 INR from {brand.name}! Pay 500 registration fee to nilapay@okaxis",
-                    "subscriber_count": 850,
-                    "collected_at": now_utc.isoformat()
-                },
-                normalized_attributes={
-                    "extracted_upi": "nilapay@okaxis",
-                    "threat_type": "payment_lottery_scam",
-                    "impersonated_brand": brand.name
-                }
-            )
-        )
-
-    else:
-        # Default generic finding
-        gen_ref = f"{c_type}-{now_utc.strftime('%Y%m%d%H%M%S')}"
-        items_to_ingest.append(
-            FindingIngest(
-                brand_id=brand.id,
-                connector_id=connector.id,
-                surface=c_type,
-                source_kind="social_profile",
-                external_id=gen_ref,
-                target_identifier=f"https://threat-feed.internal/{gen_ref}",
-                observed_at=now_utc,
-                data_mode="live",
-                raw_payload={"source_connector": connector.name, "synced_at": now_utc.isoformat()},
-                normalized_attributes={"threat_type": "generic_telemetry"}
-            )
-        )
-
-    # Ingest findings through sealed pipeline
-    ingested_ids: List[uuid.UUID] = []
-    for item in items_to_ingest:
-        resp = ingest_finding(session, tenant_id, item)
-        ingested_ids.append(resp.finding_id)
+    now_utc = datetime.now(timezone.utc)
+    ingested_ids = [item.finding_id for item in ingested]
 
     # Update connector synchronization metadata
     connector.last_successful_sync_at = now_utc
-    connector.status = "active"
-    connector.error_message = None
+    connector.status = "degraded" if source_errors else "active"
+    connector.error_message = "; ".join(source_errors) if source_errors else None
     session.commit()
     session.refresh(connector)
 
@@ -560,5 +445,5 @@ def sync_connector_telemetry(
         "synced_findings_count": len(ingested_ids),
         "finding_ids": ingested_ids,
         "synced_at": now_utc,
-        "error_message": None
+        "error_message": connector.error_message
     }

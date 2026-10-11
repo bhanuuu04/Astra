@@ -75,20 +75,20 @@ export function ResponseCaseTimeline({ responseCase }: { responseCase: ResponseC
     },
     {
       id: 'dispatch',
-      label: 'Dispatched to Provider',
+      label: 'Manual Submission Recorded',
       status:
         ['submitted', 'acknowledged', 'resolved'].includes(responseCase.lifecycle_state) ? 'completed' :
         responseCase.lifecycle_state === 'approved' ? 'current' :
         'pending',
       timestamp: responseCase.dispatched_at,
-      detail: responseCase.target_provider ? `Directed to ${responseCase.target_provider}` : 'External takedown notification',
+      detail: responseCase.target_provider ? `Analyst confirmed submission through ${responseCase.target_provider}'s official portal` : 'Analyst-confirmed manual portal submission',
     },
     {
       id: 'outcome',
       label: 'Outcome Confirmed',
       status: responseCase.lifecycle_state === 'resolved' ? 'completed' : 'pending',
       timestamp: responseCase.resolved_at,
-      detail: responseCase.lifecycle_state === 'resolved' ? 'Abuse removed & case closed' : 'Awaiting host / registrar confirmation',
+      detail: responseCase.lifecycle_state === 'resolved' ? 'Analyst recorded the outcome and closed the case' : 'Awaiting provider or analyst outcome confirmation',
     },
   ];
 

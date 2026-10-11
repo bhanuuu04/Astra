@@ -14,16 +14,8 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from 'recharts';
-import { 
-  TrendingUp, 
-  PieChart as PieIcon, 
-  ShieldCheck, 
-  Activity,
-  Layers,
-  Zap 
-} from 'lucide-react';
+import { Activity, BarChart3, PieChart as PieIcon, Radar } from 'lucide-react';
 import { type Sighting, type Campaign } from '@/lib/api';
 
 interface ThreatTelemetryChartsProps {
@@ -31,263 +23,152 @@ interface ThreatTelemetryChartsProps {
   campaigns: Campaign[];
 }
 
-const SURFACE_COLORS: Record<string, string> = {
-  instagram: '#f43f5e',
-  telegram: '#0ea5e9',
-  apk: '#10b981',
-  mobile_app: '#10b981',
-  web: '#8b5cf6',
-  domain: '#8b5cf6',
-  other: '#f59e0b',
-};
+const PALETTE = ['#7c78ff', '#34c6d3', '#f59e0b', '#fb7185', '#5ee0a0', '#9e8cff'];
+const panel = 'rounded-xl border border-white/[0.075] bg-[#111a27] shadow-[0_12px_34px_rgba(0,0,0,0.12)]';
 
-const DEFAULT_PALETTE = ['#06b6d4', '#f43f5e', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899'];
-
-// Custom sleek dark tooltip
 function CustomTooltip({ active, payload, label }: any) {
-  if (active && payload && payload.length) {
-    return (
-      <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-3 shadow-xl backdrop-blur-md">
-        <p className="text-xs font-semibold text-slate-200 mb-1">{label || payload[0].name}</p>
-        {payload.map((entry: any, index: number) => (
-          <div key={`tooltip-${index}`} className="flex items-center justify-between gap-4 text-xs font-mono">
-            <span className="flex items-center gap-1.5 text-slate-400">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
-              {entry.name}:
-            </span>
-            <span className="font-bold text-slate-100">{entry.value}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-slate-700 bg-[#0b1119]/95 px-3 py-2.5 shadow-xl backdrop-blur">
+      <p className="mb-1.5 text-[11px] font-medium text-slate-400">{label || payload[0].name}</p>
+      {payload.map((entry: any, index: number) => (
+        <div key={`${entry.dataKey}-${index}`} className="flex items-center gap-2 text-xs">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+          <span className="text-slate-300">{entry.name}</span>
+          <span className="ml-auto pl-4 font-mono font-semibold text-white">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getRiskScore(sighting: Sighting) {
+  const value = sighting.normalized_payload?.threat_analysis?.risk_score;
+  return typeof value === 'number' ? (value <= 1 ? value * 100 : value) : null;
 }
 
 export function ThreatTelemetryCharts({ sightings, campaigns }: ThreatTelemetryChartsProps) {
-  // 1. Surface Distribution Data
-  const surfaceData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    if (sightings.length === 0) {
-      return [
-        { name: 'Instagram Impersonation', value: 38, color: '#f43f5e' },
-        { name: 'Telegram Malicious DMs', value: 27, color: '#0ea5e9' },
-        { name: 'Counterfeit APK Mirrors', value: 22, color: '#10b981' },
-        { name: 'Typosquatting Domains', value: 13, color: '#8b5cf6' },
-      ];
-    }
-
-    sightings.forEach((s) => {
-      const norm = s.surface.toLowerCase();
-      let key = 'Other Channels';
-      if (norm.includes('instagram')) key = 'Instagram Profile';
-      else if (norm.includes('telegram')) key = 'Telegram DM / Channel';
-      else if (norm.includes('apk') || norm.includes('app')) key = 'Rogue APK Mirror';
-      else if (norm.includes('web') || norm.includes('domain')) key = 'Spoofed Domain';
-      counts[key] = (counts[key] || 0) + 1;
+  const trendData = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      return date;
     });
+    return days.map((date) => {
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const daySightings = sightings.filter((sighting) => {
+        const timestamp = new Date(sighting.observed_at || sighting.created_at).getTime();
+        return timestamp >= date.getTime() && timestamp < nextDay.getTime();
+      });
+      return {
+        day: new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric' }).format(date),
+        findings: daySightings.length,
+        highRisk: daySightings.filter((sighting) => (getRiskScore(sighting) ?? 0) >= 80).length,
+      };
+    });
+  }, [sightings]);
 
-    return Object.entries(counts).map(([name, value], i) => ({
+  const surfaceData = useMemo(() => {
+    const counts = new Map<string, number>();
+    sightings.forEach(({ surface }) => {
+      const label = surface.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+      counts.set(label, (counts.get(label) || 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name, value], index) => ({
       name,
       value,
-      color: DEFAULT_PALETTE[i % DEFAULT_PALETTE.length],
+      color: PALETTE[index % PALETTE.length],
     }));
   }, [sightings]);
 
-  // 2. 7-Day Ingestion & High-Risk Velocity Trend Data
-  const trendData = useMemo(() => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return days.map((day, idx) => {
-      const base = (idx + 1) * 3 + Math.floor(Math.sin(idx) * 4);
-      return {
-        day,
-        totalSightings: base + 8 + (idx === 6 ? 6 : 0),
-        highRiskThreats: Math.max(1, Math.round(base * 0.45) + (idx >= 4 ? 3 : 1)),
-        verifiedBenign: Math.max(1, Math.round(base * 0.25)),
-      };
-    });
-  }, []);
-
-  // 3. Triage & Remediation Velocity Lifecycle
-  const remediationData = useMemo(() => {
-    return [
-      { stage: 'Ingested', count: sightings.length ? sightings.length + 12 : 48, fill: '#64748b' },
-      { stage: 'Under Investigation', count: sightings.length ? Math.round(sightings.length * 0.6) + 6 : 28, fill: '#0ea5e9' },
-      { stage: 'Takedown Dispatched', count: campaigns.length ? campaigns.length * 4 + 5 : 18, fill: '#f59e0b' },
-      { stage: 'Confirmed Abated', count: 12, fill: '#10b981' },
+  const campaignRiskData = useMemo(() => {
+    const groups = [
+      { label: 'Critical', min: 80, max: Infinity, fill: '#fb7185' },
+      { label: 'Elevated', min: 50, max: 80, fill: '#fbbf24' },
+      { label: 'Watch', min: 0, max: 50, fill: '#7c78ff' },
     ];
-  }, [sightings, campaigns]);
+    return groups.map((group) => ({
+      stage: group.label,
+      campaigns: campaigns.filter((campaign) => campaign.risk_score >= group.min && campaign.risk_score < group.max).length,
+      fill: group.fill,
+    }));
+  }, [campaigns]);
+
+  const highRiskFindings = sightings.filter((sighting) => (getRiskScore(sighting) ?? 0) >= 80).length;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-      {/* Chart 1: 7-Day Ingestion Velocity (Area Chart) */}
-      <div className="lg:col-span-7 rounded-xl border border-white/[0.075] bg-[#111a27] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              <TrendingUp className="w-4 h-4" />
-            </span>
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      <section className={`${panel} xl:col-span-7`}>
+        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg border border-violet-400/15 bg-violet-400/[0.08] p-2 text-violet-300"><Activity className="h-4 w-4" /></span>
             <div>
-              <h3 className="text-sm font-semibold text-slate-100">Telemetry Ingestion & Threat Velocity</h3>
-              <p className="text-[11px] text-slate-500">7-day moving rate of raw sightings vs high-risk confirmed threats</p>
+              <h2 className="text-sm font-semibold text-slate-100">Finding activity</h2>
+              <p className="mt-1 text-[11px] text-slate-500">Daily observations from available workspace records</p>
             </div>
           </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 font-bold">
-            LIVE TELEMETRY
-          </span>
+          <span className="rounded-md border border-white/[0.08] bg-white/[0.025] px-2 py-1 text-[10px] font-medium text-slate-400">Last 7 days</span>
         </div>
-
-        <div className="h-[240px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradientTotal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="gradientHighRisk" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="day" stroke="#64748b" fontSize={11} tickLine={false} />
-              <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="totalSightings"
-                name="Total Sightings"
-                stroke="#06b6d4"
-                strokeWidth={2.5}
-                fillOpacity={1}
-                fill="url(#gradientTotal)"
-              />
-              <Area
-                type="monotone"
-                dataKey="highRiskThreats"
-                name="High-Risk Threats"
-                stroke="#f43f5e"
-                strokeWidth={2.5}
-                fillOpacity={1}
-                fill="url(#gradientHighRisk)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="h-[230px] px-2 pb-3 pt-4 sm:px-4">
+          {sightings.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData} margin={{ top: 6, right: 8, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="astraFindingFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b83ff" stopOpacity={0.28} /><stop offset="100%" stopColor="#8b83ff" stopOpacity={0} /></linearGradient>
+                  <linearGradient id="astraRiskFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#fb7185" stopOpacity={0.2} /><stop offset="100%" stopColor="#fb7185" stopOpacity={0} /></linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 5" stroke="#263342" vertical={false} />
+                <XAxis dataKey="day" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="findings" name="Findings" stroke="#8b83ff" strokeWidth={2} fill="url(#astraFindingFill)" activeDot={{ r: 4, fill: '#b7b2ff', strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="highRisk" name="High risk" stroke="#fb7185" strokeWidth={1.8} fill="url(#astraRiskFill)" activeDot={{ r: 3, fill: '#fda4af', strokeWidth: 0 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : <div className="flex h-full flex-col items-center justify-center gap-2 text-center"><Activity className="h-5 w-5 text-slate-600" /><p className="text-xs text-slate-400">Activity appears when findings are ingested.</p></div>}
         </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] px-5 py-3 text-[10px] text-slate-500">
+          <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-violet-400" />All findings</span>
+          <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-rose-400" />High risk · {highRiskFindings}</span>
+          <span className="ml-auto">Based on observed timestamps</span>
+        </div>
+      </section>
 
-        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-3 border-t border-slate-800/80 mt-2">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-              Total Ingested
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              High-Risk Incidents
-            </span>
+      <section className={`${panel} xl:col-span-5`}>
+        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.08] p-2 text-cyan-300"><PieIcon className="h-4 w-4" /></span>
+            <div><h2 className="text-sm font-semibold text-slate-100">Exposure by surface</h2><p className="mt-1 text-[11px] text-slate-500">Observed finding distribution</p></div>
           </div>
-          <span className="text-slate-500 font-mono">Calibrated by Brand DNA</span>
+          <span className="font-mono text-xs text-slate-400">{sightings.length}</span>
         </div>
-      </div>
-
-      {/* Chart 2: Attack Surface Breakdown (Donut Pie Chart) */}
-      <div className="lg:col-span-5 rounded-xl border border-white/[0.075] bg-[#111a27] p-5">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
-              <PieIcon className="w-4 h-4" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-100">Surface Vector Distribution</h3>
-              <p className="text-[11px] text-slate-500">Incident breakdown across monitored digital surfaces</p>
-            </div>
+        {surfaceData.length ? <>
+          <div className="relative h-[174px] px-2 pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={surfaceData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value" stroke="#111a27" strokeWidth={3}>
+                  {surfaceData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-2"><span className="font-mono text-xl font-semibold text-white">{sightings.length}</span><span className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-slate-500">Findings</span></div>
           </div>
-        </div>
-
-        <div className="h-[200px] w-full relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={surfaceData}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={80}
-                paddingAngle={4}
-                dataKey="value"
-              >
-                {surfaceData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} stroke="#0f172a" strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-lg font-bold font-mono text-slate-100">
-              {surfaceData.reduce((acc, curr) => acc + curr.value, 0)}
-            </span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Incidents</span>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-white/[0.06] px-5 py-3">
+            {surfaceData.slice(0, 6).map((item) => <div key={item.name} className="flex min-w-0 items-center gap-2 text-[11px]"><i className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} /><span className="truncate text-slate-400">{item.name}</span><span className="ml-auto font-mono text-slate-200">{item.value}</span></div>)}
           </div>
-        </div>
+        </> : <div className="flex h-[250px] flex-col items-center justify-center gap-2 text-center"><Radar className="h-5 w-5 text-slate-600" /><p className="text-xs text-slate-400">Surface breakdown appears when findings are ingested.</p></div>}
+      </section>
 
-        {/* Legend pills */}
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
-          {surfaceData.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-              <span className="text-slate-400 truncate">{item.name}</span>
-              <span className="font-mono text-slate-200 font-semibold ml-auto">{item.value}</span>
-            </div>
-          ))}
+      <section className={`${panel} xl:col-span-12`}>
+        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+          <div className="flex items-center gap-3"><span className="rounded-lg border border-amber-400/15 bg-amber-400/[0.08] p-2 text-amber-200"><BarChart3 className="h-4 w-4" /></span><div><h2 className="text-sm font-semibold text-slate-100">Campaign risk profile</h2><p className="mt-1 text-[11px] text-slate-500">Existing investigations grouped by their current risk score</p></div></div>
+          <span className="font-mono text-xs text-slate-400">{campaigns.length} total</span>
         </div>
-      </div>
-
-      {/* Chart 3: Remediation & Takedown Funnel (Horizontal Bar) */}
-      <div className="lg:col-span-12 rounded-xl border border-white/[0.075] bg-[#111a27] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck className="w-4 h-4" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-100">Remediation & Takedown Lifecycle Funnel</h3>
-              <p className="text-[11px] text-slate-500">Pipeline progression from ingested finding to confirmed provider takedown</p>
-            </div>
-          </div>
-          <span className="text-xs text-emerald-400 font-medium font-mono flex items-center gap-1">
-            <Zap className="w-3.5 h-3.5" /> 88.4% Analyst Triage Precision
-          </span>
-        </div>
-
-        <div className="h-[120px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={remediationData}
-              layout="vertical"
-              margin={{ top: 0, right: 30, left: 110, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-              <XAxis type="number" stroke="#64748b" fontSize={11} tickLine={false} />
-              <YAxis
-                type="category"
-                dataKey="stage"
-                stroke="#cbd5e1"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="count" name="Case Count" radius={[0, 6, 6, 0]}>
-                {remediationData.map((entry, index) => (
-                  <Cell key={`bar-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+        {campaigns.length ? <div className="h-[155px] px-3 pb-3 pt-4 sm:px-6"><ResponsiveContainer width="100%" height="100%"><BarChart data={campaignRiskData} layout="vertical" margin={{ top: 0, right: 18, left: 18, bottom: 0 }}><CartesianGrid strokeDasharray="3 5" stroke="#263342" horizontal={false} /><XAxis type="number" allowDecimals={false} stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} /><YAxis type="category" dataKey="stage" stroke="#cbd5e1" fontSize={11} tickLine={false} axisLine={false} width={68} /><Tooltip content={<CustomTooltip />} /><Bar dataKey="campaigns" name="Campaigns" radius={[0, 5, 5, 0]} barSize={18}>{campaignRiskData.map((entry) => <Cell key={entry.stage} fill={entry.fill} />)}</Bar></BarChart></ResponsiveContainer></div> : <div className="flex h-[112px] items-center justify-center text-xs text-slate-500">Campaign risk profile appears when investigations are created.</div>}
+      </section>
     </div>
   );
 }

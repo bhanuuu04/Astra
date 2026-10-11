@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import TenantContext, get_current_tenant_context
-from app.db.models import Campaign, CampaignEdgeLegacy as CampaignEdge, CampaignMember, Signal
+from app.db.models import Brand, BrandAsset, Campaign, CampaignEdgeLegacy as CampaignEdge, CampaignMember, Signal
 from app.db.session import get_session
+from app.integrations.connector_sources import ConnectorSourceError
 from app.integrations.google_play import inspect_app_listing
 from app.integrations.llm import generate_analyst_summary
 from app.integrations.meta import get_instagram_user_metadata
@@ -25,14 +26,13 @@ class VirusTotalCheckRequest(BaseModel):
 
 
 class YouTubeScanRequest(BaseModel):
-    brand_name: str = Field(default="Astra Security")
+    brand_id: uuid.UUID
     query_suffix: Optional[str] = "support customer care update"
-    max_results: Optional[int] = 5
+    max_results: Optional[int] = Field(default=5, ge=1, le=50)
 
 
 class GooglePlayInspectRequest(BaseModel):
-    package_name: str = Field(default="com.astra.security.patch.updater")
-    brand_name: str = Field(default="Astra Security")
+    package_name: str = Field(..., min_length=3, max_length=255)
 
 
 class AISummaryRequest(BaseModel):
@@ -82,16 +82,16 @@ def get_integrations_status() -> Dict[str, Any]:
                 "configured": meta_active,
                 "is_live": False,
                 "status": "configured" if meta_active else "unconfigured",
-                "scope": "webhook_brand_mention_ingestion",
-                "note": "Webhook credentials configured; provider delivery is not health-checked here" if meta_active else "Page access token or app secret not configured",
+                "scope": "authorized_account_metadata_and_webhooks",
+                "note": "Configured credentials are not a health check; public-account discovery is unavailable" if meta_active else "Page access token or app secret not configured",
             },
             "google_play": {
-                "name": "Google Play Store Catalog Watcher",
+                "name": "Android Publisher Reviews",
                 "configured": gp_active,
                 "is_live": False,
                 "status": "configured" if gp_active else "unconfigured",
-                "scope": "package_metadata_inspection",
-                "note": "Service account configured; provider reachability is not checked here" if gp_active else "Service account JSON not configured",
+                "scope": "reviews_for_accessible_apps",
+                "note": "Service account configured; review reads require package access and this does not search the public catalog" if gp_active else "Service account JSON not configured",
             },
             "ai_llm_provider": {
                 "name": "AI Executive Threat Briefing Assistant",
@@ -131,26 +131,52 @@ async def run_virustotal_check(
 @router.post("/integrations/youtube/scan")
 async def run_youtube_scan(
     request: YouTubeScanRequest,
+    session: Session = Depends(get_session),
     context: TenantContext = Depends(get_current_tenant_context),
 ) -> Dict[str, Any]:
     """Search YouTube for suspicious brand impersonation videos, tutorials, and fake helpdesks."""
-    return await search_brand_impersonation(
-        brand_name=request.brand_name,
-        query_suffix=request.query_suffix or "support customer care",
-        max_results=request.max_results or 5,
+    brand = session.scalar(
+        select(Brand).where(Brand.id == request.brand_id, Brand.tenant_id == context.tenant_id)
     )
+    if not brand:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
+    try:
+        return await search_brand_impersonation(
+            brand_name=brand.name,
+            query_suffix=request.query_suffix or "support customer care",
+            max_results=request.max_results or 5,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
 @router.post("/integrations/google-play/inspect")
 def run_google_play_inspect(
     request: GooglePlayInspectRequest,
+    session: Session = Depends(get_session),
     context: TenantContext = Depends(get_current_tenant_context),
 ) -> Dict[str, Any]:
-    """Inspect Android package listing and review sentiment for brand imitation."""
-    return inspect_app_listing(
-        package_name=request.package_name,
-        brand_name=request.brand_name,
-    )
+    """Fetch real reviews for a package enrolled under the caller's tenant."""
+    enrolled = session.execute(
+        select(BrandAsset, Brand)
+        .join(Brand, Brand.id == BrandAsset.brand_id)
+        .where(
+            Brand.tenant_id == context.tenant_id,
+            BrandAsset.canonical_value == request.package_name,
+            BrandAsset.asset_type.in_(("mobile_app", "mobile_app_pkg")),
+        )
+    ).first()
+    if not enrolled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package ID is not enrolled as an asset for this organization.")
+    _, brand = enrolled
+    try:
+        return inspect_app_listing(
+            package_name=request.package_name,
+            brand_name=brand.name,
+            service_account_json=get_settings().google_play_service_account_json,
+        )
+    except ConnectorSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
 @router.post("/campaigns/{campaign_id}/ai-summary")

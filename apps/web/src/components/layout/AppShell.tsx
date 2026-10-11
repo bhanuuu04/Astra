@@ -28,6 +28,7 @@ import {
   User,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { CommandPalette } from '@/components/CommandPalette';
 import { AuthModal } from '@/components/auth/AuthModal';
 import {
@@ -46,31 +47,36 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-const primaryNavigation = [
-  { href: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { href: '/sightings', label: 'Findings queue', icon: Bell },
-  { href: '/campaigns', label: 'Campaigns', icon: Network },
-  { href: '/responses', label: 'Response cases', icon: Send },
-  { href: '/brands', label: 'Brand DNA', icon: Fingerprint },
-  { href: '/connectors', label: 'Connectors', icon: Database },
-  { href: '/settings', label: 'Settings', icon: Settings },
-];
+type NavigationItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 
-const monitorNavigation = [
-  { href: '/apps', label: 'App radar', icon: Smartphone },
-  { href: '/alerts', label: 'Alert feed', icon: BellRing },
+const navigationGroups: { label: string; items: NavigationItem[] }[] = [
+  { label: 'Command center', items: [
+    { href: '/overview', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+    { href: '/alerts', label: 'Alert center', icon: BellRing },
+  ] },
+  { label: 'Digital risk', items: [
+    { href: '/sightings', label: 'Findings queue', icon: Bell },
+    { href: '/campaigns', label: 'Campaign intelligence', icon: Network },
+    { href: '/brands', label: 'Brand protection', icon: Fingerprint },
+    { href: '/apps', label: 'Mobile app radar', icon: Smartphone },
+  ] },
+  { label: 'Response & workspace', items: [
+    { href: '/responses', label: 'Response cases', icon: Send },
+    { href: '/connectors', label: 'Data sources', icon: Database },
+    { href: '/settings', label: 'Settings', icon: Settings },
+  ] },
 ];
 
 const pageNames: Record<string, string> = {
-  overview: 'Overview',
+  overview: 'Dashboard',
   sightings: 'Findings queue',
   campaigns: 'Campaigns',
   responses: 'Response cases',
-  brands: 'Brand DNA',
-  connectors: 'Connectors',
+  brands: 'Brand protection',
+  connectors: 'Data sources',
   settings: 'Platform Settings',
-  apps: 'Mobile App Radar',
-  alerts: 'Alert feed',
+  apps: 'Mobile app radar',
+  alerts: 'Alert center',
   landing: 'Product tour',
 };
 
@@ -149,30 +155,30 @@ export function AppShell({ children }: AppShellProps) {
     return tenant.name.slice(0, 2).toUpperCase();
   }, [tenant]);
 
-  const nav = (
-    <nav aria-label="Main navigation" className="space-y-1">
-      {primaryNavigation.map(({ href, label, icon: Icon, exact }) => {
-        const active = exact ? pathname === href || pathname === '/' : pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={() => setMobileMenuOpen(false)}
-            aria-current={active ? 'page' : undefined}
-            className={`group flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors ${
-              active
-                ? 'border border-cyan-300/15 bg-cyan-300/[0.08] text-cyan-100'
-                : 'border border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
-            }`}
-          >
-            <Icon className={`h-[17px] w-[17px] ${active ? 'text-cyan-300' : 'text-slate-500 group-hover:text-slate-300'}`} strokeWidth={1.8} />
-            <span className="flex-1">{label}</span>
-            {active && <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const renderNavigationLink = ({ href, label, icon: Icon, exact }: NavigationItem) => {
+    const active = exact ? pathname === href || pathname === '/' : pathname.startsWith(href);
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={() => setMobileMenuOpen(false)}
+        aria-current={active ? 'page' : undefined}
+        className={`group relative flex min-h-10 items-center gap-3 rounded-lg px-3 text-[12px] font-medium transition-colors ${
+          active
+            ? 'border border-violet-300/15 bg-violet-300/[0.09] text-white shadow-[inset_0_0_22px_rgba(139,131,255,0.035)]'
+            : 'border border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
+        }`}
+      >
+        {active && <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-violet-300" />}
+        <Icon className={`h-[16px] w-[16px] ${active ? 'text-violet-300' : 'text-slate-500 group-hover:text-slate-300'}`} strokeWidth={1.8} />
+        <span className="flex-1">{label}</span>
+        {href === '/alerts' && unreadAlerts > 0 && (
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">{unreadAlerts > 9 ? '9+' : unreadAlerts}</span>
+        )}
+        {active && <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />}
+      </Link>
+    );
+  };
 
   return (
     <div className="astra-shell flex h-dvh min-h-[600px] w-full overflow-hidden text-slate-100">
@@ -226,36 +232,13 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-5">
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Investigate</p>
-          {nav}
-          <div className="my-5 h-px bg-white/[0.06]" />
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Monitor</p>
-          <nav aria-label="Monitor navigation" className="space-y-1">
-            {monitorNavigation.map(({ href, label, icon: Icon }) => {
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  aria-current={active ? 'page' : undefined}
-                  className={`group flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors ${
-                    active
-                      ? 'border border-cyan-300/15 bg-cyan-300/[0.08] text-cyan-100'
-                      : 'border border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
-                  }`}
-                >
-                  <Icon className={`h-[17px] w-[17px] ${active ? 'text-cyan-300' : 'text-slate-500 group-hover:text-slate-300'}`} strokeWidth={1.8} />
-                  <span className="flex-1">{label}</span>
-                  {href === '/alerts' && unreadAlerts > 0 && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
-                      {unreadAlerts > 9 ? '9+' : unreadAlerts}
-                    </span>
-                  )}
-                  {active && <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />}
-                </Link>
-              );
-            })}
+          <nav aria-label="Main navigation" className="space-y-5">
+            {navigationGroups.map((group) => (
+              <section key={group.label} aria-label={group.label}>
+                <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-600">{group.label}</p>
+                <div className="space-y-1">{group.items.map(renderNavigationLink)}</div>
+              </section>
+            ))}
           </nav>
           <div className="my-5 h-px bg-white/[0.06]" />
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Workspace</p>
@@ -339,7 +322,7 @@ export function AppShell({ children }: AppShellProps) {
             ) : (
               <div className="hidden h-8 items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.06] px-2.5 text-[10px] font-medium text-emerald-300 sm:flex">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                LIVE ORG: {tenant.name}
+                WORKSPACE: {tenant.name}
               </div>
             )}
 

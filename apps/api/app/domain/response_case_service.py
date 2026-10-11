@@ -85,11 +85,13 @@ def create_response_case_draft(
     # Verify evidence manifest IDs if specified
     if evidence_manifest:
         existing_evidence = list(session.scalars(
-            select(EvidenceObject.id).where(EvidenceObject.id.in_(evidence_manifest))
+            select(EvidenceObject.id).where(
+                EvidenceObject.id.in_(evidence_manifest),
+                EvidenceObject.finding_id == finding_id,
+            )
         ).all())
         if len(existing_evidence) != len(set(evidence_manifest)):
-            missing = set(evidence_manifest) - set(existing_evidence)
-            raise ValueError(f"Evidence object(s) {missing} not found")
+            raise ValueError("Every response-case evidence item must be attached to the finding being reported.")
     
     # Retain evidence manifest in submission payload
     if not isinstance(submission_payload, dict):
@@ -232,12 +234,17 @@ def dispatch_response_case(
     
     if response_case.lifecycle_state != "approved":
         raise ValueError(f"Cannot dispatch case in state: {response_case.lifecycle_state}")
+
+    if submission_channel != "manual_portal":
+        raise ValueError(
+            "Automated API and email submission are not configured. Submit through the provider's official portal, then record it using manual_portal."
+        )
     
     response_case.lifecycle_state = "submitted"
     response_case.submission_channel = submission_channel
     response_case.submitted_at = datetime.now(timezone.utc)
     
-    # Record dispatch tracking metadata in submission_payload
+    # This records an analyst-confirmed manual submission; ASTRA does not send it.
     if not response_case.submission_payload:
         response_case.submission_payload = {}
     response_case.submission_payload["dispatched_channel"] = submission_channel

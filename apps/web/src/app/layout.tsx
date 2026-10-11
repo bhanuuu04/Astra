@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppShell } from "@/components/layout/AppShell";
+import { ClerkProvider } from "@clerk/nextjs";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,12 +23,23 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Gracefully wrap with ClerkProvider if Clerk publishable key is present, otherwise provide children directly
+  const hasClerkKey = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} ${mono.variable} font-sans antialiased min-h-screen`}>
-        <QueryProvider>
-          <AppShell>{children}</AppShell>
-        </QueryProvider>
+    <html lang="en">
+      <body className={`${inter.variable} ${mono.variable} font-sans antialiased min-h-screen bg-slate-50 text-slate-900`}>
+        {hasClerkKey ? (
+          <ClerkProvider>
+            <QueryProvider>
+              <AppShell>{children}</AppShell>
+            </QueryProvider>
+          </ClerkProvider>
+        ) : (
+          <QueryProvider>
+            <AppShell>{children}</AppShell>
+          </QueryProvider>
+        )}
       </body>
     </html>
   );

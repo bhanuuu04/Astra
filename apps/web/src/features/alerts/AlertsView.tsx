@@ -1,40 +1,33 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Bell,
-  BellOff,
   BellRing,
+  AlertTriangle,
+  AlertCircle,
   ShieldAlert,
   ShieldCheck,
+  Zap,
   Globe2,
   Smartphone,
   Fingerprint,
   Activity,
-  Clock,
   ArrowRight,
-  CheckCheck,
-  Filter,
-  Wifi,
-  WifiOff,
-  X,
-  AlertCircle,
-  Zap,
   Eye,
-  Link as LinkIcon,
+  X,
+  Filter,
+  CheckCircle2,
+  Radio,
 } from 'lucide-react';
-import Link from 'next/link';
 import { listSightings, listCampaigns, type Sighting, type Campaign } from '@/lib/api';
 
-const panel = 'rounded-xl border border-white/[0.075] bg-[#111a27]';
-
 type AlertLevel = 'critical' | 'high' | 'medium' | 'info';
-type AlertKind = 'new_sighting' | 'high_risk_campaign' | 'status_change' | 'system';
 
 interface AlertItem {
   id: string;
-  kind: AlertKind;
+  kind: 'high_risk_campaign' | 'new_sighting' | 'status_change' | 'system';
   level: AlertLevel;
   title: string;
   body: string;
@@ -46,10 +39,34 @@ interface AlertItem {
 
 function levelMeta(level: AlertLevel) {
   switch (level) {
-    case 'critical': return { style: 'border-rose-500/30 bg-rose-500/8 text-rose-300', dot: 'bg-rose-400', icon: ShieldAlert };
-    case 'high': return { style: 'border-orange-500/30 bg-orange-500/8 text-orange-300', dot: 'bg-orange-400', icon: AlertCircle };
-    case 'medium': return { style: 'border-amber-500/30 bg-amber-500/8 text-amber-200', dot: 'bg-amber-400', icon: Zap };
-    case 'info': return { style: 'border-slate-700 bg-slate-800/50 text-slate-300', dot: 'bg-slate-500', icon: Activity };
+    case 'critical':
+      return {
+        style: 'border-[#eb5757]/30 bg-white text-[#37352f]',
+        dot: 'bg-[#eb5757]',
+        badge: 'border-[#eb5757]/30 bg-[#eb5757]/10 text-[#eb5757]',
+        icon: ShieldAlert,
+      };
+    case 'high':
+      return {
+        style: 'border-[#d97706]/30 bg-white text-[#37352f]',
+        dot: 'bg-[#d97706]',
+        badge: 'border-[#d97706]/30 bg-[#d97706]/10 text-[#d97706]',
+        icon: AlertCircle,
+      };
+    case 'medium':
+      return {
+        style: 'border-[#e3e2e0] bg-white text-[#37352f]',
+        dot: 'bg-[#d97706]',
+        badge: 'border-[#d97706]/20 bg-[#d97706]/10 text-[#d97706]',
+        icon: Zap,
+      };
+    case 'info':
+      return {
+        style: 'border-[#e3e2e0] bg-white text-[#37352f]',
+        dot: 'bg-[#9b9a97]',
+        badge: 'border-[#e3e2e0] bg-[#f7f6f3] text-[#787774]',
+        icon: Activity,
+      };
   }
 }
 
@@ -93,20 +110,20 @@ function buildAlertsFromData(sightings: Sighting[], campaigns: Campaign[]): Aler
   // Recent sightings → alerts
   const recent = [...sightings]
     .sort((a, b) => new Date(b.observed_at || b.created_at).getTime() - new Date(a.observed_at || a.created_at).getTime())
-    .slice(0, 10);
+    .slice(0, 15);
 
   for (const s of recent) {
     const payload = s.normalized_payload || {};
     const riskScore = payload.threat_analysis?.risk_score || 0;
     const level: AlertLevel = riskScore >= 0.9 ? 'critical' : riskScore >= 0.7 ? 'high' : riskScore >= 0.5 ? 'medium' : 'info';
-    const sender = payload.sender?.username ? `@${payload.sender.username}` : s.raw_ref || 'Unknown source';
-    const summary = payload.threat_analysis?.summary || 'New evidence captured for review';
+    const sender = payload.sender?.username ? `@${payload.sender.username}` : s.raw_ref || 'Monitored Channel Finding';
+    const summary = payload.threat_analysis?.summary || payload.content || 'Evidence captured across monitored surface.';
     alerts.push({
       id: `sighting-${s.id}`,
       kind: 'new_sighting',
       level,
-      title: `New finding — ${sender}`,
-      body: typeof summary === 'string' ? summary : 'New evidence captured for review',
+      title: `Finding detected — ${sender}`,
+      body: typeof summary === 'string' ? summary : 'Evidence captured across monitored surface.',
       surface: s.surface,
       href: `/sightings?id=${s.id}`,
       timestamp: s.observed_at || s.created_at,
@@ -116,82 +133,6 @@ function buildAlertsFromData(sightings: Sighting[], campaigns: Campaign[]): Aler
 
   return alerts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
-
-// Demo alerts when no live data
-const DEMO_ALERTS: AlertItem[] = [
-  {
-    id: 'demo-1',
-    kind: 'high_risk_campaign',
-    level: 'critical',
-    title: 'Critical campaign escalated: Social Impersonation Ring',
-    body: 'Risk score 94 — 7 linked accounts detected across Instagram and Telegram, coordinating credential harvest.',
-    href: '/campaigns',
-    timestamp: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
-    read: false,
-  },
-  {
-    id: 'demo-2',
-    kind: 'new_sighting',
-    level: 'critical',
-    title: 'New finding — @astra.supportt',
-    body: 'Trojanized APK link distributed via Instagram DM. Mimics Astra Shield Mobile v4.2.1. 98/100 risk score.',
-    surface: 'instagram_dm',
-    href: '/sightings',
-    timestamp: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
-    read: false,
-  },
-  {
-    id: 'demo-3',
-    kind: 'new_sighting',
-    level: 'high',
-    title: 'New finding — @astrà_support_desk',
-    body: 'Homoglyph username on X/Twitter sending trademark infringement scam via URL shortener bit.ly. Urgency triggers detected.',
-    surface: 'x_twitter',
-    href: '/sightings',
-    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    read: false,
-  },
-  {
-    id: 'demo-4',
-    kind: 'new_sighting',
-    level: 'high',
-    title: 'New finding — AstraToken_Official_Airdrop',
-    body: 'Crypto wallet harvester on Telegram. ETH address 0x71C9... linked to known scam cluster. Seed phrase extraction flow detected.',
-    surface: 'telegram',
-    href: '/sightings',
-    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    read: true,
-  },
-  {
-    id: 'demo-5',
-    kind: 'status_change',
-    level: 'medium',
-    title: 'Takedown submitted: Astra Token Claim Companion',
-    body: 'Takedown request submitted to astra-token-distribution.xyz registrar via UDRP channel. Awaiting registrar response.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    read: true,
-  },
-  {
-    id: 'demo-6',
-    kind: 'new_sighting',
-    level: 'critical',
-    title: 'VIP impersonation — Alex Mercer (CISO)',
-    body: 'LinkedIn account "alex-mercer-astra9283" impersonating CISO. Requesting document access via social engineering.',
-    surface: 'linkedin',
-    href: '/sightings',
-    timestamp: new Date(Date.now() - 1000 * 60 * 200).toISOString(),
-    read: true,
-  },
-  {
-    id: 'demo-7',
-    kind: 'system',
-    level: 'info',
-    title: 'Meta webhook connected and verified',
-    body: 'Instagram Business webhook for brand "Astra Security" is active. Events are being ingested in real-time.',
-    timestamp: new Date(Date.now() - 1000 * 3600 * 6).toISOString(),
-    read: true,
-  },
-];
 
 function AlertRow({ alert, onRead, onDismiss }: {
   alert: AlertItem;
@@ -203,33 +144,33 @@ function AlertRow({ alert, onRead, onDismiss }: {
   const SIcon = surfaceIcon(alert.surface);
 
   return (
-    <div className={`group relative flex gap-3 rounded-xl border p-4 transition-all ${meta.style} ${!alert.read ? 'shadow-sm shadow-black/30' : 'opacity-70 hover:opacity-90'}`}>
-      {!alert.read && <span className={`absolute right-3 top-3 h-2 w-2 rounded-full ${meta.dot} animate-pulse`} />}
-      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${meta.style}`}>
+    <div className={`group relative flex gap-3.5 rounded-[8px] border p-4 sm:p-5 transition-all bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${meta.style} ${!alert.read ? '' : 'opacity-70'}`}>
+      {!alert.read && <span className={`absolute right-4 top-4 h-2 w-2 rounded-full ${meta.dot}`} />}
+      <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border ${meta.badge}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <p className="text-sm font-medium text-slate-100">{alert.title}</p>
-          <time className="shrink-0 text-[11px] text-slate-500">{formatRelative(alert.timestamp)}</time>
+          <p className="text-sm font-semibold text-[#37352f]">{alert.title}</p>
+          <time className="shrink-0 text-xs text-[#9b9a97] font-medium">{formatRelative(alert.timestamp)}</time>
         </div>
-        <p className="mt-1 text-xs leading-relaxed text-slate-400">{alert.body}</p>
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <p className="mt-1.5 text-xs leading-relaxed text-[#787774]">{alert.body}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           {alert.surface && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
-              <SIcon className="h-3 w-3" />
+            <span className="flex items-center gap-1.5 text-xs text-[#787774] font-medium capitalize">
+              <SIcon className="h-3.5 w-3.5 text-[#9b9a97]" />
               {alert.surface.replaceAll('_', ' ')}
             </span>
           )}
           {alert.href && (
-            <Link href={alert.href} className="inline-flex items-center gap-1 text-[11px] font-medium text-cyan-300 hover:text-cyan-200">
+            <Link href={alert.href} className="inline-flex items-center gap-1 text-xs font-semibold text-[#0f7b6c] hover:underline">
               Investigate <ArrowRight className="h-3 w-3" />
             </Link>
           )}
           {!alert.read && (
             <button
               onClick={() => onRead(alert.id)}
-              className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300"
+              className="inline-flex items-center gap-1 text-xs text-[#787774] hover:text-[#37352f] cursor-pointer"
             >
               <Eye className="h-3 w-3" />Mark read
             </button>
@@ -238,7 +179,7 @@ function AlertRow({ alert, onRead, onDismiss }: {
       </div>
       <button
         onClick={() => onDismiss(alert.id)}
-        className="absolute right-3 bottom-3 hidden rounded p-0.5 text-slate-600 hover:text-slate-300 group-hover:block"
+        className="absolute right-3 bottom-3 hidden rounded-[4px] p-1 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] group-hover:block transition cursor-pointer"
         title="Dismiss alert"
       >
         <X className="h-3.5 w-3.5" />
@@ -248,11 +189,10 @@ function AlertRow({ alert, onRead, onDismiss }: {
 }
 
 export function AlertsView() {
-  const [alerts, setAlerts] = useState<AlertItem[]>(DEMO_ALERTS);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [levelFilter, setLevelFilter] = useState<AlertLevel | 'all'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [livePolling, setLivePolling] = useState(true);
-  const prevSightingIds = useRef<Set<string>>(new Set());
 
   const { data: sightings = [] } = useQuery({
     queryKey: ['sightings'],
@@ -266,21 +206,9 @@ export function AlertsView() {
     refetchInterval: livePolling ? 30000 : false,
   });
 
-  // Merge live alerts when new sightings arrive
   useEffect(() => {
-    if (!sightings.length && !campaigns.length) return;
     const liveAlerts = buildAlertsFromData(sightings, campaigns);
-    if (liveAlerts.length > 0) {
-      // Only replace demo data once real data arrives
-      setAlerts((prev) => {
-        const existingIds = new Set(prev.map((a) => a.id));
-        const merged = [
-          ...liveAlerts.filter((a) => !existingIds.has(a.id)),
-          ...prev.filter((a) => !a.id.startsWith('demo-')),
-        ];
-        return merged.length > 0 ? merged : prev;
-      });
-    }
+    setAlerts(liveAlerts);
   }, [sightings, campaigns]);
 
   const handleRead = (id: string) => setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
@@ -299,99 +227,98 @@ export function AlertsView() {
   return (
     <div className="mx-auto w-full max-w-[1024px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       {/* Header */}
-      <header className="flex flex-col gap-5 border-b border-slate-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
+      <header className="flex flex-col gap-5 border-b border-[#e3e2e0] pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-300">
-            <BellRing className="h-3.5 w-3.5" /> Alert feed
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wide text-[#0f7b6c]">
+            <BellRing className="h-3.5 w-3.5" /> Alert Feed &amp; Incident Dispatch
           </div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">Real-time alerts</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-[#37352f] sm:text-3xl">Real-time Risk Alerts</h1>
             {unreadCount > 0 && (
-              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-xs font-semibold text-rose-300">
+              <span className="rounded-[4px] border border-[#eb5757]/30 bg-[#eb5757]/10 px-2 py-0.5 text-xs font-semibold text-[#eb5757]">
                 {unreadCount} unread
               </span>
             )}
+            {criticalCount > 0 && (
+              <span className="rounded-[4px] border border-[#eb5757]/30 bg-[#eb5757]/10 px-2 py-0.5 text-xs font-semibold text-[#eb5757]">
+                {criticalCount} critical
+              </span>
+            )}
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Live feed of brand threats, new sightings, and campaign escalations. Auto-refreshes every 15 seconds.
+          <p className="mt-2 text-sm leading-6 text-[#787774]">
+            Proactive threat signals, high-risk campaigns, and detected impersonation findings across brand telemetry.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setLivePolling((p) => !p)}
+            className={`inline-flex h-9 items-center gap-2 rounded-[6px] border px-3 text-xs font-medium transition cursor-pointer shadow-xs ${
+              livePolling
+                ? 'border-[#0f7b6c]/30 bg-[#0f7b6c]/10 text-[#0f7b6c]'
+                : 'border-[#e3e2e0] bg-white text-[#787774] hover:bg-[#f7f6f3]'
+            }`}
+          >
+            <Radio className={`h-3 w-3 ${livePolling ? 'text-[#0f7b6c]' : 'text-[#9b9a97]'}`} />
+            {livePolling ? 'Live ingestion polling' : 'Polling paused'}
+          </button>
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-300 transition hover:border-slate-600 hover:text-white"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[6px] border border-[#e3e2e0] bg-white px-3 text-xs font-medium text-[#37352f] transition hover:bg-[#f7f6f3] cursor-pointer shadow-xs"
             >
-              <CheckCheck className="h-3.5 w-3.5" />Mark all read
+              <CheckCircle2 className="h-3.5 w-3.5 text-[#787774]" /> Mark all read
             </button>
           )}
-          <button
-            onClick={() => setLivePolling((v) => !v)}
-            className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition ${
-              livePolling
-                ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200'
-                : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-white'
-            }`}
-          >
-            {livePolling ? <Wifi className="h-3.5 w-3.5 animate-pulse" /> : <WifiOff className="h-3.5 w-3.5" />}
-            {livePolling ? 'Live' : 'Paused'}
-          </button>
         </div>
       </header>
 
-      {/* Critical banner */}
-      {criticalCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/[0.07] px-4 py-3">
-          <ShieldAlert className="h-4 w-4 shrink-0 text-rose-400" />
-          <p className="text-sm text-rose-200">
-            <strong>{criticalCount} critical {criticalCount === 1 ? 'alert' : 'alerts'}</strong> require immediate analyst review.
-          </p>
-          <button onClick={() => setLevelFilter('critical')} className="ml-auto text-xs text-rose-300 hover:text-rose-100">
-            View critical →
-          </button>
+      {/* Filter strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e2e0] pb-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(['all', 'critical', 'high', 'medium', 'info'] as const).map((l) => (
+            <button
+              key={l}
+              onClick={() => setLevelFilter(l)}
+              className={`rounded-[6px] border px-3 py-1 text-xs font-medium capitalize transition cursor-pointer ${
+                levelFilter === l
+                  ? 'border-[#0f7b6c] bg-[#0f7b6c]/10 text-[#0f7b6c] font-semibold'
+                  : 'border-[#e3e2e0] bg-white text-[#787774] hover:bg-[#f7f6f3]'
+              }`}
+            >
+              {l}
+              {l !== 'all' && (
+                <span className="ml-1.5 font-mono text-[10px] opacity-75">
+                  {alerts.filter((a) => a.level === l).length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap gap-1.5">
-          {(['all', 'critical', 'high', 'medium', 'info'] as const).map((l) => {
-            const count = l === 'all' ? alerts.length : alerts.filter((a) => a.level === l).length;
-            return (
-              <button
-                key={l}
-                onClick={() => setLevelFilter(l)}
-                className={`h-8 rounded-md border px-3 text-xs font-medium capitalize transition ${
-                  levelFilter === l
-                    ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200'
-                    : 'border-white/[0.07] text-slate-500 hover:border-white/15 hover:text-slate-300'
-                }`}
-              >
-                {l}
-                <span className="ml-1.5 font-mono text-[10px] opacity-60">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-        <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-slate-500">
+        <label className="flex items-center gap-2 text-xs font-medium text-[#787774] cursor-pointer select-none">
           <input
             type="checkbox"
             checked={showUnreadOnly}
             onChange={(e) => setShowUnreadOnly(e.target.checked)}
-            className="rounded accent-cyan-400"
+            className="rounded-[4px] border-[#e3e2e0] text-[#0f7b6c] focus:ring-[#0f7b6c]"
           />
           Unread only
         </label>
       </div>
 
-      {/* Alert list */}
+      {/* Alerts list */}
       {filtered.length === 0 ? (
-        <div className={`${panel} flex min-h-[200px] items-center justify-center`}>
-          <div className="text-center">
-            <BellOff className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-3 text-sm font-medium text-slate-400">No alerts match your filters</p>
-            <p className="mt-1 text-xs text-slate-600">Try changing the level filter or showing all alerts.</p>
-          </div>
+        <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[8px] border border-[#e3e2e0] bg-white p-8 text-center shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <ShieldCheck className="h-10 w-10 text-[#0f7b6c] mb-3" />
+          <p className="text-sm font-semibold text-[#37352f]">
+            {showUnreadOnly || levelFilter !== 'all' ? 'No alerts match current filters' : 'All monitored channels secure'}
+          </p>
+          <p className="mt-1 text-xs text-[#787774] max-w-sm">
+            {showUnreadOnly || levelFilter !== 'all'
+              ? 'Try adjusting your filters or switching to all severities.'
+              : 'No suspicious spikes or high-risk campaigns detected. Real-time telemetry is continuously watching your brand surfaces.'}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -401,12 +328,9 @@ export function AlertsView() {
         </div>
       )}
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 py-2 text-xs text-slate-600">
-        <span className="flex items-center gap-2">
-          <span className={`h-1.5 w-1.5 rounded-full ${livePolling ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-          {livePolling ? 'Auto-refreshing every 15 seconds' : 'Live refresh paused'}
-        </span>
-        <span>{alerts.length} total alerts</span>
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e3e2e0] py-3 text-xs text-[#787774]">
+        <span>{alerts.length} total risk alerts recorded</span>
+        <span>Telemetry sources: Composio social connectors, website crawlers, mobile app stores</span>
       </footer>
     </div>
   );

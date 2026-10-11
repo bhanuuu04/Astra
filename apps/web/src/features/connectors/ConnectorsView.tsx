@@ -246,41 +246,41 @@ export function ConnectorsView() {
     <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       {/* Notifications */}
       {notification && (
-        <div className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold ${
+        <div className={`p-4 rounded-[6px] border flex items-center justify-between text-xs font-medium ${
           notification.type === 'success'
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+            ? 'bg-[#0f7b6c]/10 border-[#0f7b6c]/30 text-[#0f7b6c]'
+            : 'bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]'
         }`}>
           <div className="flex items-center gap-2">
             {notification.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#0f7b6c]" />
             ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-[#eb5757]" />
             )}
             <span>{notification.message}</span>
           </div>
-          <button onClick={() => setNotification(null)} className="hover:opacity-70 p-1">
+          <button onClick={() => setNotification(null)} className="hover:opacity-70 p-1 cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
       {/* Header */}
-      <header className="flex flex-col gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-4 border-b border-[#e3e2e0] pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-300">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wide text-[#0f7b6c]">
             <Database className="h-3.5 w-3.5" /> Ingestion Infrastructure & Secret Vault
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-50 sm:text-3xl">Authorized Data Connectors</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#37352f] sm:text-3xl">Authorized Data Connectors</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#787774]">
             Configure authorized providers and run supported collections on demand. A saved API key does not start continuous monitoring.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ['connectors'] })}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-semibold text-slate-300 hover:text-white transition"
+            className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[#e3e2e0] bg-white px-3 text-xs font-medium text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer shadow-xs"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             <span>Refresh</span>
@@ -288,7 +288,7 @@ export function ConnectorsView() {
 
           <button
             onClick={() => handleOpenConfigure()}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-cyan-500 px-4 text-xs font-bold text-slate-950 hover:bg-cyan-400 transition"
+            className="inline-flex h-9 items-center gap-2 rounded-[6px] bg-[#0f7b6c] px-3.5 text-xs font-semibold text-white hover:bg-[#0c6357] transition cursor-pointer shadow-xs"
           >
             <Plus className="h-4 w-4" />
             <span>Configure New Connector</span>
@@ -298,12 +298,12 @@ export function ConnectorsView() {
 
       {/* Unconfigured State Banner */}
       {isTemplateMode && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
-          <div className="flex items-center gap-2 font-semibold text-amber-300">
-            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
+        <div className="rounded-[8px] border border-[#d97706]/30 bg-[#d97706]/10 p-4 text-xs text-[#d97706]">
+          <div className="flex items-center gap-2 font-semibold text-[#d97706]">
+            <AlertCircle className="h-4 w-4 shrink-0 text-[#d97706]" />
             <span>Unconfigured Ingestion Pipelines (Template Mode)</span>
           </div>
-          <p className="mt-1 text-slate-300 leading-relaxed">
+          <p className="mt-1 text-[#787774] leading-relaxed">
             No provider connections are configured. Configure credentials, run a live health check, then use on-demand sync where the provider exposes an authorized read API. ASTRA does not run background polling yet.
           </p>
         </div>
@@ -311,22 +311,22 @@ export function ConnectorsView() {
 
       {/* Metrics Strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="p-4 rounded-xl border border-white/[0.075] bg-[#111a27]">
-          <p className="text-xs text-slate-500 font-medium">Configured Connectors</p>
-          <p className="mt-1 text-2xl font-bold font-mono text-slate-100">{connectors.length}</p>
+        <div className="p-4 rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <p className="text-xs text-[#787774] font-medium">Configured Connectors</p>
+          <p className="mt-1 text-2xl font-bold font-mono text-[#37352f]">{connectors.length}</p>
         </div>
-        <div className="p-4 rounded-xl border border-white/[0.075] bg-[#111a27]">
-          <p className="text-xs text-slate-500 font-medium">Active & Healthy</p>
-          <p className="mt-1 text-2xl font-bold font-mono text-emerald-400">{activeCount}</p>
+        <div className="p-4 rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <p className="text-xs text-[#787774] font-medium">Active & Healthy</p>
+          <p className="mt-1 text-2xl font-bold font-mono text-[#0f7b6c]">{activeCount}</p>
         </div>
-        <div className="p-4 rounded-xl border border-white/[0.075] bg-[#111a27]">
-          <p className="text-xs text-slate-500 font-medium">Degraded / Attention</p>
-          <p className="mt-1 text-2xl font-bold font-mono text-amber-400">{degradedCount}</p>
+        <div className="p-4 rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <p className="text-xs text-[#787774] font-medium">Degraded / Attention</p>
+          <p className="mt-1 text-2xl font-bold font-mono text-[#d97706]">{degradedCount}</p>
         </div>
-        <div className="p-4 rounded-xl border border-white/[0.075] bg-[#111a27]">
-          <p className="text-xs text-slate-500 font-medium">Secret Storage</p>
-          <p className="mt-1 text-xs font-semibold text-cyan-300 uppercase mt-2 flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5 text-cyan-400" /> AES-Authenticated Vault
+        <div className="p-4 rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <p className="text-xs text-[#787774] font-medium">Secret Storage</p>
+          <p className="mt-1 text-xs font-semibold text-[#0f7b6c] uppercase mt-2 flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-[#0f7b6c]" /> AES-Authenticated Vault
           </p>
         </div>
       </div>
@@ -350,16 +350,16 @@ export function ConnectorsView() {
 
       {/* Configuration Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white border border-[#e3e2e0] rounded-[8px] max-w-lg w-full p-6 shadow-xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-[#e3e2e0]">
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-base font-bold text-slate-100">Configure Secret Vault Connector</h3>
+                <Lock className="w-4 h-4 text-[#0f7b6c]" />
+                <h3 className="text-base font-semibold text-[#37352f]">Configure Secret Vault Connector</h3>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200 p-1 rounded-lg"
+                className="text-[#787774] hover:text-[#37352f] p-1 rounded-[4px] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -367,7 +367,7 @@ export function ConnectorsView() {
 
             <form onSubmit={handleCreateConnector} className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-[#37352f] mb-1.5">
                   Connector Source Platform
                 </label>
                 <select
@@ -377,7 +377,7 @@ export function ConnectorsView() {
                     setSelectedType(next);
                     setConnectorName(CONNECTOR_PRESETS[next]?.name || next);
                   }}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] px-3 py-2 text-xs text-[#37352f] focus:outline-none focus:bg-white focus:border-[#0f7b6c]"
                 >
                   <option value="virustotal">VirusTotal URL Reputation Enrichment</option>
                   <option value="meta_graph">Meta / Instagram Graph API (authorized account only)</option>
@@ -388,7 +388,7 @@ export function ConnectorsView() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-[#37352f] mb-1.5">
                   Connector Display Name
                 </label>
                 <input
@@ -397,27 +397,27 @@ export function ConnectorsView() {
                   onChange={(e) => setConnectorName(e.target.value)}
                   required
                   placeholder="e.g. Production Threat Feed"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                  className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] px-3 py-2 text-xs text-[#37352f] focus:outline-none focus:bg-white focus:border-[#0f7b6c] font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                <label className="block text-xs font-semibold text-[#37352f] mb-1.5 flex items-center justify-between">
                   <span>{CONNECTOR_PRESETS[selectedType]?.keyLabel || 'Authentication Key'}</span>
-                  <span className="text-[10px] text-cyan-400 font-mono">Encrypted before storage</span>
+                  <span className="text-[10px] text-[#0f7b6c] font-mono">Encrypted before storage</span>
                 </label>
                 <input
                   type="password"
                   value={primaryCredential}
                   onChange={(e) => setPrimaryCredential(e.target.value)}
                   placeholder={CONNECTOR_PRESETS[selectedType]?.keyPlaceholder || 'Enter provider credential'}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                  className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] px-3 py-2 text-xs text-[#37352f] focus:outline-none focus:bg-white focus:border-[#0f7b6c] font-mono"
                 />
               </div>
 
               {CONNECTOR_PRESETS[selectedType]?.extraField && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-[#37352f] mb-1.5">
                     App Secret / Secondary Key (Optional)
                   </label>
                   <input
@@ -425,14 +425,14 @@ export function ConnectorsView() {
                     value={secondaryCredential}
                     onChange={(e) => setSecondaryCredential(e.target.value)}
                     placeholder="Enter secondary secret..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                    className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] px-3 py-2 text-xs text-[#37352f] focus:outline-none focus:bg-white focus:border-[#0f7b6c] font-mono"
                   />
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-[#37352f] mb-1.5">
                     Rate Limit (Req / Min)
                   </label>
                   <input
@@ -441,30 +441,30 @@ export function ConnectorsView() {
                     max={1000}
                     value={rateLimit}
                     onChange={(e) => setRateLimit(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                    className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] px-3 py-2 text-xs text-[#37352f] focus:outline-none focus:bg-white focus:border-[#0f7b6c] font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-[#37352f] mb-1.5">
                     Live connector note
                   </label>
-                  <p className="text-[11px] text-slate-500 mt-2 leading-tight">
+                  <p className="text-[11px] text-[#787774] mt-2 leading-tight">
                     Sync collects only provider-authorized records. Mock/test keys are rejected.
                   </p>
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-[#e3e2e0]">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition"
+                  className="px-3.5 py-1.5 bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-[#37352f] rounded-[6px] text-xs font-medium transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 bg-[#0f7b6c] hover:bg-[#0c6357] text-white rounded-[6px] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Lock className="w-3.5 h-3.5" />
                   <span>Encrypt & Save Connector</span>
@@ -475,7 +475,7 @@ export function ConnectorsView() {
         </div>
       )}
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 py-3 text-xs text-slate-500">
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e3e2e0] py-3 text-xs text-[#787774]">
         <span>Verified tenant isolation & cryptographic secret protection active</span>
         <span>Collection: analyst-triggered; no background schedule</span>
       </footer>

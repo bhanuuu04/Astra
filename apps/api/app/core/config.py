@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Social data
     youtube_api_key: str = ""
 
+    # Composio Integration
+    composio_api_key: str = ""
+
     # Meta / Instagram Graph API
     meta_verify_token: str = "astra_meta_verify_secret"
     meta_app_secret: str = ""

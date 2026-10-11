@@ -5,9 +5,29 @@ export type SocialPlatform =
   | 'telegram'
   | 'discord'
   | 'facebook'
+  | 'youtube'
   | 'whatsapp';
 
 export type ThreatSeverity = 'critical' | 'high' | 'medium' | 'low' | 'clean';
+
+export type IntentCategory = 
+  | 'collaboration_proposal'
+  | 'sponsorship_inquiry'
+  | 'customer_support'
+  | 'impersonation_scam'
+  | 'phishing_lure'
+  | 'general_inquiry';
+
+export interface ProfileSafetyReport {
+  safetyScore: number; // 0 - 100 (100 = completely safe, 0 = high danger)
+  isSafe: boolean;
+  intent: IntentCategory;
+  intentConfidence: number; // 0 - 100
+  burnerAccountProbability: number;
+  executiveImpersonationDetected: boolean;
+  brandImpersonationDetected: boolean;
+  reasons: string[];
+}
 
 export type ThreatCategory = 
   | 'brand_impersonation'
@@ -46,6 +66,7 @@ export interface ThreatAnalysis {
   indicators: ThreatIndicator[];
   extractedArtifacts: ExtractedArtifact[];
   recommendedActions: string[];
+  profileSafety?: ProfileSafetyReport;
 }
 
 export interface SenderProfile {

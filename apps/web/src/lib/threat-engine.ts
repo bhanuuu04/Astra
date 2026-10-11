@@ -40,7 +40,8 @@ const HOMOGLYPHS: Record<string, string> = {
 /**
  * Normalize string by converting homoglyphs and special characters to base latin
  */
-export function normalizeHomoglyphs(str: string): string {
+export function normalizeHomoglyphs(str: string | undefined | null): string {
+  if (!str || typeof str !== 'string') return '';
   let result = str.toLowerCase();
   for (const [char, replacement] of Object.entries(HOMOGLYPHS)) {
     result = result.split(char).join(replacement);
@@ -110,6 +111,8 @@ const ROGUE_APP_TRIGGERS = [
   'mobile-release', 'support-app'
 ];
 
+const FAKE_BADGE_SYMBOLS = ['✓', '✔', '☑️', '✅', ' verified'];
+
 /**
  * Main Threat Intelligence Analysis Engine
  */
@@ -127,19 +130,23 @@ export function analyzeSocialMessage(
   let maliciousPayloadDetected = false;
   let fakeMobileAppDetected = false;
 
-  const contentLower = content.toLowerCase();
-  const normalizedBrandName = normalizeHomoglyphs(brand.brandName);
-  const normalizedSenderUsername = normalizeHomoglyphs(sender.username);
-  const normalizedSenderDisplay = normalizeHomoglyphs(sender.displayName);
+  const safeContent = content || '';
+  const contentLower = safeContent.toLowerCase();
+  const safeUsername = sender?.username || 'unknown_user';
+  const safeDisplayName = sender?.displayName || safeUsername;
+
+  const normalizedBrandName = normalizeHomoglyphs(brand?.brandName || 'brand');
+  const normalizedSenderUsername = normalizeHomoglyphs(safeUsername);
+  const normalizedSenderDisplay = normalizeHomoglyphs(safeDisplayName);
 
   // -------------------------------------------------------------
   // 1. SENDER PROFILE & IMPERSONATION ANALYSIS
   // -------------------------------------------------------------
-  const officialHandles = brand.officialHandles
-    .filter(h => h.platform === sender.platform)
-    .map(h => h.handle.toLowerCase().replace('@', ''));
+  const officialHandles = (brand?.officialHandles || [])
+    .filter(h => h.platform === sender?.platform)
+    .map(h => (h.handle || '').toLowerCase().replace('@', ''));
 
-  const isOfficialAccount = officialHandles.includes(sender.username.toLowerCase().replace('@', ''));
+  const isOfficialAccount = officialHandles.includes(safeUsername.toLowerCase().replace('@', ''));
 
   if (!isOfficialAccount) {
     // Check for Brand Name in Sender Handle or Display Name
@@ -149,7 +156,7 @@ export function analyzeSocialMessage(
     // Lookalike keywords often combined with brand impersonation
     const brandSpoofKeywords = ['support', 'help', 'desk', 'service', 'official', 'team', 'care', 'security', 'verify', 'admin', 'bot'];
     const matchedSpoofWords = brandSpoofKeywords.filter(k => 
-      sender.username.toLowerCase().includes(k) || sender.displayName.toLowerCase().includes(k)
+      safeUsername.toLowerCase().includes(k) || safeDisplayName.toLowerCase().includes(k)
     );
 
     if (containsBrandInUsername || containsBrandInDisplay) {
@@ -207,8 +214,7 @@ export function analyzeSocialMessage(
     }
 
     // Fake Verification Badge Emoji in Display Name
-    const fakeBadgeSymbols = ['✓', '✔', '☑️', '✅', ' verified'];
-    const hasFakeBadge = fakeBadgeSymbols.some(s => sender.displayName.includes(s));
+    const hasFakeBadge = FAKE_BADGE_SYMBOLS.some((s: string) => sender.displayName.includes(s));
     if (hasFakeBadge && !sender.isVerifiedBadge) {
       impersonationScore += 25;
       fakeAccountProbability += 30;
@@ -471,6 +477,65 @@ export function analyzeSocialMessage(
     summary = `LOW/CLEAN: Inbound customer message with no malicious or impersonation markers detected.`;
   }
 
+  // -------------------------------------------------------------
+  // 6. PROFILE SAFETY & COLLABORATION INTENT CLASSIFICATION
+  // -------------------------------------------------------------
+  const collabKeywords = [
+    'collaboration', 'collab', 'partnership', 'sponsor', 'sponsorship',
+    'promote', 'brand ambassador', 'media kit', 'paid promo', 'influencer',
+    'affiliate', 'deal', 'work together'
+  ];
+  const matchedCollab = collabKeywords.filter(k => contentLower.includes(k));
+  
+  let intent: 'collaboration_proposal' | 'sponsorship_inquiry' | 'customer_support' | 'impersonation_scam' | 'phishing_lure' | 'general_inquiry' = 'general_inquiry';
+  let intentConfidence = 50;
+
+  if (impersonationScore >= 50) {
+    intent = 'impersonation_scam';
+    intentConfidence = 90;
+  } else if (maliciousPayloadDetected || matchedHarvesting.length > 0) {
+    intent = 'phishing_lure';
+    intentConfidence = 88;
+  } else if (matchedCollab.length > 0) {
+    intent = matchedCollab.includes('sponsor') || matchedCollab.includes('sponsorship') ? 'sponsorship_inquiry' : 'collaboration_proposal';
+    intentConfidence = Math.min(95, 60 + matchedCollab.length * 15);
+  } else if (contentLower.includes('help') || contentLower.includes('issue') || contentLower.includes('account')) {
+    intent = 'customer_support';
+    intentConfidence = 70;
+  }
+
+  // Safety Score: inverted risk score with profile integrity factors
+  const safetyDeductions = (finalRiskScore * 0.75) + (fakeAccountProbability * 0.25);
+  const safetyScore = Math.max(0, Math.min(100, Math.round(100 - safetyDeductions)));
+  const isSafe = safetyScore >= 65 && severity === 'clean' || (severity === 'low' && safetyScore >= 70);
+
+  const safetyReasons: string[] = [];
+  if (safetyScore >= 80) {
+    safetyReasons.push('Authentic profile with normal follower distribution');
+    safetyReasons.push('Zero lookalike or spoofing keywords detected');
+    safetyReasons.push('No malicious payloads or unverified links found');
+  } else {
+    if (impersonationScore > 30) safetyReasons.push(`Impersonation risk detected against brand assets (${impersonationScore}%)`);
+    if (fakeAccountProbability > 30) safetyReasons.push('Anomalous follower/following ratio typical of burner accounts');
+    if (maliciousPayloadDetected) safetyReasons.push('Contains suspicious external redirects or spoofed domains');
+    const hasDeceptiveBadge = FAKE_BADGE_SYMBOLS.some((s: string) => sender.displayName.includes(s));
+    if (hasDeceptiveBadge && !sender.isVerifiedBadge) {
+      safetyReasons.push('Deceptive fake verification checkmark emoji in display name');
+    }
+    if (matchedUrgency.length > 0) safetyReasons.push('Uses coercive urgency triggers');
+  }
+
+  const profileSafety = {
+    safetyScore,
+    isSafe,
+    intent,
+    intentConfidence,
+    burnerAccountProbability: fakeAccountProbability,
+    executiveImpersonationDetected: impersonationScore > 50,
+    brandImpersonationDetected: impersonationScore > 40,
+    reasons: safetyReasons
+  };
+
   return {
     riskScore: finalRiskScore,
     severity,
@@ -482,6 +547,7 @@ export function analyzeSocialMessage(
     fakeMobileAppDetected,
     indicators,
     extractedArtifacts,
-    recommendedActions
+    recommendedActions,
+    profileSafety
   };
 }

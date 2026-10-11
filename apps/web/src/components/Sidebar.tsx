@@ -66,10 +66,10 @@ export function Sidebar({
         {/* Simulator Section Header */}
         <div className="px-3 py-2 flex items-center justify-between border-b border-slate-800">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-            Sandbox Views
+            Console Views
           </span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-            MOCK
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            LIVE
           </span>
         </div>
 
@@ -109,10 +109,10 @@ export function Sidebar({
         <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/50 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-xs font-bold text-slate-200">Interactive Simulator</span>
+            <span className="text-xs font-bold text-slate-200">Active Threat Engine</span>
           </div>
           <p className="text-[11px] text-slate-400 leading-normal">
-            Inject mock signals to test real-time detection heuristics.
+            Continuous telemetry and real-time detection pipeline active.
           </p>
         </div>
       </div>

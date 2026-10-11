@@ -23,9 +23,7 @@ import {
   X,
   FileCode2,
   Lock,
-  Loader2,
-  Mail,
-  Image as ImageIcon
+  Loader2
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -34,6 +32,7 @@ import {
   initiateDnsChallenge, 
   verifyDnsRecord, 
   verifyAssetManual, 
+  verifyAssetSocial,
   deleteBrandAsset,
   Brand, 
   BrandAsset,
@@ -49,9 +48,6 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
   const [newAssetType, setNewAssetType] = useState('domain');
   const [newCanonicalVal, setNewCanonicalVal] = useState('');
   const [newCertFingerprint, setNewCertFingerprint] = useState('');
-  const [newAppName, setNewAppName] = useState('');
-  const [newAppPlatform, setNewAppPlatform] = useState('Android');
-  const [newAppStoreUrl, setNewAppStoreUrl] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
   // DNS Verification Modal state
@@ -77,20 +73,15 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
   const addAssetMutation = useMutation({
     mutationFn: async () => {
       if (!newCanonicalVal.trim()) return null;
-      const metadata = {
-        ...(newCertFingerprint.trim() ? { cert_fingerprint: newCertFingerprint.trim().toUpperCase() } : {}),
-        ...(newAppName.trim() ? { app_name: newAppName.trim() } : {}),
-        ...(newAssetType === 'mobile_app_pkg' && newAppPlatform ? { platform: newAppPlatform } : {}),
-        ...(newAppStoreUrl.trim() ? { store_url: newAppStoreUrl.trim() } : {}),
-      };
+      const metadata = newCertFingerprint.trim() 
+        ? { cert_fingerprint: newCertFingerprint.trim().toUpperCase() } 
+        : {};
       return await addBrandAsset(brandId, newAssetType, newCanonicalVal.trim(), metadata);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brand', brandId] });
       setNewCanonicalVal('');
       setNewCertFingerprint('');
-      setNewAppName('');
-      setNewAppStoreUrl('');
       setShowAddForm(false);
     },
   });
@@ -98,6 +89,15 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
   const deleteAssetMutation = useMutation({
     mutationFn: async (assetId: string) => {
       await deleteBrandAsset(brandId, assetId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brand', brandId] });
+    },
+  });
+
+  const verifySocialMutation = useMutation({
+    mutationFn: async (assetId: string) => {
+      return await verifyAssetSocial(brandId, assetId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brand', brandId] });
@@ -184,8 +184,6 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
   const executives = brand.assets?.filter(a => a.asset_type === 'executive') || [];
   const phones = brand.assets?.filter(a => a.asset_type === 'phone') || [];
   const upiIds = brand.assets?.filter(a => a.asset_type === 'upi_id') || [];
-  const logos = brand.assets?.filter(a => a.asset_type === 'logo') || [];
-  const contactEmails = brand.assets?.filter(a => a.asset_type === 'contact_email') || [];
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -201,7 +199,9 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div className="flex items-center gap-4">
-            {logos[0] ? <img src={logos[0].canonical_value} alt={`${brand.name} logo`} className="h-12 w-12 rounded-xl border border-slate-700 bg-white p-1 object-contain" /> : <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">{brand.name[0]}</div>}
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+              {brand.name[0]}
+            </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-extrabold text-white">{brand.name}</h1>
@@ -243,8 +243,6 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
                 <option value="domain">Official Domain (DNS Verifiable)</option>
                 <option value="mobile_app_pkg">Mobile App (Package Name + Cert)</option>
                 <option value="handle">Social Handle (platform:handle)</option>
-                <option value="logo">Official Logo URL</option>
-                <option value="contact_email">Official Contact Email</option>
                 <option value="phone">Official Support Phone</option>
                 <option value="upi_id">Official Payment UPI ID</option>
                 <option value="executive">Protected Executive Identity</option>
@@ -255,8 +253,6 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
               <label className="block text-[11px] text-slate-400 mb-1">
                 {newAssetType === 'domain' ? 'Domain Name (without https://)' :
                  newAssetType === 'mobile_app_pkg' ? 'App Package Identifier' :
-                 newAssetType === 'logo' ? 'Logo Image URL' :
-                 newAssetType === 'contact_email' ? 'Official Contact Email' :
                  'Canonical Identifier / Value'}
               </label>
               <input
@@ -264,8 +260,6 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
                 placeholder={
                   newAssetType === 'domain' ? 'e.g. apexfintech.com' :
                   newAssetType === 'mobile_app_pkg' ? 'e.g. com.apex.banking' :
-                  newAssetType === 'logo' ? 'https://apex.com/assets/logo.png' :
-                  newAssetType === 'contact_email' ? 'support@apex.com' :
                   'e.g. x_twitter:apex_official or support@apex.com'
                 }
                 value={newCanonicalVal}
@@ -275,12 +269,16 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
             </div>
 
             {newAssetType === 'mobile_app_pkg' && (
-              <>
-                <div><label className="block text-[11px] text-slate-400 mb-1">Signing Certificate SHA-256 (Optional)</label><input type="text" placeholder="e.g. 14:28:AB:39:... or 64 hex characters" value={newCertFingerprint} onChange={(e) => setNewCertFingerprint(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono text-[11px]" /></div>
-                <div><label className="block text-[11px] text-slate-400 mb-1">App Name</label><input value={newAppName} onChange={(e) => setNewAppName(e.target.value)} placeholder="Apex Banking" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" /></div>
-                <div><label className="block text-[11px] text-slate-400 mb-1">Platform</label><select value={newAppPlatform} onChange={(e) => setNewAppPlatform(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200"><option>Android</option><option>iOS</option><option>Both</option></select></div>
-                <div className="md:col-span-3"><label className="block text-[11px] text-slate-400 mb-1">Store Listing URL</label><input value={newAppStoreUrl} onChange={(e) => setNewAppStoreUrl(e.target.value)} placeholder="https://play.google.com/store/apps/details?id=..." className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" /></div>
-              </>
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1">Signing Certificate SHA-256 (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 14:28:AB:39:... or 64 hex characters"
+                  value={newCertFingerprint}
+                  onChange={(e) => setNewCertFingerprint(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono text-[11px]"
+                />
+              </div>
             )}
           </div>
 
@@ -326,7 +324,7 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
                 return (
                   <div key={asset.id} className="p-3.5 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2.5">
                     <div className="flex items-center justify-between text-xs">
-                      <a href={asset.canonical_value.startsWith('http') ? asset.canonical_value : `https://${asset.canonical_value}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono font-semibold text-cyan-300 hover:underline">{asset.canonical_value}<ExternalLink className="h-3 w-3" /></a>
+                      <span className="font-mono text-cyan-300 font-semibold">{asset.canonical_value}</span>
                       
                       {/* Truthful Verification Badge */}
                       {isVerified ? (
@@ -395,18 +393,14 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
             ) : (
               apps.map((asset) => {
                 const cert = asset.metadata?.cert_fingerprint || asset.sha256;
-                const appName = asset.metadata?.app_name;
-                const storeUrl = asset.metadata?.store_url;
                 return (
                   <div key={asset.id} className="p-3.5 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <div><div className="font-semibold text-emerald-300">{appName || asset.canonical_value}</div><div className="font-mono text-[10px] text-slate-400">{asset.canonical_value} · {asset.metadata?.platform || 'Platform not set'}</div></div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${asset.verification_status === 'verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-                        {asset.verification_status === 'verified' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />} {asset.verification_status === 'verified' ? 'Verified' : 'Unverified'}
+                      <div className="font-mono text-emerald-300 font-semibold">{asset.canonical_value}</div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        <Lock className="w-3 h-3" /> Ground-Truth Anchor
                       </span>
                     </div>
-
-                    {storeUrl && <a href={storeUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:underline">View official store listing <ExternalLink className="h-3 w-3" /></a>}
 
                     <div className="text-[11px] font-mono text-slate-400 bg-black/30 p-2 rounded border border-white/5 truncate">
                       <span className="text-slate-500">Cert SHA-256: </span>
@@ -414,14 +408,6 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
                     </div>
 
                     <div className="flex justify-end pt-1">
-                      {asset.verification_status !== 'verified' && (
-                        <button
-                          onClick={() => { setManualVerifyAsset(asset); setManualReason(''); }}
-                          className="mr-2 text-[10px] text-cyan-400 hover:underline"
-                        >
-                          Analyst Attestation
-                        </button>
-                      )}
                       <button
                         onClick={() => deleteAssetMutation.mutate(asset.id)}
                         title="Delete asset"
@@ -444,44 +430,67 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
               <Share2 className="w-4 h-4 text-pink-400" />
               <h3 className="text-sm font-bold text-white">Monitored Social Handles ({handles.length})</h3>
             </div>
-            <span className="text-[11px] text-slate-400">Impersonation Baseline</span>
+            <span className="text-[11px] text-slate-400">Live Existence Probe</span>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {handles.length === 0 ? (
               <p className="text-xs text-slate-500 py-2">No social handles configured.</p>
             ) : (
-              handles.map((asset) => (
-                <div key={asset.id} className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
-                  <span className="font-mono text-pink-300 font-medium">{asset.canonical_value}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${asset.verification_status === 'verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>{asset.verification_status === 'verified' ? 'Verified' : 'Unverified'}</span>
-                    {asset.verification_status !== 'verified' && <button onClick={() => { setManualVerifyAsset(asset); setManualReason(''); }} className="text-[10px] text-cyan-400 hover:underline">Attest</button>}
-                    <button
-                      onClick={() => deleteAssetMutation.mutate(asset.id)}
-                      className="text-slate-500 hover:text-rose-400 transition p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+              handles.map((asset) => {
+                const isVerified = asset.verification_status === 'verified';
+                const targetUrl = asset.metadata?.target_url;
+                const statusLabel = asset.metadata?.status_label || (isVerified ? 'Verified (Live Profile)' : 'Unverified / Non-Existent');
+
+                return (
+                  <div key={asset.id} className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-pink-300 font-semibold">{asset.canonical_value}</span>
+                        {targetUrl && (
+                          <a href={targetUrl} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-pink-300 transition" title={targetUrl}>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                      
+                      {isVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          <CheckCircle2 className="w-3 h-3" /> {statusLabel}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          <AlertCircle className="w-3 h-3" /> {statusLabel}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-[11px]">
+                      <button
+                        onClick={() => verifySocialMutation.mutate(asset.id)}
+                        disabled={verifySocialMutation.isPending}
+                        className="text-pink-400 hover:text-pink-300 font-medium hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        {verifySocialMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                        <span>Probe Live Handle</span>
+                      </button>
+
+                      <button
+                        onClick={() => deleteAssetMutation.mutate(asset.id)}
+                        className="text-slate-500 hover:text-rose-400 transition p-1 cursor-pointer"
+                        title="Delete asset"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* Section 4: Official Brand Profile & Verified Contacts */}
-        <div className="p-5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800"><div className="flex items-center gap-2"><ImageIcon className="w-4 h-4 text-indigo-400" /><h3 className="text-sm font-bold text-white">Official Brand Profile</h3></div><span className="text-[11px] text-slate-400">Contacts require analyst attestation</span></div>
-          <div className="space-y-2">
-            {logos.map((asset) => <div key={asset.id} className="flex items-center gap-3 rounded-lg bg-slate-950 border border-slate-800/80 p-2.5"><img src={asset.canonical_value} alt={`${brand.name} official logo`} className="h-10 w-10 rounded bg-white object-contain p-1" /><a href={asset.canonical_value} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs text-cyan-400">Official logo source <ExternalLink className="inline h-3 w-3" /></a><AssetVerificationBadge asset={asset} onAttest={() => { setManualVerifyAsset(asset); setManualReason(''); }} /><button onClick={() => deleteAssetMutation.mutate(asset.id)} className="text-slate-500 hover:text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button></div>)}
-            {contactEmails.map((asset) => <div key={asset.id} className="flex items-center gap-2 rounded-lg bg-slate-950 border border-slate-800/80 p-2.5 text-xs"><Mail className="h-4 w-4 text-sky-400" /><a href={`mailto:${asset.canonical_value}`} className="min-w-0 flex-1 truncate text-sky-300">{asset.canonical_value}</a><AssetVerificationBadge asset={asset} onAttest={() => { setManualVerifyAsset(asset); setManualReason(''); }} /><button onClick={() => deleteAssetMutation.mutate(asset.id)} className="text-slate-500 hover:text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button></div>)}
-            {phones.map((asset) => <div key={asset.id} className="flex items-center gap-2 rounded-lg bg-slate-950 border border-slate-800/80 p-2.5 text-xs"><Phone className="h-4 w-4 text-sky-400" /><a href={`tel:${asset.canonical_value}`} className="min-w-0 flex-1 truncate text-sky-300">{asset.canonical_value}</a><AssetVerificationBadge asset={asset} onAttest={() => { setManualVerifyAsset(asset); setManualReason(''); }} /><button onClick={() => deleteAssetMutation.mutate(asset.id)} className="text-slate-500 hover:text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button></div>)}
-            {logos.length + contactEmails.length + phones.length === 0 && <p className="text-xs text-slate-500">Add a logo, official contact email, or phone to build the brand reference profile.</p>}
-          </div>
-        </div>
-
-        {/* Section 5: Payments & Support */}
+        {/* Section 4: Payments & Support */}
         <div className="p-5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2">
@@ -715,13 +724,5 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
         </div>
       )}
     </div>
-  );
-}
-
-function AssetVerificationBadge({ asset, onAttest }: { asset: BrandAsset; onAttest: () => void }) {
-  return asset.verification_status === 'verified' ? (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400"><CheckCircle2 className="h-3 w-3" />Verified</span>
-  ) : (
-    <button onClick={onAttest} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 hover:bg-amber-500/15"><AlertCircle className="h-3 w-3" />Unverified · Attest</button>
   );
 }

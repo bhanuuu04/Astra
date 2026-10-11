@@ -22,8 +22,20 @@ class UserInfo(BaseModel):
     email: str
     full_name: str
     role: str
+    clerk_id: Optional[str] = None
+    composio_user_id: Optional[str] = None
+    onboarding_completed: bool = False
+    primary_brand_id: Optional[uuid.UUID] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompleteOnboardingRequest(BaseModel):
+    clerk_id: Optional[str] = None
+    email: Optional[str] = None
+    brand_id: Optional[uuid.UUID] = None
+    brand_name: Optional[str] = None
+    domain: Optional[str] = None
 
 
 class TenantInfo(BaseModel):
@@ -55,3 +67,11 @@ class MeResponse(BaseModel):
     user: UserInfo
     tenant: TenantInfo
     available_tenants: List[TenantMembershipInfo]
+
+
+class ClerkSyncRequest(BaseModel):
+    email: str = Field(..., description="Clerk verified user email")
+    full_name: str = Field(..., description="User full display name")
+    clerk_id: Optional[str] = Field(None, description="Clerk user ID")
+    composio_entity_id: Optional[str] = Field(None, description="Composio entity/user ID for social connections")
+

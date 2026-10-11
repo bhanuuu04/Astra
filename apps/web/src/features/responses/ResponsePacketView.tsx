@@ -95,34 +95,7 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
     return <div className="p-8 text-center text-slate-400 text-sm">Generating multi-recipient response drafts &amp; evidence manifest...</div>;
   }
 
-  /* Canned legal and enforcement drafts are intentionally disabled. Packets must be evidence-backed.
-  const fallbackDrafts: ResponseDraftItem[] = [
-    {
-      recipient_type: 'meta_rights_manager',
-      recipient_name: 'Meta IP & Rights Management Operations',
-      subject: 'Urgent: Trademark Infringement & Malicious Impersonation of NilaPay',
-      body_text: 'Dear Meta Operations Team,\n\nWe hereby submit an emergency takedown notice regarding active brand impersonation of NilaPay (Trademark Registration: IN-892144).\n\nInfringing Profile: https://www.instagram.com/nilapay.support.helpdesk\nActor bio falsely claims official support and promotes credential harvesting phishing site.\n\nEvidence SHA-256 Manifest Attached.\nSigned,\nAstra Digital Risk Protection SOC',
-      contact_email: 'ip@support.facebook.com',
-      policy_reference: 'Meta Commerce & Impersonation Policy Section 4.2',
-    },
-    {
-      recipient_type: 'icann_registrar',
-      recipient_name: 'GoDaddy LLC Abuse & Legal Department',
-      subject: 'Notice of Phishing Domain & Fraudulent eKYC Harvesting: nilapay-kyc-verify.top',
-      body_text: 'Dear Abuse Team,\n\nThe domain nilapay-kyc-verify.top registered through your service is actively operating a credential-harvesting phishing portal targeting NilaPay fintech users.\n\nRegistrar: GoDaddy LLC\nTarget: NilaPay Financial Technologies\nFraudulent Payee UPI: fraud-upi@axisbank\n\nPlease suspend the domain under ICANN RAA Specification 11 (Security Threats).',
-      contact_email: 'abuse@godaddy.com',
-      policy_reference: 'ICANN RAA Specification 11 (Security Threat Remediation)',
-    },
-    {
-      recipient_type: 'google_play_abuse',
-      recipient_name: 'Google Play Protect & Android Security',
-      subject: 'Malicious Sideloaded APK Impersonating NilaPay with Trojanized SMS Permissions',
-      body_text: 'Package Name: in.nilapay.recharge.offers\nCert Fingerprint: SHA256:FF:EE:DD:CC:BB:AA...\nMalicious Behavior: Requests READ_SMS and SEND_SMS to intercept 2FA OTPs for unauthorized bank transfers.\nPayee UPI: fraud-upi@axisbank',
-      contact_email: 'abuse@android.com',
-      policy_reference: 'Google Play Malware & Financial Fraud Enforcement',
-    },
-  ];
-  */
+
 
   const drafts: ResponseDraftItem[] = packet?.drafts ?? [];
   const currentDraft = drafts[activeTab] || drafts[0];
@@ -153,43 +126,43 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
       <div className="space-y-3">
         <Link
           href={`/campaigns/${campaignId}`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-[#787774] hover:text-[#37352f] transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Campaign Graph</span>
         </Link>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#e3e2e0]">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400 tracking-wider uppercase mb-1">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#0f7b6c] tracking-wide uppercase mb-1">
               <span>Takedown Operations</span>
               <span>•</span>
-              <span className="text-slate-400">Multi-Surface Response Packet</span>
+              <span className="text-[#9b9a97]">Multi-Surface Response Packet</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-semibold text-[#37352f] tracking-tight">
               Evidence Manifest &amp; Enforcement Drafts
             </h1>
-            <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-              Platform-tailored takedown notices, registrar notices, and Google Play abuse packets linked to cryptographic evidence hashes.
+            <p className="text-sm text-[#787774] mt-1 max-w-2xl">
+              Platform-tailored takedown notices, registrar notices, and abuse packets linked to cryptographic evidence hashes.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={handleExportJson}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 shadow transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#f7f6f3] text-[#37352f] rounded-[6px] text-xs font-medium border border-[#e3e2e0] shadow-xs transition cursor-pointer"
             >
-              <Download className="w-4 h-4 text-indigo-400" />
+              <Download className="w-4 h-4 text-[#0f7b6c]" />
               <span>Export Dossier (JSON)</span>
             </button>
 
             <button
               onClick={() => simulateMutation.mutate()}
               disabled={simulateMutation.isPending || simulationResult !== null}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shadow transition cursor-pointer ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-[6px] text-xs font-medium shadow-xs transition cursor-pointer ${
                 simulationResult
-                  ? 'bg-emerald-600 text-white cursor-default'
-                  : 'bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white'
+                  ? 'bg-[#0f7b6c] text-white cursor-default'
+                  : 'bg-[#0f7b6c] hover:bg-[#0c6357] disabled:bg-[#e3e2e0] text-white'
               }`}
             >
               {simulationResult ? (
@@ -210,19 +183,19 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
 
       {/* Simulation Feedback Banner */}
       {simulationResult && (
-        <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-700/60 flex items-center justify-between animate-fade-in">
+        <div className="p-4 rounded-[8px] bg-[#0f7b6c]/10 border border-[#0f7b6c]/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-[#0f7b6c] shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-emerald-200">
+              <p className="text-sm font-semibold text-[#0f7b6c]">
                 Response Action Simulated Successfully
               </p>
-              <p className="text-xs text-emerald-300/80">
+              <p className="text-xs text-[#787774]">
                 Action ID: <span className="font-mono">{simulationResult.action_id}</span> • Simulated by: {simulationResult.simulated_by} • Audit timestamp: {new Date(simulationResult.simulated_at).toLocaleTimeString()}
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 text-xs font-mono font-bold">
+          <span className="px-2.5 py-1 rounded-[4px] bg-[#0f7b6c]/20 text-[#0f7b6c] text-xs font-mono font-semibold">
             STATUS: SIMULATED
           </span>
         </div>
@@ -232,7 +205,7 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Recipient Tabs */}
         <div className="space-y-2">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block px-1">
+          <span className="text-xs font-semibold text-[#787774] uppercase tracking-wider block px-1">
             Recipient Channels ({drafts.length})
           </span>
 
@@ -242,24 +215,24 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
               <button
                 key={idx}
                 onClick={() => setActiveTab(idx)}
-                className={`w-full text-left p-3.5 rounded-xl border transition cursor-pointer flex flex-col gap-1 ${
+                className={`w-full text-left p-3.5 rounded-[8px] border transition cursor-pointer flex flex-col gap-1 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
                   isSelected
-                    ? 'bg-indigo-950/60 border-indigo-500 shadow-md'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                    ? 'bg-[#f7f6f3] border-[#0f7b6c] shadow-[inset_3px_0_0_#0f7b6c]'
+                    : 'bg-white border-[#e3e2e0] hover:bg-[#f7f6f3]/60'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-[#37352f] uppercase tracking-wider">
                     {d.recipient_type.replace(/_/g, ' ')}
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                  <span className="text-[10px] px-2 py-0.5 rounded-[4px] bg-[#0f7b6c]/10 text-[#0f7b6c] font-mono font-medium">
                     Ready
                   </span>
                 </div>
-                <span className="text-xs text-slate-300 font-medium truncate">
+                <span className="text-xs text-[#37352f] font-medium truncate">
                   {d.recipient_name}
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono truncate">
+                <span className="text-[11px] text-[#787774] font-mono truncate">
                   {d.contact_email}
                 </span>
               </button>
@@ -268,42 +241,42 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
         </div>
 
         {/* Right Column: Draft Editor / Preview */}
-        <div className="lg:col-span-2 p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="lg:col-span-2 p-6 rounded-[8px] bg-white border border-[#e3e2e0] space-y-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between pb-3 border-b border-[#e3e2e0]">
             <div>
-              <h3 className="text-sm font-bold text-white">{currentDraft.recipient_name}</h3>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">Policy Ref: {currentDraft.policy_reference}</p>
+              <h3 className="text-sm font-semibold text-[#37352f]">{currentDraft.recipient_name}</h3>
+              <p className="text-xs text-[#787774] font-mono mt-0.5">Policy Ref: {currentDraft.policy_reference}</p>
             </div>
             <button
               onClick={() => handleCopyDraft(currentDraft.body_text)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f7f6f3] hover:bg-[#e3e2e0] text-[#37352f] border border-[#e3e2e0] rounded-[6px] text-xs font-medium transition cursor-pointer"
             >
-              {copiedDraft ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedDraft ? <Check className="w-3.5 h-3.5 text-[#0f7b6c]" /> : <Copy className="w-3.5 h-3.5 text-[#787774]" />}
               <span>{copiedDraft ? 'Copied to Clipboard' : 'Copy Draft'}</span>
             </button>
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-[#787774] uppercase tracking-wider mb-1">
                 Subject Line
               </label>
               <input
                 readOnly
                 value={currentDraft.subject}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-medium"
+                className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] px-3 py-2 text-xs text-[#37352f] font-medium focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-[#787774] uppercase tracking-wider mb-1">
                 Notice Body &amp; Cryptographic Allegations
               </label>
               <textarea
                 readOnly
                 rows={10}
                 value={currentDraft.body_text}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 leading-relaxed resize-none"
+                className="w-full bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] p-3 text-xs font-mono text-[#37352f] leading-relaxed resize-none focus:outline-none"
               />
             </div>
           </div>
@@ -311,54 +284,54 @@ export function ResponsePacketView({ campaignId }: ResponsePacketViewProps) {
       </div>
 
       {/* Evidence Manifest Table */}
-      <div className="p-6 rounded-xl bg-slate-900/90 border border-slate-800 space-y-4">
+      <div className="p-6 rounded-[8px] bg-white border border-[#e3e2e0] space-y-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-white">Cryptographic Evidence Manifest</h3>
-            <p className="text-xs text-slate-400">Verifiable SHA-256 artifacts included in the takedown submission</p>
+            <h3 className="text-base font-semibold text-[#37352f]">Cryptographic Evidence Manifest</h3>
+            <p className="text-xs text-[#787774]">Verifiable SHA-256 artifacts included in the takedown submission</p>
           </div>
-          <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono">
+          <span className="text-xs px-2.5 py-1 rounded-[4px] bg-[#f7f6f3] border border-[#e3e2e0] text-[#787774] font-mono font-medium">
             {manifestItems.filter(i => i.included).length} Artifacts Bound
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
+            <thead className="bg-[#f7f6f3] text-[#787774] border-b border-[#e3e2e0]">
               <tr>
-                <th className="p-3">Include</th>
-                <th className="p-3">Evidence Name</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">SHA-256 Fingerprint</th>
-                <th className="p-3">Source Reference</th>
-                <th className="p-3">Timestamp</th>
+                <th className="p-3 font-semibold">Include</th>
+                <th className="p-3 font-semibold">Evidence Name</th>
+                <th className="p-3 font-semibold">Type</th>
+                <th className="p-3 font-semibold">SHA-256 Fingerprint</th>
+                <th className="p-3 font-semibold">Source Reference</th>
+                <th className="p-3 font-semibold">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 font-mono">
+            <tbody className="divide-y divide-[#e3e2e0] font-mono">
               {manifestItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-400">
+                  <td colSpan={6} className="p-6 text-center text-[#787774]">
                     No evidence objects attached. Reset demo fixtures to populate manifest items.
                   </td>
                 </tr>
               ) : (
                 manifestItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-950/40 transition">
+                  <tr key={item.id} className="hover:bg-[#f7f6f3]/60 transition">
                     <td className="p-3">
                       <input
                         type="checkbox"
                         checked={item.included}
                         onChange={() => toggleManifestInclude(item.id)}
-                        className="rounded border-slate-700 text-indigo-600 focus:ring-0 cursor-pointer"
+                        className="rounded-[4px] border-[#e3e2e0] text-[#0f7b6c] focus:ring-0 cursor-pointer"
                       />
                     </td>
-                    <td className="p-3 font-semibold text-slate-200">{item.name}</td>
-                    <td className="p-3 text-slate-400">{item.media_type}</td>
-                    <td className="p-3 text-indigo-300 font-mono text-[11px] truncate max-w-[200px]">
+                    <td className="p-3 font-semibold text-[#37352f]">{item.name}</td>
+                    <td className="p-3 text-[#787774]">{item.media_type}</td>
+                    <td className="p-3 text-[#0f7b6c] font-mono text-[11px] truncate max-w-[200px]">
                       {item.sha256}
                     </td>
-                    <td className="p-3 text-slate-400 truncate max-w-[180px]">{item.source_reference}</td>
-                    <td className="p-3 text-slate-400 text-[11px]">{new Date(item.captured_at).toLocaleTimeString()}</td>
+                    <td className="p-3 text-[#787774] truncate max-w-[180px]">{item.source_reference}</td>
+                    <td className="p-3 text-[#787774] text-[11px]">{new Date(item.captured_at).toLocaleTimeString()}</td>
                   </tr>
                 ))
               )}

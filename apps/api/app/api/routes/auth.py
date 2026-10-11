@@ -4,13 +4,17 @@ from sqlalchemy.orm import Session
 from app.core.security import TenantContext, get_current_tenant_context
 from app.db.session import get_session
 from app.domain.auth_service import (
+    complete_user_onboarding,
     get_current_user_profile,
     login_user,
     register_user,
     switch_user_tenant,
+    sync_clerk_user,
 )
 from app.schemas.auth import (
     AuthResponse,
+    ClerkSyncRequest,
+    CompleteOnboardingRequest,
     LoginRequest,
     MeResponse,
     RegisterRequest,
@@ -69,3 +73,40 @@ def switch_tenant(
 ):
     """Switch active organization context to another tenant where the user has active membership."""
     return switch_user_tenant(session, context, req.tenant_id)
+
+
+@router.post(
+    "/sync-clerk",
+    response_model=AuthResponse,
+    summary="Synchronize Clerk authenticated user to Supabase PostgreSQL",
+)
+def sync_clerk(
+    req: ClerkSyncRequest,
+    session: Session = Depends(get_session),
+):
+    """Synchronize Clerk authenticated user to Supabase database, create tenant membership, and issue JWT."""
+    return sync_clerk_user(
+        session,
+        req.email,
+        req.full_name,
+        req.clerk_id,
+        getattr(req, 'composio_entity_id', None),
+    )
+
+
+@router.post(
+    "/complete-onboarding",
+    summary="Mark onboarding as completed in Supabase",
+)
+def handle_complete_onboarding(
+    req: CompleteOnboardingRequest,
+    session: Session = Depends(get_session),
+):
+    """Permanently store onboarding status and primary brand in Supabase."""
+    return complete_user_onboarding(
+        session,
+        clerk_id=req.clerk_id,
+        email=req.email,
+        brand_id=req.brand_id,
+    )
+

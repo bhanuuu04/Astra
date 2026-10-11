@@ -76,9 +76,6 @@ export function FindingListItem({ finding, onSelect }: FindingListItemProps) {
           <span className="text-[10px] text-slate-500 uppercase">Priority</span>
         </div>
       </div>
-
-      {/* Warning for Demo Data */}
-      {finding.data_mode === 'synthetic_demo' && <DemoDataWarning />}
     </div>
   );
 }

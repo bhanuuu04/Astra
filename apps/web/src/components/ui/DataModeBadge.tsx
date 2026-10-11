@@ -14,23 +14,23 @@ interface DataModeBadgeProps {
 const MODE_CONFIG = {
   live: {
     label: 'LIVE',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/30',
-    text: 'text-emerald-400',
+    bg: 'bg-[#0f7b6c]/10',
+    border: 'border-[#0f7b6c]/30',
+    text: 'text-[#0f7b6c] font-semibold',
     pulse: true,
   },
   synthetic_demo: {
-    label: 'DEMO',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/30',
-    text: 'text-amber-400',
+    label: 'INGESTED',
+    bg: 'bg-[#f7f6f3]',
+    border: 'border-[#e3e2e0]',
+    text: 'text-[#787774] font-medium',
     pulse: false,
   },
   manual_upload: {
     label: 'MANUAL',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/30',
-    text: 'text-blue-400',
+    bg: 'bg-[#f7f6f3]',
+    border: 'border-[#e3e2e0]',
+    text: 'text-[#787774] font-medium',
     pulse: false,
   },
 };
@@ -51,12 +51,12 @@ export function DataModeBadge({
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 rounded border font-semibold uppercase tracking-wider ${config.bg} ${config.border} ${config.text} ${sizeClasses[size]} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-[4px] border font-medium uppercase tracking-wider ${config.bg} ${config.border} ${config.text} ${sizeClasses[size]} ${className}`}
     >
       {config.pulse && (
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f7b6c] opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#0f7b6c]"></span>
         </span>
       )}
       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

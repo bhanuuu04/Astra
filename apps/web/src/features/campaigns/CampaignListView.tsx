@@ -34,17 +34,17 @@ export function CampaignListView() {
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#e3e2e0]">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400 tracking-wider uppercase mb-1">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0f7b6c] tracking-wider uppercase mb-1">
             <span>Threat Intelligence Clusters</span>
             <span>•</span>
-            <span className="text-slate-400">Cross-Surface Linking</span>
+            <span className="text-[#9b9a97]">Cross-Surface Linking</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#37352f] tracking-tight">
             Active Campaigns &amp; Investigations
           </h1>
-          <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+          <p className="text-sm text-[#787774] mt-1 max-w-2xl leading-relaxed">
             Correlated threat clusters linking suspicious social profiles, malicious landing pages, and sideloaded APKs via infrastructure invariants.
           </p>
         </div>
@@ -53,9 +53,9 @@ export function CampaignListView() {
           <button
             onClick={() => analysisMutation.mutate()}
             disabled={analysisMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white rounded-lg text-sm font-semibold shadow transition cursor-pointer"
+            className="flex items-center gap-2 px-3.5 py-2 bg-[#0f7b6c] hover:bg-[#0b5e52] disabled:bg-[#f7f6f3] disabled:text-[#9b9a97] text-white rounded-[6px] text-xs font-semibold shadow-2xs transition cursor-pointer"
           >
-            <Play className={`w-4 h-4 ${analysisMutation.isPending ? 'animate-spin' : ''}`} />
+            <Play className={`w-3.5 h-3.5 ${analysisMutation.isPending ? 'animate-spin' : ''}`} />
             {analysisMutation.isPending ? 'Clustering Pivots...' : 'Re-Run Campaign Clustering'}
           </button>
         </div>
@@ -64,70 +64,71 @@ export function CampaignListView() {
       {/* Campaign Cards List */}
       <div className="space-y-4">
         {isLoading ? (
-          <div className="py-12 text-center text-slate-400 text-sm">Loading campaigns...</div>
+          <div className="py-12 text-center text-[#9b9a97] text-xs">Loading campaigns...</div>
         ) : isError ? (
-          <div role="alert" className="rounded-xl border border-rose-900/70 bg-rose-950/30 p-5 text-sm text-rose-200">
+          <div role="alert" className="rounded-[6px] border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">
             Could not load campaigns. {error instanceof Error ? error.message : 'Check the API connection and try again.'}
           </div>
         ) : campaigns.length === 0 ? (
-          <div className="py-12 text-center bg-slate-900/50 rounded-xl border border-slate-800">
-            <p className="text-sm text-slate-400 mb-2">No active campaigns.</p>
-            <p className="text-xs text-slate-400">Click &quot;Reset Demo (NilaPay)&quot; on the sidebar to seed the NilaPay synthetic fraud campaign.</p>
+          <div className="py-12 text-center bg-white rounded-[8px] border border-[#e3e2e0] shadow-2xs">
+            <ShieldAlert className="w-7 h-7 text-[#9b9a97] mx-auto mb-2" />
+            <p className="text-xs font-semibold text-[#37352f] mb-1">No active campaigns detected</p>
+            <p className="text-xs text-[#9b9a97]">Connect brand channels or ingest new findings to correlate threat infrastructure clusters.</p>
           </div>
         ) : (
           campaigns.map((camp) => (
             <div
               key={camp.id}
-              className="p-6 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition space-y-4"
+              className="p-5 rounded-[8px] bg-white border border-[#e3e2e0] hover:border-[#9b9a97] shadow-2xs transition space-y-3.5"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-bold text-white">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-sm font-bold text-[#37352f]">
                       {camp.title}
                     </h2>
-                    <span className="px-2.5 py-0.5 rounded text-xs font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
+                    <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-bold uppercase bg-rose-50 text-rose-700 border border-rose-200 font-mono">
                       Risk {camp.risk_score.toFixed(1)} / 100
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                    <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-semibold uppercase bg-[#f7f6f3] text-[#787774] border border-[#e3e2e0]">
                       {camp.status}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 font-mono">
+                  <p className="text-[11px] text-[#9b9a97] font-mono">
                     Campaign UUID: {camp.id} • Created: {new Date(camp.created_at).toLocaleDateString()}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2.5 shrink-0">
                   <Link
                     href={`/campaigns/${camp.id}`}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f7b6c] hover:bg-[#0b5e52] text-white rounded-[6px] text-xs font-medium shadow-2xs transition"
                   >
-                    <Network className="w-4 h-4" />
+                    <Network className="w-3.5 h-3.5" />
                     <span>Open Interactive Graph</span>
                   </Link>
                   <Link
                     href={`/campaigns/${camp.id}/response`}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 transition"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f7f6f3] hover:bg-white text-[#37352f] rounded-[6px] text-xs font-medium border border-[#e3e2e0] transition shadow-2xs"
                   >
-                    <FileCheck className="w-4 h-4 text-indigo-400" />
+                    <FileCheck className="w-3.5 h-3.5 text-[#0f7b6c]" />
                     <span>Response Packet</span>
                   </Link>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80 text-xs">
-                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/60">
-                  <span className="text-slate-400 block text-[11px]">Member Sightings</span>
-                  <span className="font-bold text-slate-200 text-sm">{camp.member_count} nodes</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#e3e2e0] text-xs">
+                <div className="p-2.5 rounded-[6px] bg-[#f7f6f3] border border-[#e3e2e0]">
+                  <span className="text-[#9b9a97] block text-[10px] uppercase font-semibold">Member Sightings</span>
+                  <span className="font-bold text-[#37352f] text-xs">{camp.member_count} nodes</span>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/60">
-                  <span className="text-slate-400 block text-[11px]">Primary Invariant Pivots</span>
-                  <span className="font-bold text-indigo-300 text-sm">UPI, Phone &amp; Logo Hash</span>
+                <div className="p-2.5 rounded-[6px] bg-[#f7f6f3] border border-[#e3e2e0]">
+                  <span className="text-[#9b9a97] block text-[10px] uppercase font-semibold">Primary Invariant Pivots</span>
+                  <span className="font-bold text-[#0f7b6c] text-xs">UPI, Phone &amp; Logo Hash</span>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/60">
-                  <span className="text-slate-400 block text-[11px]">Surfaces Compromised</span>
-                  <span className="font-bold text-slate-200 text-sm">Instagram, Web, APK, Telegram</span>
+                <div className="p-2.5 rounded-[6px] bg-[#f7f6f3] border border-[#e3e2e0]">
+                  <span className="text-[#9b9a97] block text-[10px] uppercase font-semibold">Surfaces Compromised</span>
+                  <span className="font-bold text-[#37352f] text-xs">Instagram, Web, APK, Telegram</span>
                 </div>
               </div>
             </div>

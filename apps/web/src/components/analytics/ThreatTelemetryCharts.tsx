@@ -17,26 +17,25 @@ import {
 } from 'recharts';
 import { Activity, BarChart3, PieChart as PieIcon, Radar } from 'lucide-react';
 import { type Sighting, type Campaign } from '@/lib/api';
-import { GlobalThreatMap } from '@/components/analytics/GlobalThreatMap';
 
 interface ThreatTelemetryChartsProps {
   sightings: Sighting[];
   campaigns: Campaign[];
 }
 
-const PALETTE = ['#7c78ff', '#34c6d3', '#f59e0b', '#fb7185', '#5ee0a0', '#9e8cff'];
-const panel = 'rounded-xl border border-white/[0.075] bg-[#111a27] shadow-[0_12px_34px_rgba(0,0,0,0.12)]';
+const PALETTE = ['#0f7b6c', '#37352f', '#787774', '#9b9a97', '#2eaadc', '#eb5757'];
+const panel = 'rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]';
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-slate-700 bg-[#0b1119]/95 px-3 py-2.5 shadow-xl backdrop-blur">
-      <p className="mb-1.5 text-[11px] font-medium text-slate-400">{label || payload[0].name}</p>
+    <div className="rounded-[6px] border border-[#e3e2e0] bg-white px-3 py-2 shadow-sm text-[#37352f]">
+      <p className="mb-1 text-[11px] font-semibold text-[#9b9a97]">{label || payload[0].name}</p>
       {payload.map((entry: any, index: number) => (
         <div key={`${entry.dataKey}-${index}`} className="flex items-center gap-2 text-xs">
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
-          <span className="text-slate-300">{entry.name}</span>
-          <span className="ml-auto pl-4 font-mono font-semibold text-white">{entry.value}</span>
+          <span className="text-[#37352f] font-medium">{entry.name}</span>
+          <span className="ml-auto pl-4 font-mono font-bold text-[#0f7b6c]">{entry.value}</span>
         </div>
       ))}
     </div>
@@ -102,76 +101,74 @@ export function ThreatTelemetryCharts({ sightings, campaigns }: ThreatTelemetryC
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
       <section className={`${panel} xl:col-span-7`}>
-        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span className="rounded-lg border border-violet-400/15 bg-violet-400/[0.08] p-2 text-violet-300"><Activity className="h-4 w-4" /></span>
+        <div className="flex items-start justify-between gap-3 border-b border-[#e3e2e0] px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-1.5 text-[#0f7b6c]"><Activity className="h-4 w-4" /></span>
             <div>
-              <h2 className="text-sm font-semibold text-slate-100">Finding activity</h2>
-              <p className="mt-1 text-[11px] text-slate-500">Daily observations from available workspace records</p>
+              <h2 className="text-sm font-bold text-[#37352f]">Finding activity</h2>
+              <p className="mt-0.5 text-[11px] text-[#9b9a97]">Daily observations from available workspace records</p>
             </div>
           </div>
-          <span className="rounded-md border border-white/[0.08] bg-white/[0.025] px-2 py-1 text-[10px] font-medium text-slate-400">Last 7 days</span>
+          <span className="rounded-[4px] border border-[#e3e2e0] bg-[#f7f6f3] px-2 py-0.5 text-[10px] font-medium text-[#787774]">Last 7 days</span>
         </div>
         <div className="h-[230px] px-2 pb-3 pt-4 sm:px-4">
           {sightings.length ? (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData} margin={{ top: 6, right: 8, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="astraFindingFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b83ff" stopOpacity={0.28} /><stop offset="100%" stopColor="#8b83ff" stopOpacity={0} /></linearGradient>
-                  <linearGradient id="astraRiskFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#fb7185" stopOpacity={0.2} /><stop offset="100%" stopColor="#fb7185" stopOpacity={0} /></linearGradient>
+                  <linearGradient id="astraFindingFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0f7b6c" stopOpacity={0.2} /><stop offset="100%" stopColor="#0f7b6c" stopOpacity={0} /></linearGradient>
+                  <linearGradient id="astraRiskFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#eb5757" stopOpacity={0.18} /><stop offset="100%" stopColor="#eb5757" stopOpacity={0} /></linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 5" stroke="#263342" vertical={false} />
-                <XAxis dataKey="day" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 5" stroke="#e3e2e0" vertical={false} />
+                <XAxis dataKey="day" stroke="#9b9a97" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} stroke="#9b9a97" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="findings" name="Findings" stroke="#8b83ff" strokeWidth={2} fill="url(#astraFindingFill)" activeDot={{ r: 4, fill: '#b7b2ff', strokeWidth: 0 }} />
-                <Area type="monotone" dataKey="highRisk" name="High risk" stroke="#fb7185" strokeWidth={1.8} fill="url(#astraRiskFill)" activeDot={{ r: 3, fill: '#fda4af', strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="findings" name="Findings" stroke="#0f7b6c" strokeWidth={2} fill="url(#astraFindingFill)" activeDot={{ r: 4, fill: '#0f7b6c', strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="highRisk" name="High risk" stroke="#eb5757" strokeWidth={1.8} fill="url(#astraRiskFill)" activeDot={{ r: 3, fill: '#eb5757', strokeWidth: 0 }} />
               </AreaChart>
             </ResponsiveContainer>
-          ) : <div className="flex h-full flex-col items-center justify-center gap-2 text-center"><Activity className="h-5 w-5 text-slate-600" /><p className="text-xs text-slate-400">Activity appears when findings are ingested.</p></div>}
+          ) : <div className="flex h-full flex-col items-center justify-center gap-2 text-center"><Activity className="h-5 w-5 text-[#9b9a97]" /><p className="text-xs text-[#9b9a97]">Activity appears when findings are ingested.</p></div>}
         </div>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] px-5 py-3 text-[10px] text-slate-500">
-          <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-violet-400" />All findings</span>
-          <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-rose-400" />High risk · {highRiskFindings}</span>
-          <span className="ml-auto">Based on observed timestamps</span>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#e3e2e0] px-5 py-2.5 text-[10px] text-[#787774]">
+          <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#0f7b6c]" />All findings</span>
+          <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#eb5757]" />High risk · {highRiskFindings}</span>
+          <span className="ml-auto text-[#9b9a97]">Based on observed timestamps</span>
         </div>
       </section>
 
       <section className={`${panel} xl:col-span-5`}>
-        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.08] p-2 text-cyan-300"><PieIcon className="h-4 w-4" /></span>
-            <div><h2 className="text-sm font-semibold text-slate-100">Exposure by surface</h2><p className="mt-1 text-[11px] text-slate-500">Observed finding distribution</p></div>
+        <div className="flex items-start justify-between gap-3 border-b border-[#e3e2e0] px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-1.5 text-[#0f7b6c]"><PieIcon className="h-4 w-4" /></span>
+            <div><h2 className="text-sm font-bold text-[#37352f]">Exposure by surface</h2><p className="mt-0.5 text-[11px] text-[#9b9a97]">Observed finding distribution</p></div>
           </div>
-          <span className="font-mono text-xs text-slate-400">{sightings.length}</span>
+          <span className="font-mono text-xs font-semibold text-[#37352f]">{sightings.length}</span>
         </div>
         {surfaceData.length ? <>
           <div className="relative h-[174px] px-2 pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={surfaceData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value" stroke="#111a27" strokeWidth={3}>
+                <Pie data={surfaceData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value" stroke="#ffffff" strokeWidth={2}>
                   {surfaceData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-2"><span className="font-mono text-xl font-semibold text-white">{sightings.length}</span><span className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-slate-500">Findings</span></div>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-2"><span className="font-mono text-xl font-bold text-[#37352f]">{sightings.length}</span><span className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-[#9b9a97]">Findings</span></div>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-white/[0.06] px-5 py-3">
-            {surfaceData.slice(0, 6).map((item) => <div key={item.name} className="flex min-w-0 items-center gap-2 text-[11px]"><i className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} /><span className="truncate text-slate-400">{item.name}</span><span className="ml-auto font-mono text-slate-200">{item.value}</span></div>)}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[#e3e2e0] px-5 py-2.5">
+            {surfaceData.slice(0, 6).map((item) => <div key={item.name} className="flex min-w-0 items-center gap-2 text-[11px]"><i className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} /><span className="truncate text-[#787774]">{item.name}</span><span className="ml-auto font-mono font-medium text-[#37352f]">{item.value}</span></div>)}
           </div>
-        </> : <div className="flex h-[250px] flex-col items-center justify-center gap-2 text-center"><Radar className="h-5 w-5 text-slate-600" /><p className="text-xs text-slate-400">Surface breakdown appears when findings are ingested.</p></div>}
+        </> : <div className="flex h-[250px] flex-col items-center justify-center gap-2 text-center"><Radar className="h-5 w-5 text-[#9b9a97]" /><p className="text-xs text-[#9b9a97]">Surface breakdown appears when findings are ingested.</p></div>}
       </section>
 
       <section className={`${panel} xl:col-span-12`}>
-        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
-          <div className="flex items-center gap-3"><span className="rounded-lg border border-amber-400/15 bg-amber-400/[0.08] p-2 text-amber-200"><BarChart3 className="h-4 w-4" /></span><div><h2 className="text-sm font-semibold text-slate-100">Campaign risk profile</h2><p className="mt-1 text-[11px] text-slate-500">Existing investigations grouped by their current risk score</p></div></div>
-          <span className="font-mono text-xs text-slate-400">{campaigns.length} total</span>
+        <div className="flex items-start justify-between gap-3 border-b border-[#e3e2e0] px-5 py-3.5">
+          <div className="flex items-center gap-2.5"><span className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-1.5 text-[#0f7b6c]"><BarChart3 className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-[#37352f]">Campaign risk profile</h2><p className="mt-0.5 text-[11px] text-[#9b9a97]">Existing investigations grouped by risk</p></div></div>
+          <span className="font-mono text-xs font-semibold text-[#37352f]">{campaigns.length} total</span>
         </div>
-        {campaigns.length ? <div className="h-[155px] px-3 pb-3 pt-4 sm:px-6"><ResponsiveContainer width="100%" height="100%"><BarChart data={campaignRiskData} layout="vertical" margin={{ top: 0, right: 18, left: 18, bottom: 0 }}><CartesianGrid strokeDasharray="3 5" stroke="#263342" horizontal={false} /><XAxis type="number" allowDecimals={false} stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} /><YAxis type="category" dataKey="stage" stroke="#cbd5e1" fontSize={11} tickLine={false} axisLine={false} width={68} /><Tooltip content={<CustomTooltip />} /><Bar dataKey="campaigns" name="Campaigns" radius={[0, 5, 5, 0]} barSize={18}>{campaignRiskData.map((entry) => <Cell key={entry.stage} fill={entry.fill} />)}</Bar></BarChart></ResponsiveContainer></div> : <div className="flex h-[112px] items-center justify-center text-xs text-slate-500">Campaign risk profile appears when investigations are created.</div>}
+        {campaigns.length ? <div className="h-[155px] px-3 pb-3 pt-4 sm:px-6"><ResponsiveContainer width="100%" height="100%"><BarChart data={campaignRiskData} layout="vertical" margin={{ top: 0, right: 18, left: 18, bottom: 0 }}><CartesianGrid strokeDasharray="3 5" stroke="#e3e2e0" horizontal={false} /><XAxis type="number" allowDecimals={false} stroke="#9b9a97" fontSize={10} tickLine={false} axisLine={false} /><YAxis type="category" dataKey="stage" stroke="#787774" fontSize={11} tickLine={false} axisLine={false} width={68} /><Tooltip content={<CustomTooltip />} /><Bar dataKey="campaigns" name="Campaigns" radius={[0, 4, 4, 0]} barSize={16}>{campaignRiskData.map((entry) => <Cell key={entry.stage} fill={entry.fill} />)}</Bar></BarChart></ResponsiveContainer></div> : <div className="flex h-[112px] items-center justify-center text-xs text-[#9b9a97]">Campaign risk profile appears when investigations are created.</div>}
       </section>
-
-      <GlobalThreatMap sightings={sightings} />
     </div>
   );
 }

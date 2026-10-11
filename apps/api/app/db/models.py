@@ -16,7 +16,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -26,6 +26,7 @@ class Tenant(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
+    primary_brand_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -51,6 +52,10 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    clerk_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    composio_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    primary_brand_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -76,6 +81,13 @@ class Brand(Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="enrolling")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    assets: Mapped[List["BrandAsset"]] = relationship(
+        "BrandAsset",
+        back_populates="brand",
+        cascade="all, delete-orphan",
+        order_by="BrandAsset.created_at.desc()",
+    )
 
 
 class Connector(Base):
@@ -111,6 +123,8 @@ class BrandAsset(Base):
     object_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    brand: Mapped["Brand"] = relationship("Brand", back_populates="assets")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "brand_id", "asset_type", "canonical_value", name="uq_brand_asset"),

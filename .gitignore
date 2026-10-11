@@ -17,5 +17,9 @@ coverage/
 .vscode/
 .freebuff/
 apps/api/storage/
+storage/
+*.db
+*.sqlite
+*.sqlite3
 apps/web/tsconfig.tsbuildinfo
 gemini_generated_video_d1cfd95c.mp4

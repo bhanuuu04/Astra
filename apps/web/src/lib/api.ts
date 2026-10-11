@@ -1,3 +1,5 @@
+import { appCache, getOrSetCache } from "./cache";
+
 export type Overview = {
   brands: number;
   sightings: number;
@@ -69,7 +71,7 @@ const apiBaseUrl =
   (typeof window !== "undefined" && (window as any).__ASTRA_API_URL__) ||
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.API_BASE_URL ||
-  "http://localhost:8001";
+  "http://localhost:8000";
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -83,6 +85,8 @@ export type UserInfo = {
   email: string;
   full_name: string;
   role: string;
+  clerk_id?: string | null;
+  composio_user_id?: string | null;
 };
 
 export type TenantInfo = {
@@ -228,31 +232,26 @@ async function astraFetch(url: string, init?: RequestInit): Promise<Response> {
 }
 
 export async function getOverview(): Promise<Overview | null> {
-  try {
+  const tenantId = getActiveTenant()?.id || 'anon';
+  return getOrSetCache(`overview_${tenantId}`, async () => {
     const response = await astraFetch(`${apiBaseUrl}/api/v1/overview`, { cache: "no-store" });
     if (!response.ok) return null;
     return (await response.json()) as Overview;
-  } catch (error) {
-    console.warn("getOverview API notice:", error);
-    return {
-      brands: 1,
-      sightings: 5,
-      active_campaigns: 4,
-      high_risk_campaigns: 2,
-      environment: "development",
-    };
-  }
+  }, 10);
 }
 
 export async function listBrands(): Promise<Brand[]> {
-  try {
-    const res = await astraFetch(`${apiBaseUrl}/api/v1/brands`, { cache: "no-store" });
-    if (!res.ok) return [];
-    return await res.json();
-  } catch (error) {
-    console.warn("listBrands API notice:", error);
-    return [];
-  }
+  const tenantId = getActiveTenant()?.id || 'anon';
+  return getOrSetCache(`brands_${tenantId}`, async () => {
+    try {
+      const res = await astraFetch(`${apiBaseUrl}/api/v1/brands`, { cache: "no-store" });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (error) {
+      console.warn("listBrands API notice:", error);
+      return [];
+    }
+  }, 15);
 }
 
 export async function getBrand(brandId: string): Promise<Brand | null> {
@@ -277,6 +276,7 @@ export async function createBrand(
       body: JSON.stringify({ name, assets }),
     });
     if (!res.ok) return null;
+    appCache.clear();
     return await res.json();
   } catch (error) {
     throw error;
@@ -300,6 +300,8 @@ export async function addBrandAsset(
       }),
     });
     if (!res.ok) return null;
+    appCache.invalidate('brands');
+    appCache.invalidate('overview');
     return await res.json();
   } catch (error) {
     throw error;
@@ -339,6 +341,17 @@ export async function verifyAssetManual(
   return await res.json();
 }
 
+export async function verifyAssetSocial(
+  brandId: string,
+  assetId: string
+): Promise<BrandAsset> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets/${assetId}/verify-social`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  return await res.json();
+}
+
 export async function deleteBrandAsset(
   brandId: string,
   assetId: string
@@ -346,6 +359,8 @@ export async function deleteBrandAsset(
   await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}/assets/${assetId}`, {
     method: "DELETE",
   });
+  appCache.invalidate('brands');
+  appCache.invalidate('overview');
 }
 
 export async function ingestSightingsBatch(sightings: any[]): Promise<{ ingested_count: number; sighting_ids: string[] } | null> {
@@ -363,16 +378,19 @@ export async function ingestSightingsBatch(sightings: any[]): Promise<{ ingested
 }
 
 export async function listSightings(brandId?: string, surface?: string): Promise<Sighting[]> {
-  try {
-    const url = new URL(`${apiBaseUrl}/api/v1/sightings`);
-    if (brandId) url.searchParams.set("brand_id", brandId);
-    if (surface) url.searchParams.set("surface", surface);
-    const res = await astraFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return await res.json();
-  } catch (error) {
-    throw error;
-  }
+  const cacheKey = `sightings_${brandId || 'all'}_${surface || 'all'}`;
+  return getOrSetCache(cacheKey, async () => {
+    try {
+      const url = new URL(`${apiBaseUrl}/api/v1/sightings`);
+      if (brandId) url.searchParams.set("brand_id", brandId);
+      if (surface) url.searchParams.set("surface", surface);
+      const res = await astraFetch(url.toString(), { cache: "no-store" });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (error) {
+      throw error;
+    }
+  }, 15);
 }
 
 export async function resetDemo(): Promise<DemoResetResult | null> {
@@ -454,23 +472,73 @@ export async function runAnalysisJob(brandId?: string, sightingIds?: string[]): 
       body: JSON.stringify({ brand_id: brandId, sighting_ids: sightingIds }),
     });
     if (!res.ok) return null;
+    appCache.clear(); // Analysis updates campaigns, edges, signals, overview
     return await res.json();
   } catch (error) {
     throw error;
   }
 }
 
-export async function listCampaigns(brandId?: string, status?: string): Promise<Campaign[]> {
+export type ThreatScanStatus = {
+  is_scanning: boolean;
+  status: string;
+  brand_id?: string | null;
+  progress_pct: number;
+  stage: string;
+  stage_index: number;
+  total_stages: number;
+  eta_seconds: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  logs: string[];
+  findings_found: number;
+  live_threats?: Array<{ domain: string; ips: string[]; whois: string }> | null;
+};
+
+export async function startThreatScan(brandId?: string): Promise<ThreatScanStatus | null> {
   try {
-    const url = new URL(`${apiBaseUrl}/api/v1/campaigns`);
-    if (brandId) url.searchParams.set("brand_id", brandId);
-    if (status) url.searchParams.set("status", status);
-    const res = await astraFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/analysis-jobs/start-scan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brand_id: brandId }),
+    });
+    if (!res.ok) return null;
+    appCache.clear();
     return await res.json();
   } catch (error) {
-    throw error;
+    console.warn("startThreatScan error:", error);
+    return null;
   }
+}
+
+export async function getThreatScanStatus(brandId?: string): Promise<ThreatScanStatus | null> {
+  try {
+    const url = new URL(`${apiBaseUrl}/api/v1/analysis-jobs/scan-status`);
+    if (brandId) url.searchParams.set("brand_id", brandId);
+    const res = await astraFetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    console.warn("getThreatScanStatus error:", error);
+    return null;
+  }
+}
+
+
+export async function listCampaigns(brandId?: string, status?: string): Promise<Campaign[]> {
+  const cacheKey = `campaigns_${brandId || 'all'}_${status || 'all'}`;
+  return getOrSetCache(cacheKey, async () => {
+    try {
+      const url = new URL(`${apiBaseUrl}/api/v1/campaigns`);
+      if (brandId) url.searchParams.set("brand_id", brandId);
+      if (status) url.searchParams.set("status", status);
+      const res = await astraFetch(url.toString(), { cache: "no-store" });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (error) {
+      throw error;
+    }
+  }, 20);
 }
 
 export async function getCampaign(campaignId: string): Promise<CampaignDetail | null> {
@@ -1114,6 +1182,25 @@ export function logout(): void {
   setAuthToken(null);
   setActiveUser(null);
   setActiveTenant(null);
+  appCache.clear();
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("astra_current_brand_dna");
+      localStorage.removeItem("astra_onboarding_completed");
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("astra_current_brand_dna_") || k.startsWith("astra_onboarding_completed_") || k.startsWith("astra_cache_"))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+  }
+}
+
+export function clearSession(): void {
+  logout();
 }
 
 export async function getSettings(): Promise<TenantSettings> {

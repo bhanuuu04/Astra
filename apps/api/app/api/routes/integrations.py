@@ -8,16 +8,24 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import TenantContext, get_current_tenant_context
-from app.db.models import Brand, BrandAsset, Campaign, CampaignEdgeLegacy as CampaignEdge, CampaignMember, Signal
+from app.db.models import Brand, BrandAsset, Campaign, CampaignEdgeLegacy as CampaignEdge, CampaignMember, Signal, User
 from app.db.session import get_session
+from app.domain.sighting_service import ingest_batch
+from app.integrations.composio import sync_composio_live_messages
 from app.integrations.connector_sources import ConnectorSourceError
 from app.integrations.google_play import inspect_app_listing
 from app.integrations.llm import generate_analyst_summary
 from app.integrations.meta import get_instagram_user_metadata
 from app.integrations.virustotal import check_file_reputation, check_url_reputation
 from app.integrations.youtube import search_brand_impersonation
+from app.schemas.sighting import SightingBatchRequest
 
 router = APIRouter(prefix="/api/v1", tags=["integrations"])
+
+
+class ComposioSyncRequest(BaseModel):
+    user_id: Optional[str] = None
+    brand_id: Optional[uuid.UUID] = None
 
 
 class VirusTotalCheckRequest(BaseModel):
@@ -108,6 +116,66 @@ def get_integrations_status() -> Dict[str, Any]:
                 "status": "configured" if s.sentry_dsn else "unconfigured",
             },
         },
+    }
+
+
+@router.post("/integrations/composio/sync")
+async def sync_composio_telemetry(
+    request: ComposioSyncRequest = ComposioSyncRequest(),
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(get_current_tenant_context),
+) -> Dict[str, Any]:
+    """Sync live authenticated messages and inbound social events from Composio."""
+    brand = None
+    if request.brand_id:
+        brand = session.scalar(
+            select(Brand).where(Brand.id == request.brand_id, Brand.tenant_id == context.tenant_id)
+        )
+    if not brand:
+        brand = session.scalar(
+            select(Brand).where(Brand.tenant_id == context.tenant_id).order_by(Brand.created_at.asc())
+        )
+    if not brand:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No brand registered for this organization. Please enroll a brand before syncing.",
+        )
+
+    user_id = request.user_id
+    if not user_id and context.user_id:
+        user = session.scalar(select(User).where(User.id == context.user_id))
+        if user and user.composio_user_id:
+            user_id = user.composio_user_id
+
+    sightings = await sync_composio_live_messages(user_id=user_id, brand=brand)
+    if not sightings:
+        return {
+            "status": "success",
+            "message": "Composio sync completed. Monitored streams are up to date.",
+            "synced_sightings_count": 0,
+            "sighting_ids": [],
+            "brand_name": brand.name,
+        }
+
+    batch_req = SightingBatchRequest(
+        tenant_id=context.tenant_id,
+        brand_id=brand.id,
+        sightings=sightings,
+    )
+    result = ingest_batch(session, batch_req)
+
+    try:
+        from app.domain.linking_service import compute_campaign_edges_and_clusters
+        compute_campaign_edges_and_clusters(session, context.tenant_id, brand.id)
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "synced_sightings_count": result.ingested_count,
+        "sighting_ids": [str(sid) for sid in result.sighting_ids],
+        "indicators_extracted": result.indicators_extracted,
+        "brand_name": brand.name,
     }
 
 

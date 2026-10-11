@@ -58,30 +58,30 @@ function formatRelativeTime(dateStr?: string | null): string {
 const STATUS_CONFIG: Record<string, { icon: any; color: string; bg: string; border: string; label: string }> = {
   active: {
     icon: CheckCircle,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/30',
+    color: 'text-[#0f7b6c]',
+    bg: 'bg-[#0f7b6c]/10',
+    border: 'border-[#0f7b6c]/30',
     label: 'Active',
   },
   degraded: {
     icon: AlertCircle,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/30',
+    color: 'text-[#d97706]',
+    bg: 'bg-[#d97706]/10',
+    border: 'border-[#d97706]/30',
     label: 'Degraded',
   },
   error: {
     icon: XCircle,
-    color: 'text-rose-400',
-    bg: 'bg-rose-500/10',
-    border: 'border-rose-500/30',
+    color: 'text-[#eb5757]',
+    bg: 'bg-[#eb5757]/10',
+    border: 'border-[#eb5757]/30',
     label: 'Error',
   },
   unconfigured: {
     icon: Activity,
-    color: 'text-slate-400',
-    bg: 'bg-slate-500/10',
-    border: 'border-slate-500/30',
+    color: 'text-[#787774]',
+    bg: 'bg-[#f7f6f3]',
+    border: 'border-[#e3e2e0]',
     label: 'Unconfigured',
   },
 };
@@ -103,7 +103,7 @@ export function ConnectorStatusCard({
 
   return (
     <div className={cn(
-      'p-5 rounded-xl border bg-slate-900/60 transition-all flex flex-col justify-between group shadow-sm hover:border-slate-700',
+      'p-5 rounded-[8px] border bg-white transition-all flex flex-col justify-between group shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:border-[#9b9a97]',
       config.border
     )}>
       <div>
@@ -111,22 +111,22 @@ export function ConnectorStatusCard({
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <div className={cn(
-              'w-10 h-10 rounded-lg flex items-center justify-center border shrink-0',
+              'w-10 h-10 rounded-[6px] flex items-center justify-center border shrink-0',
               config.bg,
               config.border
             )}>
               <Icon className={cn('w-5 h-5', config.color)} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[#37352f] flex items-center gap-2">
                 <span>{connector.name}</span>
                 {isTemplate && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-[4px] bg-[#d97706]/10 border border-[#d97706]/30 text-[#d97706] font-mono">
                     Template
                   </span>
                 )}
               </h3>
-              <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">
+              <p className="text-xs text-[#787774] uppercase font-mono tracking-wider">
                 {connector.connector_type.replace('_', ' ')}
               </p>
             </div>
@@ -134,7 +134,7 @@ export function ConnectorStatusCard({
 
           <div className="flex items-center gap-1.5">
             <span className={cn(
-              'px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border',
+              'px-2 py-0.5 rounded-[4px] text-[11px] font-semibold uppercase tracking-wider border',
               config.bg,
               config.color,
               config.border
@@ -146,7 +146,7 @@ export function ConnectorStatusCard({
                 onClick={() => onDelete(connector.id)}
                 disabled={isDeleting}
                 title="Delete connector"
-                className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                className="p-1 rounded text-[#9b9a97] hover:text-[#eb5757] hover:bg-[#eb5757]/10 transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -155,16 +155,16 @@ export function ConnectorStatusCard({
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+        <div className="grid grid-cols-2 gap-3 mb-3 bg-[#f7f6f3] p-3 rounded-[6px] border border-[#e3e2e0]">
           <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5 font-semibold">Last Sync</p>
-            <p suppressHydrationWarning className="text-xs text-slate-300 font-mono">
+            <p className="text-[10px] text-[#787774] uppercase tracking-wider mb-0.5 font-semibold">Last Sync</p>
+            <p suppressHydrationWarning className="text-xs text-[#37352f] font-mono">
               {formatRelativeTime(connector.last_successful_sync_at)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5 font-semibold">Rate Limit</p>
-            <p className="text-xs text-slate-300 font-mono">
+            <p className="text-[10px] text-[#787774] uppercase tracking-wider mb-0.5 font-semibold">Rate Limit</p>
+            <p className="text-xs text-[#37352f] font-mono">
               {connector.rate_limit_rpm ? `${connector.rate_limit_rpm} req/m` : 'Default'}
             </p>
           </div>
@@ -176,9 +176,9 @@ export function ConnectorStatusCard({
             {connector.permitted_scopes.map((scope) => (
               <span
                 key={scope}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800/80 text-[10px] text-slate-300 font-mono border border-slate-700/60"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-[#f7f6f3] text-[10px] text-[#787774] font-mono border border-[#e3e2e0]"
               >
-                <Shield className="w-2.5 h-2.5 text-cyan-400" />
+                <Shield className="w-2.5 h-2.5 text-[#0f7b6c]" />
                 {scope}
               </span>
             ))}
@@ -187,23 +187,23 @@ export function ConnectorStatusCard({
 
         {/* Error Message */}
         {connector.error_message && (
-          <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 mb-4">
-            <p className="text-xs text-rose-300 font-mono leading-relaxed">{connector.error_message}</p>
+          <div className="p-2.5 rounded-[6px] bg-[#eb5757]/10 border border-[#eb5757]/30 mb-4">
+            <p className="text-xs text-[#eb5757] font-mono leading-relaxed">{connector.error_message}</p>
           </div>
         )}
         {isPushConnector && !isTemplate && (
-          <div className="mb-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2.5">
-            <p className="text-xs leading-relaxed text-cyan-200">Push/webhook source. Configure Meta webhook delivery separately; ASTRA does not poll public Instagram accounts.</p>
+          <div className="mb-4 rounded-[6px] border border-[#0f7b6c]/20 bg-[#0f7b6c]/5 p-2.5">
+            <p className="text-xs leading-relaxed text-[#0f7b6c]">Push/webhook source. Configure Meta webhook delivery separately; ASTRA does not poll public Instagram accounts.</p>
           </div>
         )}
       </div>
 
       {/* Action Buttons */}
-      <div className="mt-3 pt-3 border-t border-slate-800/80 flex flex-col gap-2">
+      <div className="mt-3 pt-3 border-t border-[#e3e2e0] flex flex-col gap-2">
         {isTemplate ? (
           <button
             onClick={() => onConfigure && onConfigure(connector)}
-            className="w-full px-3 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-xs font-semibold text-cyan-300 hover:text-cyan-200 transition-colors flex items-center justify-center gap-2"
+            className="w-full px-3 py-2 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0c6357] text-xs font-medium text-white transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
           >
             <Settings className="w-3.5 h-3.5" />
             <span>Configure Vault Credentials</span>
@@ -213,12 +213,12 @@ export function ConnectorStatusCard({
             <button
               onClick={() => onHealthCheck(connector.id)}
               disabled={isChecking}
-              className="px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="px-3 py-2 rounded-[6px] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-xs font-medium text-[#37352f] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
             >
               {isChecking ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0f7b6c]" />
               ) : (
-                <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                <RefreshCw className="w-3.5 h-3.5 text-[#787774]" />
               )}
               <span>{isChecking ? 'Checking...' : 'Health Check'}</span>
             </button>
@@ -227,12 +227,12 @@ export function ConnectorStatusCard({
               <button
                 onClick={() => onSync(connector.id)}
                 disabled={isSyncing || connector.status === 'unconfigured'}
-                className="px-3 py-2 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 text-xs font-semibold text-cyan-300 hover:text-cyan-200 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-2 rounded-[6px] bg-[#0f7b6c]/10 hover:bg-[#0f7b6c]/20 border border-[#0f7b6c]/30 text-xs font-medium text-[#0f7b6c] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSyncing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0f7b6c]" />
                 ) : (
-                  <Play className="w-3.5 h-3.5 text-cyan-400" />
+                  <Play className="w-3.5 h-3.5 text-[#0f7b6c]" />
                 )}
                 <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
               </button>

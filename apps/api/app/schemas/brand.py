@@ -76,3 +76,15 @@ class BrandResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SocialProfileProbeRequest(BaseModel):
+    platform: str = Field(..., description="Platform: twitter, instagram, telegram, youtube, linkedin, web")
+    handle_or_url: str = Field(..., description="Handle or URL to verify")
+
+
+class SocialProfileProbeResponse(BaseModel):
+    is_live: bool
+    canonical_url: str
+    error_detail: Optional[str] = None
+    status_label: str

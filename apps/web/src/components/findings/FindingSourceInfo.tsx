@@ -49,7 +49,7 @@ export function FindingSourceInfo({ finding, connector }: FindingSourceInfoProps
           <div>
             <p className="text-xs text-slate-500">Source</p>
             <p className="text-sm text-slate-300 font-medium">
-              {connector?.name || (finding.data_mode === 'synthetic_demo' ? 'Synthetic Demo Generator' : 'Manual Upload')}
+              {connector?.name || 'Live Monitored Telemetry'}
             </p>
             {connector && (
               <div className="flex items-center gap-1.5 mt-1">

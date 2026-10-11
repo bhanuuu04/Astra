@@ -13,7 +13,10 @@ from app.db.models import (
     Connector,
     EvidenceObject,
     Finding,
+    Indicator,
     MobileAppFinding,
+    Sighting,
+    SightingIndicator,
     Signal,
 )
 from app.domain.audit_service import log_audit_event, sanitize_state_for_audit
@@ -301,6 +304,97 @@ def ingest_finding(
         )
         session.add(signal)
     
+    # Mirror into sightings feed so Overview Dashboard and Campaign Linking reflect connector telemetry
+    existing_sighting = session.scalar(
+        select(Sighting).where(
+            Sighting.tenant_id == tenant_id,
+            Sighting.brand_id == finding.brand_id,
+            Sighting.raw_ref == finding.target_identifier,
+        )
+    )
+    content_text = (
+        (finding.normalized_attributes or {}).get("review_text") or
+        (finding.normalized_attributes or {}).get("content") or
+        (finding.normalized_attributes or {}).get("title") or
+        f"{finding.surface.capitalize()} telemetry: {finding.target_identifier}"
+    )
+
+    if not existing_sighting:
+        sighting = Sighting(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            brand_id=finding.brand_id,
+            surface=finding.surface,
+            source_kind="connector",
+            observed_at=finding.observed_at,
+            raw_ref=finding.target_identifier,
+            normalized_payload={
+                "target_url": finding.target_identifier,
+                "target": finding.target_identifier,
+                "source": f"connector_{finding.surface}",
+                "content": content_text,
+                "finding_id": str(finding.id),
+                "triage_priority": priority,
+                "threat_analysis": {
+                    "risk_score": round(priority * 100),
+                    "severity": "HIGH" if priority >= 0.75 else ("MEDIUM" if priority >= 0.45 else "LOW"),
+                    "summary": f"Live telemetry captured from {finding.surface} connector for {brand.name}.",
+                    "target_url": finding.target_identifier,
+                },
+                **(finding.normalized_attributes or {}),
+            },
+        )
+        session.add(sighting)
+        session.flush()
+    else:
+        sighting = existing_sighting
+
+    # Extract indicators from target identifier and content text
+    from app.domain.sighting_service import extract_indicators_from_text
+    extracted = extract_indicators_from_text(f"{finding.target_identifier} {content_text}")
+    for ind_type, ind_val in extracted:
+        indicator = session.scalar(
+            select(Indicator).where(
+                Indicator.tenant_id == tenant_id,
+                Indicator.indicator_type == ind_type,
+                Indicator.canonical_value == ind_val,
+            )
+        )
+        if not indicator:
+            indicator = Indicator(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                indicator_type=ind_type,
+                canonical_value=ind_val,
+                fingerprint=hashlib.sha256(f"{ind_type}:{ind_val}".encode("utf-8")).hexdigest()[:32],
+            )
+            session.add(indicator)
+            session.flush()
+
+        existing_si = session.scalar(
+            select(SightingIndicator).where(
+                SightingIndicator.sighting_id == sighting.id,
+                SightingIndicator.indicator_id == indicator.id,
+            )
+        )
+        if not existing_si:
+            sighting_ind = SightingIndicator(
+                id=uuid.uuid4(),
+                sighting_id=sighting.id,
+                indicator_id=indicator.id,
+                extraction_method="connector_telemetry",
+                confidence=1.0,
+            )
+            session.add(sighting_ind)
+
+    # Link into campaign clusters
+    try:
+        from app.domain.linking_service import compute_campaign_edges_and_clusters
+        compute_campaign_edges_and_clusters(session, tenant_id, finding.brand_id)
+    except Exception as link_err:
+        import logging
+        logging.getLogger(__name__).warning(f"Campaign linking deferred: {link_err}")
+
     session.commit()
     
     return FindingIngestResponse(

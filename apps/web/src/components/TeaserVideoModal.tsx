@@ -99,7 +99,7 @@ export function TeaserVideoModal({ isOpen, onClose }: TeaserVideoModalProps) {
     currentTime < 11.5 ? 3 : 4;
 
   const phaseDescription = 
-    phase === 1 ? 'Phase 1: Suspicious social handle identified (@nilapay_official_help)' :
+    phase === 1 ? 'Phase 1: Suspicious social handle identified (@brand_official_help)' :
     phase === 2 ? 'Phase 2: Phishing domain & trojanized APK payload emerge across surfaces' :
     phase === 3 ? 'Phase 3: Cryptographic pivot invariants connect vectors into unified graph' :
     'Phase 4: Clustered campaign locked with 1-click legal takedown dossier';
@@ -251,16 +251,16 @@ export function TeaserVideoModal({ isOpen, onClose }: TeaserVideoModalProps) {
                       {phase === 1 && (
                         <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-500/40 text-left animate-fade-in shadow-lg">
                           <div className="text-[10px] font-bold text-amber-400 uppercase">Suspicious Profile</div>
-                          <div className="text-xs font-bold text-white mt-1">@nilapay_official_help</div>
+                          <div className="text-xs font-bold text-white mt-1">@brand_official_help</div>
                         </div>
                       )}
                       {phase === 2 && (
                         <div className="space-y-2 animate-fade-in text-left">
                           <div className="p-2 rounded-lg bg-slate-900/90 border border-blue-500/40 text-[10px] text-blue-300">
-                            Web Phishing: nilapay-secure-updater.xyz
+                            Web Phishing: brand-secure-updater.xyz
                           </div>
                           <div className="p-2 rounded-lg bg-slate-900/90 border border-emerald-500/40 text-[10px] text-emerald-300">
-                            Trojan APK: com.nilapay.security.patch
+                            Trojan APK: com.brand.security.patch
                           </div>
                         </div>
                       )}

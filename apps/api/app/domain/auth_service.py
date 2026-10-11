@@ -1,5 +1,5 @@
 import re
-from typing import List
+from typing import List, Optional
 import uuid
 
 from fastapi import HTTPException, status
@@ -317,3 +317,199 @@ def switch_user_tenant(
             is_demo=is_demo,
         ),
     )
+
+
+def sync_clerk_user(
+    session: Session,
+    email: str,
+    full_name: str,
+    clerk_id: Optional[str] = None,
+    composio_entity_id: Optional[str] = None,
+) -> AuthResponse:
+    """Synchronize Clerk authenticated user to Supabase PostgreSQL and ensure tenant membership.
+    
+    Also stores Composio entity ID so social channel connections are linked
+    to the correct per-user entity in Composio.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    email_clean = email.strip().lower()
+    user = session.scalar(select(User).where(User.email == email_clean))
+
+    if not user:
+        user = User(
+            id=uuid.uuid4(),
+            email=email_clean,
+            full_name=full_name.strip() or email_clean.split("@")[0],
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+        logger.info(f"Created new Supabase user: {email_clean}, composio_entity_id={composio_entity_id}")
+    else:
+        # Update display name if changed
+        if full_name.strip() and user.full_name != full_name.strip():
+            user.full_name = full_name.strip()
+
+    if clerk_id:
+        user.clerk_id = clerk_id
+    if composio_entity_id:
+        user.composio_user_id = composio_entity_id
+    elif clerk_id and not user.composio_user_id:
+        user.composio_user_id = f"astra_{clerk_id}"
+
+    session.flush()
+
+    INITIAL_ADMIN_EMAILS = {
+        "bhanuu.pr.04@gmail.com",
+        "nomipeindia@gmail.com",
+        "bhanu.security@astra.com",
+        "analyst@astra.local",
+    }
+
+    # Check if user already has an established tenant membership
+    membership = session.scalar(
+        select(TenantMembership)
+        .where(TenantMembership.user_id == user.id)
+        .order_by(TenantMembership.created_at.asc())
+    )
+
+    if membership:
+        target_tenant = session.scalar(select(Tenant).where(Tenant.id == membership.tenant_id))
+    else:
+        # User has no membership yet
+        if email_clean in INITIAL_ADMIN_EMAILS:
+            # Option A: Preserve admin account on existing brand tenant (DOCK, dockcloud.in)
+            default_tenant = session.scalar(select(Tenant).where(Tenant.id == DEFAULT_DEMO_TENANT_ID))
+            if not default_tenant:
+                default_tenant = Tenant(id=DEFAULT_DEMO_TENANT_ID, name="ASTRA Enterprise Security")
+                session.add(default_tenant)
+                session.flush()
+            target_tenant = default_tenant
+        else:
+            # Option A: Auto-provision a dedicated isolated tenant for new sign-ups!
+            domain_part = email_clean.split("@")[-1].split(".")[0].capitalize()
+            generic_domains = {"Gmail", "Yahoo", "Outlook", "Hotmail", "Icloud", "Proton", "Protonmail"}
+            if domain_part in generic_domains or not domain_part:
+                org_name = f"{user.full_name.strip()}'s Workspace"
+            else:
+                org_name = f"{domain_part} Security"
+
+            target_tenant = Tenant(
+                id=uuid.uuid4(),
+                name=org_name,
+            )
+            session.add(target_tenant)
+            session.flush()
+
+            # Provision default persistent TenantSettings for the new isolated tenant
+            tenant_settings = TenantSettings(
+                id=uuid.uuid4(),
+                tenant_id=target_tenant.id,
+                quarantine_threshold=80,
+                slack_webhook_url=None,
+                alert_critical_only=False,
+                notification_email=email_clean,
+                auto_quarantine_enabled=True,
+            )
+            session.add(tenant_settings)
+            session.flush()
+
+        # Provision TenantMembership with org_admin role
+        membership = TenantMembership(
+            id=uuid.uuid4(),
+            tenant_id=target_tenant.id,
+            user_id=user.id,
+            role=ROLE_ORG_ADMIN,
+        )
+        session.add(membership)
+        session.flush()
+
+    # Ensure admin accounts have their primary brand set to DOCK in the default demo tenant
+    from app.db.models import Brand
+    if email_clean in INITIAL_ADMIN_EMAILS:
+        dock_brand = session.scalar(select(Brand).where(Brand.tenant_id == DEFAULT_DEMO_TENANT_ID))
+        if dock_brand:
+            user.primary_brand_id = dock_brand.id
+            user.onboarding_completed = True
+            session.flush()
+    else:
+        # For non-admin users, check if their dedicated tenant has any brand registered
+        user_brand = session.scalar(select(Brand).where(Brand.tenant_id == target_tenant.id).order_by(Brand.created_at.desc()))
+        if user_brand:
+            user.primary_brand_id = user_brand.id
+            user.onboarding_completed = True
+            session.flush()
+
+    session.commit()
+    logger.info(f"Supabase sync complete for {email_clean} | tenant={target_tenant.id} ({target_tenant.name})")
+
+    access_token = create_access_token(
+        tenant_id=target_tenant.id,
+        role=membership.role,
+        actor=user.email,
+        user_id=user.id,
+    )
+
+    return AuthResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserInfo(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role=membership.role,
+            clerk_id=user.clerk_id,
+            composio_user_id=user.composio_user_id,
+            onboarding_completed=user.onboarding_completed,
+            primary_brand_id=user.primary_brand_id,
+        ),
+        tenant=TenantInfo(
+            id=target_tenant.id,
+            name=target_tenant.name,
+            is_demo=False,
+        ),
+    )
+
+
+def complete_user_onboarding(
+    session: Session,
+    clerk_id: Optional[str] = None,
+    email: Optional[str] = None,
+    brand_id: Optional[uuid.UUID] = None,
+) -> Dict[str, Any]:
+    """Permanently mark user as onboarded in Supabase PostgreSQL and associate brand."""
+    user = None
+    if clerk_id:
+        user = session.scalar(select(User).where(User.clerk_id == clerk_id))
+    if not user and email:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+
+    if not user:
+        if email or clerk_id:
+            return {"success": False, "error": "User not found for provided credentials"}
+        user = session.scalar(select(User).order_by(User.created_at.desc()))
+
+    if user:
+        user.onboarding_completed = True
+        if brand_id:
+            user.primary_brand_id = brand_id
+            from app.db.models import Brand
+            b = session.scalar(select(Brand).where(Brand.id == brand_id))
+            if b:
+                membership = session.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id))
+                if membership and b.tenant_id != membership.tenant_id:
+                    b.tenant_id = membership.tenant_id
+        session.commit()
+        return {
+            "success": True,
+            "user_id": str(user.id),
+            "email": user.email,
+            "onboarding_completed": True,
+            "primary_brand_id": str(user.primary_brand_id) if user.primary_brand_id else None,
+        }
+
+    return {"success": False, "error": "User not found"}
+
+

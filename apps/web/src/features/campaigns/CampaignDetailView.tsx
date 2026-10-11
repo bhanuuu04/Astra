@@ -49,32 +49,32 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
   const campaign = campaignDetail?.campaign;
 
   return (
-    <div className="flex flex-col h-full bg-slate-950">
+    <div className="flex flex-col h-full bg-[#f7f6f3]">
       {/* Top Bar Navigation & Actions */}
-      <div className="p-4 px-6 border-b border-slate-800 bg-slate-900/90 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+      <div className="p-4 px-6 border-b border-[#e3e2e0] bg-white flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link
               href="/campaigns"
-              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition"
+              className="inline-flex items-center gap-1 text-xs text-[#787774] hover:text-[#37352f] transition"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>All Campaigns</span>
             </Link>
-            <span className="text-slate-600">/</span>
-            <span className="text-xs font-mono text-indigo-300">
+            <span className="text-[#e3e2e0]">/</span>
+            <span className="text-xs font-mono text-[#0f7b6c]">
               {campaignId.substring(0, 8)}...
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-extrabold text-white">
+            <h1 className="text-xl font-semibold text-[#37352f]">
               {campaign?.title || 'Brand Impersonation Campaign'}
             </h1>
-            <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
+            <span className="px-2 py-0.5 rounded-[4px] text-xs font-semibold uppercase bg-[#eb5757]/10 text-[#eb5757] border border-[#eb5757]/30 font-mono">
               Risk {campaign?.risk_score?.toFixed(1) || '94.0'}
             </span>
-            <span className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase bg-amber-500/10 text-amber-300 border border-amber-500/20">
+            <span className="px-2 py-0.5 rounded-[4px] text-[11px] font-medium uppercase bg-[#d97706]/10 text-[#d97706] border border-[#d97706]/20">
               {campaign?.status || 'Proposed'}
             </span>
           </div>
@@ -83,7 +83,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
         {/* Analyst Decisions Bar */}
         <div className="flex items-center gap-2">
           {decisionFeedback && (
-            <div className="text-xs text-emerald-400 flex items-center gap-1 font-medium mr-2 animate-fade-in">
+            <div className="text-xs text-[#0f7b6c] flex items-center gap-1 font-medium mr-2">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{decisionFeedback}</span>
             </div>
@@ -92,7 +92,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
           <button
             onClick={() => decisionMutation.mutate({ decision: 'accept', reason: 'Confirmed multi-surface threat with shared pivot correlation' })}
             disabled={decisionMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f7b6c] hover:bg-[#0c6357] disabled:bg-[#e3e2e0] text-white rounded-[6px] text-xs font-medium shadow-xs transition cursor-pointer"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Confirm Campaign</span>
@@ -101,7 +101,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
           <button
             onClick={() => decisionMutation.mutate({ decision: 'reject', reason: 'Analyst rejected cluster — insufficient correlation evidence' })}
             disabled={decisionMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#eb5757] hover:bg-[#c93b3b] disabled:bg-[#e3e2e0] text-white rounded-[6px] text-xs font-medium shadow-xs transition cursor-pointer"
           >
             <XCircle className="w-3.5 h-3.5" />
             <span>Reject</span>
@@ -109,7 +109,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
 
           <Link
             href={`/campaigns/${campaignId}/response`}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#37352f] hover:bg-[#201f1d] text-white rounded-[6px] text-xs font-medium shadow-xs transition"
           >
             <FileCheck className="w-3.5 h-3.5" />
             <span>Generate Response Packet</span>
@@ -118,23 +118,23 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
       </div>
 
       {/* Formula & Explainability Pill Bar */}
-      <div className="px-6 py-2 bg-slate-900/60 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-300 shrink-0">
+      <div className="px-6 py-2 bg-white/90 border-b border-[#e3e2e0] flex items-center justify-between text-xs text-[#787774] shrink-0">
         <div className="flex items-center gap-4">
-          <span className="font-semibold text-slate-400 flex items-center gap-1">
-            <Info className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="font-semibold text-[#37352f] flex items-center gap-1">
+            <Info className="w-3.5 h-3.5 text-[#0f7b6c]" />
             Score Formula Breakdown:
           </span>
-          <span className="font-mono text-rose-300">Identity: 35% (0.96)</span>
-          <span className="text-slate-600">•</span>
-          <span className="font-mono text-orange-300">Harm: 30% (0.98)</span>
-          <span className="text-slate-600">•</span>
-          <span className="font-mono text-amber-300">Exposure: 20% (0.82)</span>
-          <span className="text-slate-600">•</span>
-          <span className="font-mono text-blue-300">Freshness: 15% (1.00)</span>
+          <span className="font-mono text-[#eb5757]">Identity: 35% (0.96)</span>
+          <span className="text-[#e3e2e0]">•</span>
+          <span className="font-mono text-[#d97706]">Harm: 30% (0.98)</span>
+          <span className="text-[#e3e2e0]">•</span>
+          <span className="font-mono text-[#0f7b6c]">Exposure: 20% (0.82)</span>
+          <span className="text-[#e3e2e0]">•</span>
+          <span className="font-mono text-[#37352f]">Freshness: 15% (1.00)</span>
         </div>
 
-        <div className="text-[11px] text-slate-400">
-          Click any edge in the graph to inspect pivot evidence and accept/reject relationships.
+        <div className="text-[11px] text-[#787774]">
+          Click any edge in the graph to inspect pivot evidence and review relationships.
         </div>
       </div>
 

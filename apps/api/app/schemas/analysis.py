@@ -38,3 +38,24 @@ class AnalysisJobResponse(BaseModel):
     campaigns_updated: int
     created_at: datetime
     completed_at: Optional[datetime] = None
+
+
+class ThreatScanRequest(BaseModel):
+    brand_id: Optional[uuid.UUID] = None
+
+
+class ThreatScanStatusResponse(BaseModel):
+    is_scanning: bool
+    status: str
+    brand_id: Optional[str] = None
+    progress_pct: int
+    stage: str
+    stage_index: int
+    total_stages: int
+    eta_seconds: int
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    logs: List[str] = []
+    findings_found: int = 0
+    live_threats: Optional[List[Dict[str, Any]]] = None
+

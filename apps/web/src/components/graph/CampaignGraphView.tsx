@@ -502,24 +502,24 @@ export function CampaignGraphView({
   }, [nodes, currentMilestone, timelineStep]);
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-slate-950 relative overflow-hidden select-none">
+    <div className="flex-1 h-full flex flex-col bg-[#f7f6f3] relative overflow-hidden select-none">
       {/* Top Controls Toolbar */}
-      <div className="h-14 border-b border-slate-800 bg-slate-900/90 backdrop-blur-xs px-5 flex items-center justify-between shrink-0 z-10 shadow-xs">
+      <div className="h-14 border-b border-[#e3e2e0] bg-white px-5 flex items-center justify-between shrink-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+          <div className="p-2 rounded-[6px] bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20">
             <Network className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white">
+              <h2 className="text-sm font-semibold text-[#37352f]">
                 {campaignDetail?.campaign?.title || 'Campaign graph'}
               </h2>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                <ShieldAlert className="w-3 h-3 text-rose-400" />
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-[4px] bg-[#eb5757]/10 text-[#eb5757] border border-[#eb5757]/30 flex items-center gap-1 font-mono">
+                <ShieldAlert className="w-3 h-3 text-[#eb5757]" />
                 {campaignDetail ? `RISK ${campaignDetail.campaign.risk_score}%` : 'No campaign selected'}
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[#787774]">
               Cross-surface correlation powered by shared pivots (UPI, Phone, APK Hash, Lookalike DNS)
             </p>
           </div>
@@ -529,7 +529,7 @@ export function CampaignGraphView({
           <button
             onClick={handleOpenResponsePacket}
             disabled={isGeneratingPacket || !campaignDetail?.campaign?.id}
-            className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0c6357] text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             {isGeneratingPacket ? 'Drafting...' : 'Response Packet'}
@@ -538,7 +538,7 @@ export function CampaignGraphView({
           {onRefresh && (
             <button
               onClick={onRefresh}
-              className="p-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1 font-medium transition-colors cursor-pointer"
+              className="p-1.5 rounded-[6px] border border-[#e3e2e0] hover:bg-[#f7f6f3] text-[#37352f] text-xs flex items-center gap-1 font-medium transition-colors cursor-pointer"
               title="Refresh Graph"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -546,15 +546,15 @@ export function CampaignGraphView({
             </button>
           )}
 
-          <div className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-300 text-xs font-mono font-medium">
+          <div className="px-2.5 py-1 rounded-[4px] bg-[#f7f6f3] border border-[#e3e2e0] text-[#787774] text-xs font-mono font-medium">
             Nodes: {nodes.length} · Edges: {edges.length}
           </div>
         </div>
       </div>
-      {packetError && <div role="alert" className="border-b border-rose-900/70 bg-rose-950/30 px-5 py-2 text-sm text-rose-200">Response packet unavailable: {packetError}</div>}
+      {packetError && <div role="alert" className="border-b border-[#eb5757]/30 bg-[#eb5757]/10 px-5 py-2 text-xs text-[#eb5757]">Response packet unavailable: {packetError}</div>}
 
       {/* Main Flow Canvas and Side Drawer */}
-      <div className="flex-1 flex min-h-0 relative bg-slate-950">
+      <div className="flex-1 flex min-h-0 relative bg-[#f7f6f3]">
         <div className="flex-1 h-full w-full relative">
           <ReactFlow
             nodes={styledNodes}
@@ -567,28 +567,28 @@ export function CampaignGraphView({
             minZoom={0.2}
             maxZoom={2}
           >
-            <Background gap={22} size={1.5} color="#1e293b" />
-            <Controls showInteractive={false} className="!bg-slate-900 !border-slate-800 !text-slate-200 !shadow-lg" />
+            <Background gap={22} size={1.5} color="#e3e2e0" />
+            <Controls showInteractive={false} className="!bg-white !border-[#e3e2e0] !text-[#37352f] !shadow-xs !rounded-[6px]" />
             <MiniMap
-              nodeStrokeColor="#475569"
-              nodeColor="#1e293b"
-              className="!border !border-slate-800 !rounded-xl !bg-slate-900/90 !shadow-lg"
+              nodeStrokeColor="#e3e2e0"
+              nodeColor="#ffffff"
+              className="!border !border-[#e3e2e0] !rounded-[8px] !bg-white/95 !shadow-xs"
             />
           </ReactFlow>
 
           {/* Graph Legend Overlay */}
-          <div className="absolute top-4 left-4 p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg backdrop-blur-xs flex items-center gap-3.5 text-xs font-medium text-slate-300 z-10">
+          <div className="absolute top-4 left-4 p-2.5 rounded-[8px] bg-white/95 border border-[#e3e2e0] shadow-xs backdrop-blur-xs flex items-center gap-3.5 text-xs font-medium text-[#37352f] z-10">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-400" /> Profile
+              <span className="w-2.5 h-2.5 rounded-full bg-[#0f7b6c]" /> Profile
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Web Asset
+              <span className="w-2.5 h-2.5 rounded-full bg-[#d97706]" /> Web Asset
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-400" /> Rogue APK
+              <span className="w-2.5 h-2.5 rounded-full bg-[#eb5757]" /> Rogue APK
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Shared Pivot
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2eaadc]" /> Shared Pivot
             </div>
           </div>
 

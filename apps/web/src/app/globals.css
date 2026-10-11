@@ -2,14 +2,22 @@
 
 :root {
   color-scheme: light;
-  --astra-bg: #f2f5f9;
-  --astra-sidebar: #0d1521;
+  --bg: #ffffff;
+  --surface: #f7f6f3;
+  --border: #e3e2e0;
+  --accent: #0f7b6c;
+  --text-primary: #37352f;
+  --text-muted: #9b9a97;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --astra-bg: #f7f6f3;
+  --astra-sidebar: #ffffff;
   --astra-panel: #ffffff;
-  --astra-line: #dbe3ed;
-  --astra-muted: #64748b;
-  --astra-accent: #168ca0;
+  --astra-line: #e3e2e0;
+  --astra-muted: #787774;
+  --astra-accent: #0f7b6c;
   --background: var(--astra-bg);
-  --foreground: #172033;
+  --foreground: #37352f;
 }
 
 * { box-sizing: border-box; }
@@ -25,78 +33,34 @@ body {
 
 body { font-family: var(--font-sans); }
 
-::selection { background: rgba(103, 232, 249, 0.2); color: #ecfeff; }
+::selection { background: #0f7b6c25; color: #0f7b6c; }
 
 .astra-shell {
-  background:
-    radial-gradient(ellipse at 82% -14%, rgba(105, 83, 190, 0.11), transparent 36%),
-    radial-gradient(ellipse at 8% 70%, rgba(31, 111, 130, 0.055), transparent 34%),
-    var(--astra-bg);
+  background: #f7f6f3;
 }
 
-.astra-sidebar { background: var(--astra-sidebar); }
-.astra-topbar { background: rgba(12, 19, 29, 0.88); backdrop-filter: blur(18px); }
+.astra-sidebar { 
+  background: #ffffff; 
+}
+
+.astra-topbar { 
+  background: rgba(255, 255, 255, 0.95); 
+  backdrop-filter: blur(16px); 
+}
+
 .astra-main { scrollbar-gutter: stable; }
-.metric-card { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.015) inset; }
-
-/* SOCRadar-inspired workspace: restrained navy navigation, bright analytics canvas. */
-.astra-shell {
-  background: #f2f5f9;
+.metric-card { 
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02); 
 }
-.astra-topbar {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: #e2e8f0 !important;
-}
-.astra-topbar [class*="text-slate-"] { color: #64748b; }
-.astra-topbar [class~="text-slate-200"] { color: #1e293b; }
-.astra-topbar [class*="border-white"] { border-color: #dbe3ed; }
-.astra-topbar [class*="bg-white"] { background-color: #f8fafc; }
-.astra-topbar [class*="bg-black"] { background-color: #e9eef5; }
-.astra-main { color: #1e293b; }
-.astra-main [class*="bg-[#0b1119]"],
-.astra-main [class*="bg-[#111a27]"],
-.astra-main [class*="bg-[#0d1522]"],
-.astra-main [class*="bg-slate-950"],
-.astra-main [class*="bg-black/"],
-.astra-main [class*="bg-slate-900"] { background-color: #ffffff; }
-.astra-main [class*="bg-slate-800"] { background-color: #eef2f7; }
-.astra-main [class*="text-white"]:not([class*="bg-"]),
-.astra-main [class~="text-slate-50"],
-.astra-main [class~="text-slate-100"],
-.astra-main [class~="text-slate-200"] { color: #172033; }
-.astra-main [class~="text-slate-300"] { color: #334155; }
-.astra-main [class~="text-slate-400"] { color: #64748b; }
-.astra-main [class~="text-slate-500"] { color: #718096; }
-.astra-main [class~="text-slate-600"] { color: #64748b; }
-.astra-main [class*="border-slate-800"],
-.astra-main [class*="border-slate-700"],
-.astra-main [class*="border-white/"] { border-color: #dbe3ed; }
-.astra-main [class*="bg-white/"] { background-color: #f8fafc; }
-.astra-main [class*="bg-black/"] { background-color: #f1f5f9; }
-.astra-main [class*="fixed"][class*="bg-black/"] { background-color: rgba(15, 23, 42, 0.68) !important; }
-.astra-main [class*="text-cyan-300"] { color: #087e8b; }
-.astra-main [class*="text-cyan-400"] { color: #0e7490; }
-.astra-main [class*="text-indigo-300"],
-.astra-main [class*="text-indigo-400"] { color: #4f46a5; }
-.astra-main [class*="text-emerald-300"],
-.astra-main [class*="text-emerald-400"] { color: #087f5b; }
-.astra-main [class*="text-amber-300"],
-.astra-main [class*="text-amber-400"] { color: #a16207; }
-.astra-main [class*="text-rose-200"],
-.astra-main [class*="text-rose-300"] { color: #be123c; }
-.astra-main [class*="text-sky-300"] { color: #0369a1; }
-.astra-main [class*="text-pink-300"] { color: #be185d; }
-.astra-main [class*="from-indigo-600"] { --tw-gradient-from: #2563eb var(--tw-gradient-from-position); --tw-gradient-to: rgb(37 99 235 / 0) var(--tw-gradient-to-position); }
-.astra-main [class*="to-purple-600"] { --tw-gradient-to: #0e7490 var(--tw-gradient-to-position); }
-.astra-main [class*="bg-gradient-to-tr"][class*="text-white"] { color: #ffffff; }
 
-::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #263342; border: 2px solid transparent; border-radius: 99px; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: #3a4a5d; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: #e3e2e0; border: 1px solid transparent; border-radius: 99px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #9b9a97; }
 
-:focus-visible { outline: 2px solid var(--astra-accent); outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--astra-accent); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+

@@ -3,7 +3,7 @@ from typing import List, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.security import (
@@ -42,20 +42,24 @@ def handle_list_campaigns(
     session: Session = Depends(get_session),
     context: TenantContext = Depends(get_current_tenant_context),
 ) -> List[CampaignResponse]:
-    stmt = select(Campaign).where(Campaign.tenant_id == context.tenant_id)
+    stmt = (
+        select(Campaign, func.count(CampaignMember.id).label("member_count"))
+        .outerjoin(CampaignMember, CampaignMember.campaign_id == Campaign.id)
+        .where(Campaign.tenant_id == context.tenant_id)
+    )
     if brand_id:
         stmt = stmt.where(Campaign.brand_id == brand_id)
     if status:
         stmt = stmt.where(Campaign.status == status)
 
-    campaigns = list(session.scalars(stmt.order_by(Campaign.risk_score.desc())).all())
+    rows = session.execute(
+        stmt.group_by(Campaign.id).order_by(Campaign.risk_score.desc())
+    ).all()
+
     result = []
-    for c in campaigns:
-        member_count = len(list(session.scalars(
-            select(CampaignMember).where(CampaignMember.campaign_id == c.id)
-        ).all()))
+    for c, cnt in rows:
         resp = CampaignResponse.model_validate(c)
-        resp.member_count = member_count
+        resp.member_count = cnt
         result.append(resp)
     return result
 

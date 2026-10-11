@@ -2,7 +2,7 @@ from typing import List, Optional
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Brand, BrandAsset, Tenant
 from app.schemas.brand import BrandAssetCreate, BrandCreate
@@ -46,11 +46,13 @@ def create_brand(session: Session, data: BrandCreate, tenant_id: Optional[uuid.U
 
 
 def get_brand(session: Session, brand_id: uuid.UUID) -> Optional[Brand]:
-    return session.scalar(select(Brand).where(Brand.id == brand_id))
+    return session.scalar(
+        select(Brand).options(selectinload(Brand.assets)).where(Brand.id == brand_id)
+    )
 
 
 def list_brands(session: Session, tenant_id: Optional[uuid.UUID] = None) -> List[Brand]:
-    stmt = select(Brand)
+    stmt = select(Brand).options(selectinload(Brand.assets))
     if tenant_id:
         stmt = stmt.where(Brand.tenant_id == tenant_id)
     return list(session.scalars(stmt.order_by(Brand.created_at.desc())).all())

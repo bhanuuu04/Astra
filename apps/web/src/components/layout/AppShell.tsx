@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   ArrowUpRight,
@@ -29,11 +29,16 @@ import {
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { UserButton, useAuth, useUser } from '@clerk/nextjs';
 import { CommandPalette } from '@/components/CommandPalette';
 import { AuthModal } from '@/components/auth/AuthModal';
 import {
   getActiveTenant,
   getActiveUser,
+  setActiveTenant,
+  setActiveUser,
+  setAuthToken,
+  clearSession,
   getMe,
   listSightings,
   logout,
@@ -81,30 +86,96 @@ const pageNames: Record<string, string> = {
 };
 
 export function AppShell({ children }: AppShellProps) {
+  const queryClient = useQueryClient();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false);
   const [authModalOpen, setAuthModalOpen] = React.useState(false);
 
-  // Authenticated identity & tenant context
-  const [user, setUser] = React.useState<UserInfo | null>(null);
+  // Clerk authentication state
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { user: clerkUser } = useUser();
+
+  // Tenant context
   const [tenant, setTenant] = React.useState<TenantInfo | null>(null);
 
-  React.useEffect(() => {
-    // Read from localStorage after hydration
-    const u = getActiveUser();
-    const t = getActiveTenant();
-    setUser(u);
-    setTenant(t);
+  const isStandalonePage = 
+    pathname === '/' || 
+    pathname.startsWith('/landing') || 
+    pathname.startsWith('/sign-in') || 
+    pathname.startsWith('/sign-up') ||
+    pathname.startsWith('/guide');
 
-    // Refresh profile in background if token exists
-    getMe().then((profile) => {
-      if (profile) {
-        setUser(profile.user);
-        setTenant(profile.tenant);
+  // Client-side authentication guard: enforce login on all protected dashboard routes
+  React.useEffect(() => {
+    if (isAuthLoaded && !isSignedIn && !isStandalonePage) {
+      // Always redirect to /sign-in without a redirect_url so after login
+      // Clerk routes to /guide (the forceRedirectUrl) instead of back here.
+      window.location.href = '/sign-in';
+    }
+  }, [isAuthLoaded, isSignedIn, isStandalonePage]);
+
+  // Post-sign-in: Sync user to Supabase, isolate tenant state, handle onboarding routing
+  React.useEffect(() => {
+    if (isSignedIn && clerkUser) {
+      const email = clerkUser.primaryEmailAddress?.emailAddress;
+      const fullName = clerkUser.fullName || clerkUser.firstName || '';
+      if (!email) return;
+
+      const activeUser = getActiveUser();
+      // If a different user was cached in localStorage, clear stale data immediately
+      if (activeUser && activeUser.email.toLowerCase() !== email.toLowerCase()) {
+        clearSession();
+        queryClient.clear();
       }
-    }).catch(() => {});
-  }, []);
+
+      const composioEntityId = `astra_${clerkUser.id}`;
+
+      fetch('/api/auth/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          fullName,
+          clerkId: clerkUser.id,
+          composioEntityId,
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.access_token) {
+            setAuthToken(data.access_token);
+            setActiveUser(data.user);
+            setActiveTenant(data.tenant);
+            setTenant(data.tenant);
+            // Invalidate React Query cache so active components fetch fresh data for this tenant
+            queryClient.invalidateQueries();
+          }
+
+          // Strict email-linked onboarding check:
+          const userOnboarded = Boolean(data.user?.onboarding_completed || data.onboarding_completed);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`astra_onboarding_completed_${email.toLowerCase()}`, userOnboarded ? 'true' : 'false');
+            localStorage.setItem('astra_onboarding_completed', userOnboarded ? 'true' : 'false');
+          }
+
+          // If user has NOT completed onboarding, send them straight to /guide
+          if (!userOnboarded && !isStandalonePage && pathname !== '/guide') {
+            window.location.href = '/guide';
+          }
+        })
+        .catch((err) => console.warn('User sync notice:', err));
+    } else if (isAuthLoaded && !isSignedIn) {
+      clearSession();
+      setTenant(null);
+    } else {
+      getMe().then((profile) => {
+        if (profile) {
+          setTenant(profile.tenant);
+        }
+      }).catch(() => {});
+    }
+  }, [isSignedIn, clerkUser, isAuthLoaded, pathname, isStandalonePage, queryClient]);
 
   const routeParts = pathname.split('/').filter(Boolean);
   const pageRoot = routeParts[0] || 'overview';
@@ -141,12 +212,9 @@ export function AppShell({ children }: AppShellProps) {
 
   const handleLogout = () => {
     logout();
-    setUser(null);
     setTenant(null);
     window.location.reload();
   };
-
-  const isDemo = !tenant || tenant.is_demo;
 
   const orgInitials = React.useMemo(() => {
     if (!tenant?.name) return 'AD';
@@ -163,177 +231,166 @@ export function AppShell({ children }: AppShellProps) {
         href={href}
         onClick={() => setMobileMenuOpen(false)}
         aria-current={active ? 'page' : undefined}
-        className={`group relative flex min-h-10 items-center gap-3 rounded-lg px-3 text-[12px] font-medium transition-colors ${
+        className={`group relative flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition-colors ${
           active
-            ? 'border border-violet-300/15 bg-violet-300/[0.09] text-white shadow-[inset_0_0_22px_rgba(139,131,255,0.035)]'
-            : 'border border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
+            ? 'border border-[#e3e2e0] bg-[#f7f6f3] text-[#37352f] shadow-2xs font-semibold'
+            : 'border border-transparent text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f]'
         }`}
       >
-        {active && <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-violet-300" />}
-        <Icon className={`h-[16px] w-[16px] ${active ? 'text-violet-300' : 'text-slate-500 group-hover:text-slate-300'}`} strokeWidth={1.8} />
-        <span className="flex-1">{label}</span>
+        <Icon className={`h-[15px] w-[15px] shrink-0 ${active ? 'text-[#0f7b6c]' : 'text-[#9b9a97] group-hover:text-[#37352f]'}`} strokeWidth={1.8} />
+        <span className="flex-1 truncate">{label}</span>
         {href === '/alerts' && unreadAlerts > 0 && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">{unreadAlerts > 9 ? '9+' : unreadAlerts}</span>
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#eb5757] px-1 text-[9px] font-bold text-white">{unreadAlerts > 9 ? '9+' : unreadAlerts}</span>
         )}
-        {active && <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />}
+        {active && <span className="h-1.5 w-1.5 rounded-full bg-[#0f7b6c]" />}
       </Link>
     );
   };
 
+  if (isStandalonePage) {
+    return <main className="min-h-screen w-full bg-[#f7f6f3] text-[#37352f]">{children}</main>;
+  }
+
   return (
-    <div className="astra-shell flex h-dvh min-h-[600px] w-full overflow-hidden text-slate-100">
+    <div className="astra-shell flex h-dvh min-h-[600px] w-full overflow-hidden text-[#37352f] bg-[#f7f6f3] font-sans">
       {mobileMenuOpen && (
         <button
           type="button"
           aria-label="Close navigation"
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-[#37352f]/30 backdrop-blur-xs md:hidden"
         />
       )}
 
-      <aside className={`astra-sidebar fixed inset-y-0 left-0 z-50 flex w-[252px] flex-col border-r border-white/[0.07] transition-transform duration-200 md:static md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex h-[68px] items-center gap-3 border-b border-white/[0.07] px-5">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-200">
-            <Shield className="h-[19px] w-[19px]" strokeWidth={1.8} />
-            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0c121d] bg-cyan-300" />
+      <aside className={`astra-sidebar fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col border-r border-[#e3e2e0] bg-white transition-transform duration-200 md:static md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex h-[56px] items-center gap-2.5 border-b border-[#e3e2e0] px-4">
+          <div className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#37352f] text-white font-bold text-xs shadow-xs">
+            A
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[15px] font-semibold tracking-[0.16em] text-white">ASTRA</span>
-              <span className="rounded border border-white/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.13em] text-slate-400">DRP</span>
-            </div>
-            <div className="mt-0.5 text-[10px] tracking-wide text-slate-500">Digital risk protection</div>
+          <div className="min-w-0 flex-1 flex items-center gap-1.5">
+            <span className="text-[13px] font-bold tracking-tight text-[#37352f]">ASTRA</span>
+            <span className="text-[10px] text-[#9b9a97]">/</span>
+            <span className="text-[11px] font-medium text-[#787774]">Defense</span>
           </div>
-          <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation" className="rounded-md p-1 text-slate-500 hover:bg-white/5 hover:text-white md:hidden"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation" className="rounded-[4px] p-1 text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f] md:hidden"><X className="h-4 w-4" /></button>
         </div>
 
         {/* Tenant Organization Card */}
-        <div className="border-b border-white/[0.07] p-3">
-          <div className="flex w-full items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-left">
-            <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-[11px] font-semibold tracking-wide ${
-              isDemo ? 'bg-[#26364a] text-slate-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-            }`}>
+        <div className="border-b border-[#e3e2e0] p-2.5">
+          <div className="flex w-full items-center gap-2.5 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-2.5 py-2 text-left">
+            <span className="flex h-6 w-6 items-center justify-center rounded-[4px] text-[10px] font-bold bg-[#37352f] text-white">
               {orgInitials}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-slate-200">
-                {tenant?.name || 'ASTRA Demo'}
+              <span className="block truncate text-xs font-semibold text-[#37352f]">
+                {tenant?.name || 'ASTRA Enterprise'}
               </span>
-              <span className="mt-0.5 block text-[10px] text-slate-500">
-                {isDemo ? 'Demo Workspace' : 'Enterprise Tenant'}
+              <span className="block text-[10px] text-[#9b9a97]">
+                Protected Workspace
               </span>
             </span>
-            <span className={`rounded border px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.1em] ${
-              isDemo ? 'border-white/[0.08] text-slate-600' : 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300 font-bold'
-            }`}>
-              {isDemo ? 'Demo' : 'Live'}
+            <span className="rounded-[3px] border border-[#e3e2e0] bg-white px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-[#0f7b6c]">
+              Live
             </span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-5">
-          <nav aria-label="Main navigation" className="space-y-5">
+        <div className="flex-1 overflow-y-auto px-2.5 py-3">
+          <nav aria-label="Main navigation" className="space-y-4">
             {navigationGroups.map((group) => (
               <section key={group.label} aria-label={group.label}>
-                <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-600">{group.label}</p>
-                <div className="space-y-1">{group.items.map(renderNavigationLink)}</div>
+                <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#9b9a97]">{group.label}</p>
+                <div className="space-y-0.5">{group.items.map(renderNavigationLink)}</div>
               </section>
             ))}
           </nav>
-          <div className="my-5 h-px bg-white/[0.06]" />
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Workspace</p>
-          <Link href="/landing" onClick={() => setMobileMenuOpen(false)} className={`group flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors ${pageRoot === 'landing' ? 'bg-white/[0.06] text-slate-100' : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'}`}>
-            <BookOpen className="h-[17px] w-[17px] text-slate-500 group-hover:text-slate-300" strokeWidth={1.8} />Product guide<ArrowUpRight className="ml-auto h-3 w-3 text-slate-600" />
+          <div className="my-3.5 h-px bg-[#e3e2e0]" />
+          <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#9b9a97]">Workspace</p>
+          <Link href="/guide" onClick={() => setMobileMenuOpen(false)} className={`group flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition-colors ${pageRoot === 'guide' ? 'bg-[#f7f6f3] text-[#37352f] font-semibold border border-[#e3e2e0]' : 'text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f]'}`}>
+            <Sparkles className="h-[15px] w-[15px] text-[#0f7b6c]" strokeWidth={1.8} />Brand Setup Guide<ArrowUpRight className="ml-auto h-3 w-3 text-[#9b9a97]" />
+          </Link>
+          <Link href="/landing" onClick={() => setMobileMenuOpen(false)} className={`group flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition-colors ${pageRoot === 'landing' ? 'bg-[#f7f6f3] text-[#37352f] font-semibold border border-[#e3e2e0]' : 'text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f]'}`}>
+            <BookOpen className="h-[15px] w-[15px] text-[#9b9a97] group-hover:text-[#37352f]" strokeWidth={1.8} />Product tour<ArrowUpRight className="ml-auto h-3 w-3 text-[#9b9a97]" />
           </Link>
         </div>
 
         {/* User Identity / Session Footer */}
-        <div className="border-t border-white/[0.07] p-3">
-          {user ? (
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-[10px] font-semibold text-cyan-300">
-                  {user.full_name.slice(0, 2).toUpperCase()}
-                </div>
+        <div className="border-t border-[#e3e2e0] p-2.5">
+          {isSignedIn && clerkUser ? (
+            <div className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-2">
+              <div className="flex items-center gap-2">
+                <UserButton 
+                  appearance={{
+                    elements: {
+                      avatarBox: "h-7 w-7 rounded-[4px] border border-[#e3e2e0]"
+                    }
+                  }}
+                />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-medium text-slate-200">{user.full_name}</div>
-                  <div className="truncate text-[10px] text-slate-500 capitalize">{user.role.replace('_', ' ')}</div>
+                  <div className="truncate text-xs font-semibold text-[#37352f]">
+                    {clerkUser.fullName || clerkUser.firstName || 'Security Operator'}
+                  </div>
+                  <div className="truncate text-[10px] text-[#9b9a97]">
+                    {clerkUser.primaryEmailAddress?.emailAddress || 'Verified Identity'}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  title="Sign out to demo"
-                  className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-white/5 transition"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
               </div>
             </div>
           ) : (
-            <div>
-              <div className="rounded-xl border border-amber-300/10 bg-amber-300/[0.035] p-3">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-amber-200/90">Demo workspace</span>
-                </div>
-                <p className="mt-1.5 text-[11px] leading-[1.45] text-slate-500">
-                  Create your own organization to manage real brand assets and settings.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-cyan-400/10 hover:bg-cyan-400/20 border border-cyan-400/30 text-cyan-300 text-xs font-semibold transition flex items-center justify-center gap-1.5"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  Sign In / Register
-                </button>
-              </div>
+            <div className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-2">
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
+                className="w-full py-1.5 px-2.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                Sign In with Clerk
+              </button>
             </div>
           )}
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="astra-topbar z-20 flex h-[68px] shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-lg border border-white/10 p-2 text-slate-400 hover:bg-white/5 hover:text-white md:hidden"><Menu className="h-4 w-4" /></button>
-            <div className="hidden items-center gap-2 text-xs text-slate-600 sm:flex">
+        <header className="astra-topbar z-20 flex h-[56px] shrink-0 items-center justify-between gap-3 border-b border-[#e3e2e0] bg-white/95 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-[5px] border border-[#e3e2e0] p-1.5 text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f] md:hidden"><Menu className="h-4 w-4" /></button>
+            <div className="hidden items-center gap-1.5 text-xs text-[#9b9a97] sm:flex">
               <span>{tenant?.name || 'Workspace'}</span>
               <span>/</span>
             </div>
-            <h1 className="truncate text-[13px] font-medium text-slate-200">{pageTitle}</h1>
+            <h1 className="truncate text-sm font-semibold text-[#37352f]">{pageTitle}</h1>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.09] bg-white/[0.025] px-2.5 text-xs text-slate-500 transition hover:border-white/15 hover:text-slate-300 sm:px-3" aria-label="Search cases, brands and indicators">
-              <Search className="h-3.5 w-3.5" /><span className="hidden lg:inline">Search anything</span><kbd className="hidden rounded border border-white/[0.08] bg-black/20 px-1.5 py-0.5 font-mono text-[9px] text-slate-600 sm:inline-flex"><Command className="mr-0.5 h-2.5 w-2.5" />K</kbd>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-8 items-center gap-2 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-2.5 text-xs text-[#787774] transition hover:border-[#9b9a97] hover:bg-white hover:text-[#37352f] shadow-2xs" aria-label="Search cases, brands and indicators">
+              <Search className="h-3.5 w-3.5 text-[#9b9a97]" /><span className="hidden lg:inline text-xs">Search cases &amp; brands</span><kbd className="hidden rounded-[3px] border border-[#e3e2e0] bg-white px-1.5 py-0.5 font-mono text-[9px] text-[#787774] sm:inline-flex shadow-2xs"><Command className="mr-0.5 h-2.5 w-2.5" />K</kbd>
             </button>
             
-            {/* Live / Demo Status Pill */}
-            {isDemo ? (
-              <button
-                type="button"
-                onClick={() => setAuthModalOpen(true)}
-                className="hidden h-8 items-center gap-2 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] hover:bg-amber-300/[0.12] px-2.5 text-[10px] font-medium text-amber-200 transition sm:flex cursor-pointer"
-                title="Click to sign up or log in"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
-                DEMO MODE · SIGN IN
-              </button>
-            ) : (
-              <div className="hidden h-8 items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.06] px-2.5 text-[10px] font-medium text-emerald-300 sm:flex">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                WORKSPACE: {tenant.name}
-              </div>
-            )}
+            {/* Live Workspace Status Pill */}
+            <div className="hidden h-7 items-center gap-1.5 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-2 text-[10px] font-semibold text-[#37352f] sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#0f7b6c]" />
+              <span className="tracking-wide">LIVE WORKSPACE</span>
+            </div>
 
-            <Link href="/alerts" aria-label="Open alert feed" title="Open alert feed" className="relative rounded-lg border border-white/[0.09] p-2 text-slate-500 transition hover:bg-white/[0.04] hover:text-slate-300">
+            <Link href="/alerts" aria-label="Open alert feed" title="Open alert feed" className="relative rounded-[6px] border border-[#e3e2e0] bg-white p-1.5 text-[#787774] transition hover:bg-[#f7f6f3] hover:text-[#37352f] shadow-2xs">
               <Bell className="h-4 w-4" />
               {unreadAlerts > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#0b1119] bg-rose-500 text-[8px] font-bold text-white">
+                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#eb5757] text-[8px] font-bold text-white">
                   {unreadAlerts > 9 ? '9+' : unreadAlerts}
                 </span>
               )}
             </Link>
+
+            {/* Clerk Authenticated Profile Control */}
+            <div className="flex items-center pl-0.5">
+              <UserButton 
+                appearance={{
+                  elements: {
+                    avatarBox: "h-7 w-7 rounded-[4px] border border-[#e3e2e0]"
+                  }
+                }}
+              />
+            </div>
           </div>
         </header>
 
@@ -342,7 +399,6 @@ export function AppShell({ children }: AppShellProps) {
           isOpen={authModalOpen}
           onClose={() => setAuthModalOpen(false)}
           onSuccess={(authData: AuthResponse) => {
-            setUser(authData.user);
             setTenant(authData.tenant);
             window.location.reload();
           }}

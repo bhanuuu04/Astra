@@ -26,11 +26,17 @@ export async function POST(request: Request) {
       ]
     };
 
+    const authHeader = request.headers.get('authorization');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
     const res = await fetch(`${apiBaseUrl}/api/v1/sightings:batch`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify(batchPayload)
     });
 

@@ -378,7 +378,8 @@ export async function ingestSightingsBatch(sightings: any[]): Promise<{ ingested
 }
 
 export async function listSightings(brandId?: string, surface?: string): Promise<Sighting[]> {
-  const cacheKey = `sightings_${brandId || 'all'}_${surface || 'all'}`;
+  const tenantId = getActiveTenant()?.id || 'anon';
+  const cacheKey = `sightings_${tenantId}_${brandId || 'all'}_${surface || 'all'}`;
   return getOrSetCache(cacheKey, async () => {
     try {
       const url = new URL(`${apiBaseUrl}/api/v1/sightings`);
@@ -390,7 +391,7 @@ export async function listSightings(brandId?: string, surface?: string): Promise
     } catch (error) {
       throw error;
     }
-  }, 15);
+  }, 10);
 }
 
 export async function resetDemo(): Promise<DemoResetResult | null> {
@@ -526,7 +527,8 @@ export async function getThreatScanStatus(brandId?: string): Promise<ThreatScanS
 
 
 export async function listCampaigns(brandId?: string, status?: string): Promise<Campaign[]> {
-  const cacheKey = `campaigns_${brandId || 'all'}_${status || 'all'}`;
+  const tenantId = getActiveTenant()?.id || 'anon';
+  const cacheKey = `campaigns_${tenantId}_${brandId || 'all'}_${status || 'all'}`;
   return getOrSetCache(cacheKey, async () => {
     try {
       const url = new URL(`${apiBaseUrl}/api/v1/campaigns`);
@@ -538,7 +540,7 @@ export async function listCampaigns(brandId?: string, status?: string): Promise<
     } catch (error) {
       throw error;
     }
-  }, 20);
+  }, 10);
 }
 
 export async function getCampaign(campaignId: string): Promise<CampaignDetail | null> {

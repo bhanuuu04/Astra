@@ -119,12 +119,20 @@ export function InboundMessageSafetyFeed() {
 
   // Construct dynamic brand registry
   const currentBrandRegistry: BrandAssetRegistry = useMemo(() => {
-    let fallbackName = 'DOCK';
-    let fallbackDomain = 'dockcloud.in';
+    let fallbackName = activeBrand?.name || 'Protected Brand';
+    let fallbackDomain = activeBrand?.assets?.find(a => a.asset_type === 'domain')?.canonical_value || 'domain.com';
 
-    if (mounted && typeof window !== 'undefined') {
+    const activeUser = typeof window !== 'undefined' ? localStorage.getItem('astra_active_user') : null;
+    let userEmail = '';
+    if (activeUser) {
       try {
-        const raw = localStorage.getItem('astra_current_brand_dna');
+        userEmail = JSON.parse(activeUser).email;
+      } catch {}
+    }
+
+    if (mounted && typeof window !== 'undefined' && userEmail) {
+      try {
+        const raw = localStorage.getItem(`astra_current_brand_dna_${userEmail.toLowerCase()}`);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed.name) fallbackName = parsed.name;
@@ -151,13 +159,21 @@ export function InboundMessageSafetyFeed() {
       protectedExecutives: [],
       contactEmail: `security@${domains[0] || 'brand.com'}`
     };
-  }, [activeBrand]);
+  }, [activeBrand, mounted]);
 
-  // Fetch real inbound sightings from the database
+  // Fetch real inbound sightings from the database scoped strictly to this tenant
   const { data: inboundData } = useQuery({
-    queryKey: ['inbound-messages'],
+    queryKey: ['inbound-messages', activeBrand?.tenant_id || activeBrand?.id || 'none'],
     queryFn: async () => {
-      const res = await fetch('/api/messages/inbound');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('astra_auth_token') : null;
+      if (!token) return [];
+
+      const res = await fetch('/api/messages/inbound', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!res.ok) return [];
       const json = await res.json();
       return json.sightings || [];
@@ -240,9 +256,13 @@ export function InboundMessageSafetyFeed() {
     setAnalysisBanner(null);
 
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('astra_auth_token') : null;
       const res = await fetch('/api/messages/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           brandId: activeBrand?.id,
           brandName: currentBrandRegistry.brandName,

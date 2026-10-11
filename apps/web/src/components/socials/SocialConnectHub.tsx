@@ -203,7 +203,7 @@ export function SocialConnectHub() {
             (app.id === 'facebook' && val.includes('facebook')) ||
             (app.id === 'linkedin' && val.includes('linkedin')) ||
             (app.id === 'youtube' && val.includes('youtube')) ||
-            (app.id === 'google' && (val.includes('google') || val.includes('dock_apps')))
+            (app.id === 'google' && val.includes('google'))
           );
         });
 

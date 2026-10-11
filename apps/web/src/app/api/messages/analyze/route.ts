@@ -170,9 +170,15 @@ Respond strictly in valid JSON matching this schema:
 
     let savedSightingId = null;
     try {
+      const authHeader = request.headers.get('authorization');
+      const batchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authHeader) {
+        batchHeaders['Authorization'] = authHeader;
+      }
+
       const batchRes = await fetch(`${API_BASE_URL}/api/v1/sightings:batch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: batchHeaders,
         body: JSON.stringify({
           brand_id: brandId || undefined,
           sightings: [sightingPayload]

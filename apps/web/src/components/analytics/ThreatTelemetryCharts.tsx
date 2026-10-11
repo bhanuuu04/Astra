@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { Activity, BarChart3, PieChart as PieIcon, Radar } from 'lucide-react';
 import { type Sighting, type Campaign } from '@/lib/api';
+import { GlobalThreatMap } from '@/components/analytics/GlobalThreatMap';
 
 interface ThreatTelemetryChartsProps {
   sightings: Sighting[];
@@ -169,6 +170,8 @@ export function ThreatTelemetryCharts({ sightings, campaigns }: ThreatTelemetryC
         </div>
         {campaigns.length ? <div className="h-[155px] px-3 pb-3 pt-4 sm:px-6"><ResponsiveContainer width="100%" height="100%"><BarChart data={campaignRiskData} layout="vertical" margin={{ top: 0, right: 18, left: 18, bottom: 0 }}><CartesianGrid strokeDasharray="3 5" stroke="#263342" horizontal={false} /><XAxis type="number" allowDecimals={false} stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} /><YAxis type="category" dataKey="stage" stroke="#cbd5e1" fontSize={11} tickLine={false} axisLine={false} width={68} /><Tooltip content={<CustomTooltip />} /><Bar dataKey="campaigns" name="Campaigns" radius={[0, 5, 5, 0]} barSize={18}>{campaignRiskData.map((entry) => <Cell key={entry.stage} fill={entry.fill} />)}</Bar></BarChart></ResponsiveContainer></div> : <div className="flex h-[112px] items-center justify-center text-xs text-slate-500">Campaign risk profile appears when investigations are created.</div>}
       </section>
+
+      <GlobalThreatMap sightings={sightings} />
     </div>
   );
 }

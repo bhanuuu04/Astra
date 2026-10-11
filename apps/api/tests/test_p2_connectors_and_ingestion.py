@@ -1,6 +1,8 @@
 """Tests for P2: Connector Management, Cryptographic Secret Vault, and Live Telemetry Ingestion."""
 import uuid
+from datetime import datetime, timezone
 from typing import Generator
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -148,11 +150,11 @@ def test_create_connector_and_credentials_never_exposed(client, test_tenant_and_
     assert stored_creds["api_key"] == "test_vt_api_key_secure_456"
 
 
-def test_connector_health_check_handshake(client, test_tenant_and_user):
+def test_connector_health_check_handshake(client, test_tenant_and_user, monkeypatch):
     """Verify live health check handshake transitions status and updates scopes."""
     token = test_tenant_and_user["token"]
 
-    # 1. Create connector with valid test credentials
+    # 1. Mock credentials must never be reported as a live provider connection.
     create_res = client.post(
         "/api/v1/connectors",
         json={
@@ -165,15 +167,33 @@ def test_connector_health_check_handshake(client, test_tenant_and_user):
     assert create_res.status_code == 201
     connector_id = create_res.json()["id"]
 
-    # 2. Run health check
+    # 2. Run health check and ensure the mock key is rejected.
     health_res = client.post(
         f"/api/v1/connectors/{connector_id}/health",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert health_res.status_code == 200
     health_data = health_res.json()
-    assert health_data["status"] == "active"
-    assert health_data["error_message"] is None
+    assert health_data["status"] == "error"
+    assert "Mock credentials" in health_data["error_message"]
+
+    # A non-mock credential can become active only after a successful provider handshake.
+    def provider_response(url, **kwargs):
+        if url.startswith("https://www.virustotal.com/api/v3/users/") and "invalid_rejected" not in url:
+            return httpx.Response(200, json={"data": {"id": "account"}}, request=httpx.Request("GET", url))
+        return httpx.Response(401, json={}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("app.domain.connector_service.httpx.get", provider_response)
+    live_patch = client.patch(
+        f"/api/v1/connectors/{connector_id}",
+        json={"auth_config": {"api_key": "vt_live_valid_key"}},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert live_patch.status_code == 200
+    live_health = client.post(f"/api/v1/connectors/{connector_id}/health", headers={"Authorization": f"Bearer {token}"})
+    assert live_health.status_code == 200
+    assert live_health.json()["status"] == "active"
+    assert live_health.json()["error_message"] is None
 
     # 3. Check updated connector detail has acquired scopes
     get_res = client.get(
@@ -218,7 +238,7 @@ def test_connector_health_check_handshake(client, test_tenant_and_user):
     assert err_health_res.json()["error_message"] is not None
 
 
-def test_connector_sync_and_evidence_sealing(client, test_tenant_and_user, enrolled_brand, db_session: Session):
+def test_connector_sync_and_evidence_sealing(client, test_tenant_and_user, enrolled_brand, db_session: Session, monkeypatch):
     """Verify live telemetry collection ingests findings and seals SHA-256 evidence."""
     token = test_tenant_and_user["token"]
 
@@ -228,14 +248,40 @@ def test_connector_sync_and_evidence_sealing(client, test_tenant_and_user, enrol
         json={
             "connector_type": "virustotal",
             "name": "Live VirusTotal Feed",
-            "auth_config": {"api_key": "test_mock_sync_key"},
+            "auth_config": {"api_key": "vt_live_sync_key"},
         },
         headers={"Authorization": f"Bearer {token}"}
     )
     connector_id = create_res.json()["id"]
 
-    # Activate via health check
-    client.post(f"/api/v1/connectors/{connector_id}/health", headers={"Authorization": f"Bearer {token}"})
+    # Seed an analyst-submitted URL for VirusTotal enrichment; it is not a discovery feed.
+    db_session.add(Finding(
+        tenant_id=enrolled_brand.tenant_id,
+        brand_id=enrolled_brand.id,
+        source_kind="web_domain",
+        surface="manual_upload",
+        external_id=f"manual-{uuid.uuid4().hex}",
+        target_identifier="https://suspicious.example/path",
+        observed_at=datetime.now(timezone.utc),
+        data_mode="manual_upload",
+        normalized_attributes={},
+    ))
+    db_session.commit()
+
+    def provider_response(url, **kwargs):
+        request = httpx.Request("GET", url)
+        if "/users/" in url:
+            return httpx.Response(200, json={"data": {"id": "account"}}, request=request)
+        return httpx.Response(200, json={"data": {"attributes": {
+            "last_analysis_stats": {"malicious": 3, "suspicious": 1, "harmless": 4, "undetected": 6},
+            "last_analysis_results": {},
+        }}}, request=request)
+
+    monkeypatch.setattr("app.domain.connector_service.httpx.get", provider_response)
+    monkeypatch.setattr("app.integrations.connector_sources.httpx.get", provider_response)
+    # Activate via a successful provider health handshake.
+    health_res = client.post(f"/api/v1/connectors/{connector_id}/health", headers={"Authorization": f"Bearer {token}"})
+    assert health_res.json()["status"] == "active"
 
     # 2. Trigger live sync
     sync_res = client.post(

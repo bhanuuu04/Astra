@@ -31,7 +31,15 @@ const brandEnrollmentSchema = z.object({
   ),
   twitterHandle: z.string().optional(),
   instagramHandle: z.string().optional(),
+  linkedinHandle: z.string().optional(),
+  facebookHandle: z.string().optional(),
+  youtubeHandle: z.string().optional(),
+  logoUrl: z.string().url('Enter a valid logo URL').optional().or(z.literal('')),
+  supportEmail: z.string().email('Enter a valid contact email').optional().or(z.literal('')),
   appPackageId: z.string().optional(),
+  appName: z.string().optional(),
+  appPlatform: z.string().optional(),
+  appStoreUrl: z.string().url('Enter a valid app store URL').optional().or(z.literal('')),
   certFingerprint: z.string().optional(),
   supportPhone: z.string().optional(),
   upiId: z.string().optional(),
@@ -60,7 +68,15 @@ export function BrandRegistryView() {
       primaryDomain: '',
       twitterHandle: '',
       instagramHandle: '',
+      linkedinHandle: '',
+      facebookHandle: '',
+      youtubeHandle: '',
+      logoUrl: '',
+      supportEmail: '',
       appPackageId: '',
+      appName: '',
+      appPlatform: 'Android',
+      appStoreUrl: '',
       certFingerprint: '',
       supportPhone: '',
       upiId: '',
@@ -78,11 +94,21 @@ export function BrandRegistryView() {
       if (values.instagramHandle) {
         assets.push({ asset_type: 'handle', canonical_value: `instagram:${values.instagramHandle}` });
       }
+      for (const [platform, value] of [['linkedin', values.linkedinHandle], ['facebook', values.facebookHandle], ['youtube', values.youtubeHandle]] as const) {
+        if (value?.trim()) assets.push({ asset_type: 'handle', canonical_value: `${platform}:${value.trim().replace(/^@/, '')}` });
+      }
+      if (values.logoUrl?.trim()) assets.push({ asset_type: 'logo', canonical_value: values.logoUrl.trim(), metadata: { source: 'official_brand_reference' } });
+      if (values.supportEmail?.trim()) assets.push({ asset_type: 'contact_email', canonical_value: values.supportEmail.trim().toLowerCase(), metadata: { purpose: 'official_support' } });
       if (values.appPackageId) {
         assets.push({
           asset_type: 'mobile_app_pkg',
           canonical_value: values.appPackageId.trim(),
-          metadata: values.certFingerprint?.trim() ? { cert_fingerprint: values.certFingerprint.trim().toUpperCase() } : {},
+          metadata: {
+            ...(values.certFingerprint?.trim() ? { cert_fingerprint: values.certFingerprint.trim().toUpperCase() } : {}),
+            ...(values.appName?.trim() ? { app_name: values.appName.trim() } : {}),
+            ...(values.appPlatform?.trim() ? { platform: values.appPlatform.trim() } : {}),
+            ...(values.appStoreUrl?.trim() ? { store_url: values.appStoreUrl.trim() } : {}),
+          },
         });
       }
       if (values.supportPhone) {
@@ -158,9 +184,12 @@ export function BrandRegistryView() {
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                      {brand.name[0]}
-                    </div>
+                    {(() => {
+                      const logo = brand.assets?.find((asset) => asset.asset_type === 'logo')?.canonical_value;
+                      return logo ? <img src={logo} alt={`${brand.name} logo`} className="h-10 w-10 rounded-xl border border-slate-700 object-contain bg-white p-1" /> : (
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">{brand.name[0]}</div>
+                      );
+                    })()}
                     <div>
                       <h3 className="text-base font-bold text-white">{brand.name}</h3>
                       <span className="text-xs text-slate-400 font-mono">
@@ -182,6 +211,10 @@ export function BrandRegistryView() {
                     <span className="font-semibold text-slate-200">
                       {brand.assets?.filter(a => a.asset_type === 'domain').length ?? 0}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Brand profile (logo / contacts):</span>
+                    <span className="font-semibold text-slate-200">{brand.assets?.filter(a => a.asset_type === 'logo' || a.asset_type === 'contact_email' || a.asset_type === 'phone').length ?? 0}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400 flex items-center gap-1.5">
@@ -261,7 +294,7 @@ export function BrandRegistryView() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Primary Domain *
+                  Official Website / Primary Domain *
                 </label>
                 <input
                   {...register('primaryDomain')}
@@ -298,6 +331,28 @@ export function BrandRegistryView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Official Logo URL</label>
+                  <input {...register('logoUrl')} placeholder="https://brand.com/logo.png" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" />
+                  {errors.logoUrl && <span className="text-[11px] text-rose-400">{errors.logoUrl.message}</span>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Official Support Email</label>
+                  <input {...register('supportEmail')} placeholder="support@brand.com" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" />
+                  {errors.supportEmail && <span className="text-[11px] text-rose-400">{errors.supportEmail.message}</span>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                {(['linkedinHandle', 'facebookHandle', 'youtubeHandle'] as const).map((field) => (
+                  <div key={field}>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">{field.replace('Handle', '')} Handle</label>
+                    <input {...register(field)} placeholder="@official" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" />
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
                     Mobile App Package ID
                   </label>
@@ -317,6 +372,11 @@ export function BrandRegistryView() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono text-[11px]"
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><label className="block text-xs font-semibold text-slate-300 mb-1">App Display Name</label><input {...register('appName')} placeholder="NilaPay" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" /></div>
+                <div><label className="block text-xs font-semibold text-slate-300 mb-1">Platform</label><select {...register('appPlatform')} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200"><option>Android</option><option>iOS</option><option>Both</option></select></div>
+                <div><label className="block text-xs font-semibold text-slate-300 mb-1">Store Listing URL</label><input {...register('appStoreUrl')} placeholder="https://play.google.com/..." className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200" /></div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

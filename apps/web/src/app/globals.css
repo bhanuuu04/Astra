@@ -61,6 +61,7 @@ body { font-family: var(--font-sans); }
 .astra-main [class*="bg-slate-900"] { background-color: #ffffff; }
 .astra-main [class*="bg-slate-800"] { background-color: #eef2f7; }
 .astra-main [class*="text-white"]:not([class*="bg-"]),
+.astra-main [class~="text-slate-50"],
 .astra-main [class~="text-slate-100"],
 .astra-main [class~="text-slate-200"] { color: #172033; }
 .astra-main [class~="text-slate-300"] { color: #334155; }

@@ -35,6 +35,11 @@ export function SightingsQueueView() {
   const selectedType = searchParams.get('type') || 'all';
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSighting, setActiveSighting] = useState<Sighting | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data: sightings = [], isLoading, isError, error } = useQuery({
     queryKey: ['sightings'],
@@ -102,8 +107,8 @@ export function SightingsQueueView() {
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <span className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono">
-            {filteredSightings.length} Sightings Displayed
+          <span suppressHydrationWarning className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono">
+            {mounted ? filteredSightings.length : 0} Sightings Displayed
           </span>
         </div>
       </div>

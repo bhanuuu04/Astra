@@ -121,7 +121,7 @@ export function ConnectorStatusCard({ connector, onHealthCheck, isChecking = fal
         <div className="grid grid-cols-2 gap-3 mb-4 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
           <div>
             <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5 font-semibold">Last Successful Sync</p>
-            <p className="text-xs text-slate-300 font-mono">
+            <p suppressHydrationWarning className="text-xs text-slate-300 font-mono">
               {formatRelativeTime(connector.last_successful_sync_at)}
             </p>
           </div>

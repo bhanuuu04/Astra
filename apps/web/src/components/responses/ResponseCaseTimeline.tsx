@@ -137,7 +137,7 @@ export function ResponseCaseTimeline({ responseCase }: { responseCase: ResponseC
                   {step.label}
                 </h4>
                 {step.timestamp && (
-                  <span className="text-[11px] text-slate-500 font-mono">
+                  <span suppressHydrationWarning className="text-[11px] text-slate-500 font-mono">
                     {formatRelativeTime(step.timestamp)}
                   </span>
                 )}

@@ -57,7 +57,7 @@ export function FindingListItem({ finding, onSelect }: FindingListItemProps) {
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span className="uppercase">{finding.surface}</span>
             <span>•</span>
-            <span>
+            <span suppressHydrationWarning>
               {formatDistanceToNow(new Date(finding.observed_at))}
             </span>
           </div>

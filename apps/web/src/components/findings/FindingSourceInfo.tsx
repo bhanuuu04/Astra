@@ -71,11 +71,11 @@ export function FindingSourceInfo({ finding, connector }: FindingSourceInfoProps
           <Clock className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-xs text-slate-500">Observed</p>
-            <p className="text-sm text-slate-300">
+            <p suppressHydrationWarning className="text-sm text-slate-300">
               {formatRelativeTime(finding.observed_at)}
             </p>
             {finding.collected_at && (
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p suppressHydrationWarning className="text-xs text-slate-500 mt-0.5">
                 Collected {formatRelativeTime(finding.collected_at)}
               </p>
             )}

@@ -7,6 +7,7 @@ import {
   Bell, 
   Search, 
   Filter, 
+  ArrowDownUp,
   Smartphone, 
   Globe, 
   Share2, 
@@ -25,9 +26,11 @@ export function SightingsQueueView() {
 
   const selectedSurface = searchParams.get('surface') || 'all';
   const selectedType = searchParams.get('type') || 'all';
+  const selectedQuickFilter = searchParams.get('triage') || 'all';
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSighting, setActiveSighting] = useState<Sighting | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [sort, setSort] = useState<{ key: 'risk' | 'observed'; direction: 'asc' | 'desc' }>({ key: 'observed', direction: 'desc' });
 
   React.useEffect(() => {
     setMounted(true);
@@ -48,7 +51,13 @@ export function SightingsQueueView() {
     router.replace(`${pathname}?${params.toString()}`);
   };
 
-  const filteredSightings = sightings.filter((s) => {
+  const getRiskScore = (sighting: Sighting) => {
+    const rawScore = sighting.normalized_payload?.threat_analysis?.risk_score;
+    if (typeof rawScore !== 'number') return null;
+    return rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
+  };
+
+  const candidateSightings = sightings.filter((s) => {
     if (selectedSurface !== 'all' && s.surface.toLowerCase() !== selectedSurface.toLowerCase()) {
       return false;
     }
@@ -65,14 +74,27 @@ export function SightingsQueueView() {
     return true;
   });
 
-  const getRiskScore = (sighting: Sighting) => {
-    const rawScore = sighting.normalized_payload?.threat_analysis?.risk_score;
-    if (typeof rawScore !== 'number') return null;
-    return rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
-  };
-  const highRiskCount = filteredSightings.filter((sighting) => (getRiskScore(sighting) ?? 0) >= 80).length;
-  const sourceCount = new Set(filteredSightings.map((sighting) => sighting.surface)).size;
-  const benignCount = filteredSightings.filter((sighting) => sighting.normalized_payload?.isBenign === true).length;
+  const filteredSightings = candidateSightings.filter((sighting) => {
+    const isBenign = sighting.normalized_payload?.isBenign === true;
+    const status = (sighting as any).triage_status || sighting.normalized_payload?.triage_status;
+    if (selectedQuickFilter === 'high-risk') return (getRiskScore(sighting) ?? 0) >= 80;
+    if (selectedQuickFilter === 'needs-review') return !isBenign && (!status || ['pending', 'investigating', 'needs_evidence'].includes(status));
+    if (selectedQuickFilter === 'benign') return isBenign || status === 'false_positive';
+    return true;
+  });
+  const highRiskCount = candidateSightings.filter((sighting) => (getRiskScore(sighting) ?? 0) >= 80).length;
+  const reviewCount = candidateSightings.filter((sighting) => {
+    const isBenign = sighting.normalized_payload?.isBenign === true;
+    const status = (sighting as any).triage_status || sighting.normalized_payload?.triage_status;
+    return !isBenign && (!status || ['pending', 'investigating', 'needs_evidence'].includes(status));
+  }).length;
+  const benignCount = candidateSightings.filter((sighting) => sighting.normalized_payload?.isBenign === true || (sighting as any).triage_status === 'false_positive' || sighting.normalized_payload?.triage_status === 'false_positive').length;
+  const sortedSightings = [...filteredSightings].sort((first, second) => {
+    const firstValue = sort.key === 'risk' ? (getRiskScore(first) ?? -1) : new Date(first.observed_at || first.created_at).getTime();
+    const secondValue = sort.key === 'risk' ? (getRiskScore(second) ?? -1) : new Date(second.observed_at || second.created_at).getTime();
+    return (firstValue - secondValue) * (sort.direction === 'asc' ? 1 : -1);
+  });
+  const toggleSort = (key: 'risk' | 'observed') => setSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' }));
   const availableSurfaces = [...new Set(sightings.map((sighting) => sighting.surface))];
   if (selectedSurface !== 'all' && !availableSurfaces.includes(selectedSurface)) availableSurfaces.push(selectedSurface);
   const surfaceFilters = ['all', ...availableSurfaces];
@@ -109,13 +131,13 @@ export function SightingsQueueView() {
         </div>
       </div>
 
-      <section aria-label="Findings summary" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section aria-label="Featured finding filters" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          { label: 'All findings', value: filteredSightings.length, color: 'text-white', dot: 'bg-violet-300' },
-          { label: 'High risk · score ≥ 80', value: highRiskCount, color: 'text-rose-300', dot: 'bg-rose-400' },
-          { label: 'Digital surfaces', value: sourceCount, color: 'text-cyan-300', dot: 'bg-cyan-300' },
-          { label: 'Marked benign', value: benignCount, color: 'text-emerald-300', dot: 'bg-emerald-300' },
-        ].map((metric) => <article key={metric.label} className="rounded-xl border border-white/[0.07] bg-[#111a27] px-4 py-3.5"><div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.11em] text-slate-500"><i className={`h-1.5 w-1.5 rounded-full ${metric.dot}`} />{metric.label}</div><div className={`mt-2 font-mono text-2xl font-semibold tracking-tight ${metric.color}`}>{isLoading || isError ? '—' : metric.value}</div></article>)}
+            { key: 'all', label: 'All findings', value: candidateSightings.length, color: 'text-white', dot: 'bg-violet-300' },
+            { key: 'high-risk', label: 'High risk · score ≥ 80', value: highRiskCount, color: 'text-rose-300', dot: 'bg-rose-400' },
+            { key: 'needs-review', label: 'Needs analyst review', value: reviewCount, color: 'text-amber-200', dot: 'bg-amber-300' },
+            { key: 'benign', label: 'Marked benign', value: benignCount, color: 'text-emerald-300', dot: 'bg-emerald-300' },
+        ].map((metric) => <button type="button" key={metric.key} onClick={() => updateFilter('triage', metric.key)} aria-pressed={selectedQuickFilter === metric.key} className={`rounded-xl border px-4 py-3.5 text-left transition ${selectedQuickFilter === metric.key ? 'border-violet-300/25 bg-violet-300/[0.08]' : 'border-white/[0.07] bg-[#111a27] hover:border-white/[0.13] hover:bg-white/[0.035]'}`}><div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.11em] text-slate-500"><i className={`h-1.5 w-1.5 rounded-full ${metric.dot}`} />{metric.label}</div><div className={`mt-2 font-mono text-2xl font-semibold tracking-tight ${metric.color}`}>{isLoading || isError ? '—' : metric.value}</div></button>)}
       </section>
 
       {/* Filters & Search Toolbar (G7 URL State) */}
@@ -193,9 +215,9 @@ export function SightingsQueueView() {
             <div className="overflow-x-auto">
               <div className="min-w-[760px]">
                 <div className="grid grid-cols-[84px_minmax(220px,1.5fr)_minmax(100px,.75fr)_minmax(126px,.8fr)_minmax(120px,.8fr)] gap-3 border-b border-white/[0.06] bg-white/[0.018] px-4 py-2.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-500 sm:px-5">
-                  <span>Risk</span><span>Target / evidence</span><span>Surface</span><span>First observed</span><span>Classification</span>
+                  <button type="button" onClick={() => toggleSort('risk')} className="inline-flex items-center gap-1 text-left hover:text-slate-200" aria-label="Sort by risk">Risk <ArrowDownUp className="h-3 w-3" /></button><span>Target / evidence</span><span>Surface</span><button type="button" onClick={() => toggleSort('observed')} className="inline-flex items-center gap-1 text-left hover:text-slate-200" aria-label="Sort by first observed">First observed <ArrowDownUp className="h-3 w-3" /></button><span>Classification</span>
                 </div>
-                {filteredSightings.map((sighting) => {
+                {sortedSightings.map((sighting) => {
               const isBenign = sighting.normalized_payload?.isBenign === true;
               const isSelected = activeSighting?.id === sighting.id;
               const score = getRiskScore(sighting);

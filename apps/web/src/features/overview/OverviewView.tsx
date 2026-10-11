@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getOverview, listCampaigns, listSightings, runAnalysisJob, type Campaign, type Sighting } from '@/lib/api';
+import { ThreatTelemetryCharts } from '@/components/analytics/ThreatTelemetryCharts';
 const panel = 'rounded-xl border border-white/[0.075] bg-[#111a27]';
 
 function formatDate(value?: string | null) {
@@ -196,6 +197,11 @@ export function OverviewView() {
         <StatCard label="High-risk campaigns" value={highRiskValue} detail="Risk score of 80 or higher" icon={CircleAlert} tone="rose" loading={loadingOverview && loadingCampaigns} />
         <StatCard label="Recent findings" value={sightingsValue} detail="Sightings recorded across monitored surfaces" icon={Activity} loading={loadingOverview && loadingSightings} />
         <StatCard label="Monitored brands" value={overview?.brands ?? (overviewUnavailable ? '—' : 0)} detail="Brands configured for protection" icon={Layers3} tone="green" loading={loadingOverview} />
+      </section>
+
+      {/* Visual Threat Intelligence & Telemetry Analytics */}
+      <section aria-label="Threat Telemetry Analytics">
+        <ThreatTelemetryCharts sightings={sightings} campaigns={campaigns} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.85fr)]">

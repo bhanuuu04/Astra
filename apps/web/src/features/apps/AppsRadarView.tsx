@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Smartphone,
@@ -25,7 +25,9 @@ import {
   Trash2,
   RefreshCw,
 } from 'lucide-react';
-import { listSightings, checkVirusTotal, type Sighting } from '@/lib/api';
+import { listSightings, listMobileAppRadar, scanMobileAppPackage, checkVirusTotal, type Sighting, type MobileAppFinding } from '@/lib/api';
+import { DataModeBadge } from '@/components/ui/DataModeBadge';
+import { DemoDataWarning } from '@/components/ui/DemoDataWarning';
 
 const panel = 'rounded-xl border border-white/[0.075] bg-[#111a27]';
 
@@ -42,6 +44,7 @@ interface AppEntry {
   sourcePlatform: string;
   discoveredAt: string;
   impersonationDetails: string;
+  dataMode: 'live' | 'synthetic_demo' | 'manual_upload';
   vtResult?: { positives?: number; total?: number; permalink?: string } | null;
 }
 
@@ -98,8 +101,9 @@ function AppCard({ app, onStatusChange, onVtCheck }: {
             <Smartphone className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <h3 className="truncate text-sm font-semibold text-slate-100">{app.appName}</h3>
+              <DataModeBadge mode={app.dataMode} size="sm" />
               <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${status.style}`}>
                 <StatusIcon className="h-3 w-3" />
                 {status.label}
@@ -118,6 +122,10 @@ function AppCard({ app, onStatusChange, onVtCheck }: {
         </div>
 
         <p className="mt-3 text-xs leading-relaxed text-slate-400">{app.impersonationDetails}</p>
+
+        {app.dataMode === 'synthetic_demo' && (
+          <DemoDataWarning className="mt-2" />
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-500">
           <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{app.sourcePlatform.replaceAll('_', ' ')}</span>
@@ -225,6 +233,7 @@ function parseSightingsToApps(sightings: Sighting[]): AppEntry[] {
       sourcePlatform: s.surface,
       discoveredAt: s.observed_at || s.created_at,
       impersonationDetails: rogueApp.impersonation_details || payload.threat_analysis?.summary || 'Suspected mobile app impersonating brand assets.',
+      dataMode: ((s as any).data_mode || (s.source_kind === 'demo_generator' ? 'synthetic_demo' : 'live')) as any,
     };
   });
 }
@@ -242,6 +251,7 @@ const DEMO_APPS: AppEntry[] = [
     riskScore: 98,
     status: 'active_threat',
     impersonationDetails: 'Trojanized Android APK mimicking official Astra Shield Mobile. Employs SMS intercept & overlay credential theft permissions. Distributed via compromised Instagram DMs.',
+    dataMode: 'synthetic_demo',
   },
   {
     id: 'demo-app-02',
@@ -254,6 +264,7 @@ const DEMO_APPS: AppEntry[] = [
     riskScore: 94,
     status: 'takedown_submitted',
     impersonationDetails: 'Fraudulent crypto wallet harvester masquerading as official Web3 utility app. Harvests seed phrases via fake "verify wallet" flow.',
+    dataMode: 'synthetic_demo',
   },
   {
     id: 'demo-app-03',
@@ -266,6 +277,7 @@ const DEMO_APPS: AppEntry[] = [
     riskScore: 89,
     status: 'active_threat',
     impersonationDetails: 'Modified clone of official Astra 2FA app extracting private TOTP seeds to malicious C2 server at 185.220.101.x.',
+    dataMode: 'synthetic_demo',
   },
   {
     id: 'demo-app-04',
@@ -278,6 +290,7 @@ const DEMO_APPS: AppEntry[] = [
     riskScore: 71,
     status: 'monitoring',
     impersonationDetails: 'Fake VPN app using Astra branding. Routes all user traffic through attacker-controlled proxy for MITM interception.',
+    dataMode: 'synthetic_demo',
   },
 ];
 
@@ -288,17 +301,41 @@ export function AppsRadarView() {
   const [apps, setApps] = useState<AppEntry[]>(DEMO_APPS);
   const [vtLoading, setVtLoading] = useState<string | null>(null);
 
+  // Load from backend mobile app radar endpoint
+  const { data: radarData } = useQuery({
+    queryKey: ['mobile_apps_radar'],
+    queryFn: () => listMobileAppRadar(),
+  });
+
   // Try to load live app sightings
   const { data: sightings = [] } = useQuery({
     queryKey: ['sightings'],
     queryFn: () => listSightings(),
-    onSuccess: (data: Sighting[]) => {
-      const liveApps = parseSightingsToApps(data);
+  });
+
+  React.useEffect(() => {
+    if (radarData && radarData.apps && radarData.apps.length > 0) {
+      const liveRadarApps: AppEntry[] = radarData.apps.map((a: MobileAppFinding) => ({
+        id: a.id,
+        appName: a.app_title,
+        packageName: a.package_name,
+        downloadUrl: a.store_url || '',
+        sha256: a.apk_sha256 || undefined,
+        riskScore: Math.round(a.risk_score * 100),
+        status: (a.triage_status as any) || 'active_threat',
+        sourcePlatform: a.store_platform,
+        discoveredAt: a.created_at,
+        impersonationDetails: a.impersonation_evidence ? JSON.stringify(a.impersonation_evidence) : 'Detected counterfeit mobile application.',
+        dataMode: 'live',
+      }));
+      setApps(liveRadarApps);
+    } else if (sightings && sightings.length > 0) {
+      const liveApps = parseSightingsToApps(sightings);
       if (liveApps.length > 0) {
         setApps(liveApps);
       }
-    },
-  } as any);
+    }
+  }, [radarData, sightings]);
 
   const handleStatusChange = (id: string, status: AppEntry['status']) => {
     setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
@@ -307,6 +344,8 @@ export function AppsRadarView() {
   const handleVtCheck = async (id: string, hash?: string, url?: string) => {
     setVtLoading(id);
     try {
+      // Call backend scan package API to persist scan request
+      await scanMobileAppPackage(id, 'virustotal').catch(() => null);
       const result = await checkVirusTotal(url, hash);
       if (result) {
         setApps((prev) => prev.map((a) => (a.id === id ? { ...a, vtResult: result } : a)));

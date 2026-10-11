@@ -13,7 +13,7 @@ from app.db.models import (
     Brand,
     BrandAsset,
     Campaign,
-    CampaignEdge,
+    CampaignEdgeLegacy as CampaignEdge,
     CampaignMember,
     EvidenceObject,
     Indicator,

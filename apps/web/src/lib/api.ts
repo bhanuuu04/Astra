@@ -431,3 +431,305 @@ export async function generateCampaignAISummary(campaignId: string): Promise<any
     throw error;
   }
 }
+
+// -------------------------------------------------------------
+// DRP Phase 0 & 1: Findings API
+// -------------------------------------------------------------
+
+export type Finding = {
+  id: string;
+  tenant_id: string;
+  brand_id: string;
+  surface: string;
+  target_identifier: string;
+  observed_at: string;
+  collected_at: string;
+  data_mode: 'live' | 'synthetic_demo' | 'manual_upload';
+  triage_status: 'pending' | 'investigating' | 'confirmed_threat' | 'false_positive' | 'needs_evidence';
+  triage_priority: number;
+  triage_reasoning?: string | null;
+  raw_evidence_id?: string | null;
+  evidence_payload?: Record<string, any> | null;
+  created_at: string;
+  signals?: any[];
+};
+
+export async function listFindings(params?: {
+  brand_id?: string;
+  surface?: string;
+  triage_status?: string;
+  data_mode?: string;
+  min_priority?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<{ findings: Finding[]; total: number; limit: number; offset: number }> {
+  try {
+    const url = new URL(`${apiBaseUrl}/api/v1/findings`);
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null) {
+          url.searchParams.set(key, String(val));
+        }
+      });
+    }
+    const res = await astraFetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return { findings: [], total: 0, limit: 50, offset: 0 };
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getFinding(id: string, includeSignals: boolean = true): Promise<Finding | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/findings/${id}?include_signals=${includeSignals}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function triageFinding(
+  id: string,
+  triage_status: 'pending' | 'investigating' | 'confirmed_threat' | 'false_positive' | 'needs_evidence',
+  rationale: string
+): Promise<Finding | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/findings/${id}/triage`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ triage_status, rationale }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+// -------------------------------------------------------------
+// DRP Phase 0 & 1: Mobile App Radar API
+// -------------------------------------------------------------
+
+export type MobileAppFinding = {
+  id: string;
+  tenant_id: string;
+  brand_id: string;
+  package_name: string;
+  app_title: string;
+  store_platform: string;
+  store_url?: string | null;
+  developer_name?: string | null;
+  developer_cert_sha256?: string | null;
+  apk_sha256?: string | null;
+  triage_status: string;
+  risk_score: number;
+  impersonation_evidence?: Record<string, any> | null;
+  created_at: string;
+};
+
+export async function listMobileAppRadar(params?: {
+  brand_id?: string;
+  store_platform?: string;
+  triage_status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ apps: MobileAppFinding[]; total: number; limit: number; offset: number }> {
+  try {
+    const url = new URL(`${apiBaseUrl}/api/v1/apps/radar`);
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null) {
+          url.searchParams.set(key, String(val));
+        }
+      });
+    }
+    const res = await astraFetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return { apps: [], total: 0, limit: 50, offset: 0 };
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function scanMobileAppPackage(id: string, scanType: string = 'virustotal'): Promise<any> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/apps/${id}/scan-package`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scan_type: scanType }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+// -------------------------------------------------------------
+// DRP Phase 0 & 1: Response Cases API
+// -------------------------------------------------------------
+
+export type ResponseCase = {
+  id: string;
+  tenant_id: string;
+  finding_id?: string | null;
+  campaign_cluster_id?: string | null;
+  lifecycle_state: 'draft' | 'pending_approval' | 'approved' | 'submitted' | 'acknowledged' | 'resolved' | 'rejected';
+  target_provider: string;
+  case_type: string;
+  draft_recipient?: string | null;
+  draft_subject?: string | null;
+  draft_body?: string | null;
+  submitted_payload?: Record<string, any> | null;
+  drafted_by: string;
+  approved_by?: string | null;
+  dispatched_by?: string | null;
+  resolved_by?: string | null;
+  created_at: string;
+  approved_at?: string | null;
+  dispatched_at?: string | null;
+  resolved_at?: string | null;
+};
+
+export async function listResponseCases(params?: {
+  lifecycle_state?: string;
+  target_provider?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ cases: ResponseCase[]; total: number; limit: number; offset: number }> {
+  try {
+    const url = new URL(`${apiBaseUrl}/api/v1/responses`);
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null) {
+          url.searchParams.set(key, String(val));
+        }
+      });
+    }
+    const res = await astraFetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return { cases: [], total: 0, limit: 50, offset: 0 };
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getResponseCase(id: string): Promise<ResponseCase | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function createResponseDraft(payload: {
+  target_provider: string;
+  case_type: string;
+  draft_recipient?: string;
+  draft_subject?: string;
+  draft_body?: string;
+  finding_id?: string;
+  campaign_cluster_id?: string;
+  drafted_by?: string;
+}): Promise<ResponseCase | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/draft`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function approveResponseCase(id: string, approvedBy: string = 'analyst_console'): Promise<ResponseCase | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approved_by: approvedBy }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function dispatchResponseCase(id: string, dispatchedBy: string = 'analyst_console'): Promise<ResponseCase | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/dispatch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dispatched_by: dispatchedBy }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function resolveResponseCase(id: string, outcome: string, notes?: string): Promise<ResponseCase | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/responses/${id}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome, notes }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+// -------------------------------------------------------------
+// DRP Phase 0 & 1: Connectors API
+// -------------------------------------------------------------
+
+export type Connector = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  connector_type: string;
+  status: 'active' | 'degraded' | 'error' | 'unconfigured';
+  rate_limit_rpm: number;
+  last_successful_sync_at?: string | null;
+  last_health_check_at?: string | null;
+  error_message?: string | null;
+  created_at: string;
+};
+
+export async function listConnectors(): Promise<{ connectors: Connector[]; total: number }> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors`, { cache: "no-store" });
+    if (!res.ok) return { connectors: [], total: 0 };
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function checkConnectorHealth(id: string): Promise<Connector | null> {
+  try {
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors/${id}/health`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    throw error;
+  }
+}
+

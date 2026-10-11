@@ -68,13 +68,14 @@ def add_brand_asset(session: Session, brand_id: uuid.UUID, asset_data: BrandAsse
 
     asset = BrandAsset(
         id=uuid.uuid4(),
+        tenant_id=brand.tenant_id,
         brand_id=brand_id,
         asset_type=asset_data.asset_type,
         canonical_value=val,
         object_key=asset_data.object_key,
         sha256=asset_data.sha256,
-        # Enrollment records the customer's assertion; ownership verification
-        # requires a separate challenge workflow and must not be implied here.
+        verification_status="unverified",
+        verification_method=None,
         verified_at=None,
     )
     session.add(asset)

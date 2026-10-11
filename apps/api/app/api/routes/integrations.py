@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import TenantContext, get_current_tenant_context
-from app.db.models import Campaign, CampaignEdge, CampaignMember, Signal
+from app.db.models import Campaign, CampaignEdgeLegacy as CampaignEdge, CampaignMember, Signal
 from app.db.session import get_session
 from app.integrations.google_play import inspect_app_listing
 from app.integrations.llm import generate_analyst_summary

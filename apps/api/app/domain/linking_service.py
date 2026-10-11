@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     Campaign,
-    CampaignEdge,
+    CampaignEdgeLegacy as CampaignEdge,
     CampaignMember,
     Indicator,
     Sighting,

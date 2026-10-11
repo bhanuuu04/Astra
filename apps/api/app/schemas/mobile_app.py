@@ -1,0 +1,79 @@
+"""Pydantic schemas for Mobile App Radar (forensic mobile app analysis)."""
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+import uuid
+
+from pydantic import BaseModel, Field
+
+
+class MobileAppFindingResponse(BaseModel):
+    """Mobile app finding with forensic details."""
+    id: uuid.UUID
+    finding_id: uuid.UUID
+    package_name: str
+    app_title: str
+    publisher_name: Optional[str] = None
+    store_source: str  # google_play, apkmirror, apkpure, direct_download
+    store_url: Optional[str] = None
+    version_string: Optional[str] = None
+    cert_sha256_fingerprint: Optional[str] = None
+    official_cert_match: Optional[bool] = None  # TRUE = verified official, FALSE = unauthorized
+    apk_sha256: Optional[str] = None
+    malware_detections: Dict[str, Any]
+    permissions_declared: List[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MobileAppRadarItem(BaseModel):
+    """Combined finding + mobile app forensics for radar UI."""
+    # Finding fields
+    finding_id: uuid.UUID
+    tenant_id: uuid.UUID
+    brand_id: uuid.UUID
+    target_identifier: str
+    observed_at: datetime
+    data_mode: str  # CRITICAL: live, synthetic_demo, manual_upload
+    triage_status: str
+    triage_priority: float
+    
+    # Mobile app forensic fields
+    package_name: str
+    app_title: str
+    publisher_name: Optional[str] = None
+    store_source: str
+    store_url: Optional[str] = None
+    version_string: Optional[str] = None
+    cert_sha256_fingerprint: Optional[str] = None
+    official_cert_match: Optional[bool] = None
+    apk_sha256: Optional[str] = None
+    malware_detections: Dict[str, Any]
+    permissions_declared: List[str]
+    
+    # Computed fields
+    malware_status: str  # clean, suspicious, malicious, unknown
+    permissions_risk: str  # low, medium, high
+
+
+class MobileAppRadarListResponse(BaseModel):
+    """Mobile app radar list response."""
+    apps: List[MobileAppRadarItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class MobileAppScanRequest(BaseModel):
+    """Request APK package scan."""
+    finding_id: uuid.UUID
+    scan_type: str = Field(default="virustotal", description="Scan provider: virustotal, hybrid_analysis")
+
+
+class MobileAppScanResponse(BaseModel):
+    """APK scan response."""
+    finding_id: uuid.UUID
+    scan_queued: bool
+    scan_id: Optional[str] = None
+    message: str

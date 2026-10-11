@@ -61,17 +61,43 @@ class Brand(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Connector(Base):
+    __tablename__ = "connectors"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    connector_type: Mapped[str] = mapped_column(String(64), nullable=False)  # meta_graph, google_play, virustotal, telegram_bot, x_twitter
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="unconfigured")  # active, degraded, error, revoked, unconfigured
+    auth_config_vault_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Reference to encrypted secret manager
+    permitted_scopes: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, default=[])
+    rate_limit_rpm: Mapped[Optional[int]] = mapped_column(nullable=True, default=60)
+    last_health_check_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_successful_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class BrandAsset(Base):
     __tablename__ = "brand_assets"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     brand_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("brands.id", ondelete="CASCADE"), index=True)
-    asset_type: Mapped[str] = mapped_column(String(32), nullable=False)  # domain, handle, logo, mobile_app, phone, upi, executive
-    canonical_value: Mapped[str] = mapped_column(String(255), nullable=False)
+    asset_type: Mapped[str] = mapped_column(String(64), nullable=False)  # domain, social_handle, mobile_app_pkg, cert_fingerprint, logo, phone, upi, executive
+    canonical_value: Mapped[str] = mapped_column(Text, nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unverified")  # verified, pending_challenge, unverified
+    verification_method: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # dns_txt, oauth_proof, manual_analyst
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    asset_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSON, nullable=True, default={})
     object_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "brand_id", "asset_type", "canonical_value", name="uq_brand_asset"),
+    )
 
 
 class Sighting(Base):
@@ -86,6 +112,54 @@ class Sighting(Base):
     raw_ref: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     normalized_payload: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Finding(Base):
+    """Normalized findings replacing ad-hoc sightings with enhanced provenance tracking."""
+    __tablename__ = "findings"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    brand_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("brands.id", ondelete="CASCADE"), nullable=False, index=True)
+    connector_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("connectors.id", ondelete="SET NULL"), nullable=True, index=True)
+    source_kind: Mapped[str] = mapped_column(String(64), nullable=False)  # social_profile, mobile_app, web_domain, messaging
+    surface: Mapped[str] = mapped_column(String(64), nullable=False)  # instagram, x, google_play, third_party_apk, telegram
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    target_identifier: Mapped[str] = mapped_column(Text, nullable=False)  # @fake_handle, com.scam.app, hxxps://phish.example
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    data_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="live")  # live, synthetic_demo, manual_upload
+    raw_evidence_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("evidence_objects.id", ondelete="SET NULL"), nullable=True)
+    normalized_attributes: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True, default={})
+    triage_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")  # pending, investigating, confirmed_threat, false_positive, needs_evidence
+    triage_priority: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    assigned_analyst_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "surface", "external_id", name="uq_finding_source"),
+    )
+
+
+class MobileAppFinding(Base):
+    """Mobile App Radar forensic details."""
+    __tablename__ = "mobile_app_findings"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    finding_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
+    package_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    app_title: Mapped[str] = mapped_column(Text, nullable=False)
+    publisher_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    store_source: Mapped[str] = mapped_column(String(64), nullable=False)  # google_play, apkmirror, apkpure, direct_download
+    store_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    version_string: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    cert_sha256_fingerprint: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    official_cert_match: Mapped[Optional[bool]] = mapped_column(nullable=True, default=False)
+    apk_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    malware_detections: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True, default={})
+    permissions_declared: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, default=[])
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 
 class EvidenceObject(Base):
@@ -170,6 +244,23 @@ class Campaign(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class CampaignCluster(Base):
+    """Campaign correlation clusters with deterministic cluster keys."""
+    __tablename__ = "campaign_clusters"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    brand_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("brands.id", ondelete="CASCADE"), nullable=False, index=True)
+    cluster_key: Mapped[str] = mapped_column(String(128), nullable=False)  # SHA-256 root indicator hash
+    display_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    calculated_risk: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+
 class CampaignMember(Base):
     __tablename__ = "campaign_members"
 
@@ -184,6 +275,27 @@ class CampaignEdge(Base):
     __tablename__ = "campaign_edges"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    cluster_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("campaign_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_finding_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_finding_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
+    shared_indicator_type: Mapped[str] = mapped_column(String(64), nullable=False)  # ip, registrar, cert_fingerprint, payment_id
+    shared_indicator_value: Mapped[str] = mapped_column(Text, nullable=False)
+    link_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    analyst_review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="proposed")  # accepted, rejected, proposed
+    reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("cluster_id", "source_finding_id", "target_finding_id", "shared_indicator_type", name="uq_campaign_edge"),
+    )
+
+
+# Legacy campaign edge model (kept for backward compatibility during migration)
+class CampaignEdgeLegacy(Base):
+    __tablename__ = "campaign_edges_legacy"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
     from_endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
     to_endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -192,6 +304,30 @@ class CampaignEdge(Base):
     evidence_ids: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="proposed")  # proposed, confirmed, rejected
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResponseCase(Base):
+    """Human-governed response actions with approval workflow."""
+    __tablename__ = "response_cases"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    finding_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
+    cluster_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("campaign_clusters.id", ondelete="SET NULL"), nullable=True)
+    target_provider: Mapped[str] = mapped_column(String(64), nullable=False)  # meta_takedown, google_abuse, cloudflare_abuse, registrar_dmca
+    lifecycle_state: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")  # draft, pending_approval, approved, submitted, acknowledged, resolved, rejected
+    drafted_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    approved_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    submission_channel: Mapped[str] = mapped_column(String(32), nullable=False, default="manual_portal")  # manual_portal, api_automated, email_legal
+    external_case_reference: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    submission_payload: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True, default={})
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 
 class AnalystDecision(Base):
@@ -233,3 +369,21 @@ class AuditEvent(Base):
     entity_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     safe_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuditLog(Base):
+    """Enhanced immutable audit log with before/after state tracking."""
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)  # finding_status_change, takedown_approved, connector_added, evidence_exported
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    before_state: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    after_state: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+

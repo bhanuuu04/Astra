@@ -16,7 +16,7 @@ from app.db.models import (
     AnalystDecision,
     AuditEvent,
     Campaign,
-    CampaignEdge,
+    CampaignEdgeLegacy as CampaignEdge,
     CampaignMember,
     Sighting,
     Signal,

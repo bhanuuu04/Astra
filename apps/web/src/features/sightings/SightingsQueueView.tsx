@@ -21,6 +21,10 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { listSightings, Sighting } from '@/lib/api';
+import { DataModeBadge } from '@/components/ui/DataModeBadge';
+import { TriageStatusBadge } from '@/components/ui/TriageStatusBadge';
+import { DemoDataWarning } from '@/components/ui/DemoDataWarning';
+import { FindingSourceInfo } from '@/components/findings/FindingSourceInfo';
 
 export function SightingsQueueView() {
   const router = useRouter();
@@ -200,22 +204,24 @@ export function SightingsQueueView() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {isBenign ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                          Benign Fan Page
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                          Active Threat
-                        </span>
-                      )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <DataModeBadge mode={((sighting as any).data_mode || (sighting.source_kind === 'demo_generator' ? 'synthetic_demo' : 'live')) as any} size="sm" />
+                      <TriageStatusBadge 
+                        status={
+                          ((sighting as any).triage_status as any) ||
+                          (isBenign ? 'false_positive' : 'pending')
+                        } 
+                      />
                     </div>
                   </div>
 
                   <p className="text-sm text-slate-200 line-clamp-2 mb-2 font-mono text-xs bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
                     {sighting.normalized_payload?.evidence_text || sighting.raw_ref}
                   </p>
+
+                  {((sighting as any).data_mode === 'synthetic_demo' || sighting.source_kind === 'demo_generator') && (
+                    <DemoDataWarning className="mb-2" />
+                  )}
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <div className="flex items-center gap-2">
@@ -242,22 +248,22 @@ export function SightingsQueueView() {
         <div className="space-y-4">
           {activeSighting ? (
             <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-4 sticky top-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   {getSurfaceIcon(activeSighting.surface)}
                   <h3 className="text-sm font-bold text-white capitalize">
                     {activeSighting.surface} Inspector
                   </h3>
                 </div>
-                {activeSighting.normalized_payload?.isBenign ? (
-                  <span className="text-[11px] px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 rounded font-semibold">
-                    Benign Near-Match
-                  </span>
-                ) : (
-                  <span className="text-[11px] px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded font-semibold">
-                    Malicious
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <DataModeBadge mode={((activeSighting as any).data_mode || (activeSighting.source_kind === 'demo_generator' ? 'synthetic_demo' : 'live')) as any} size="sm" />
+                  <TriageStatusBadge 
+                    status={
+                      ((activeSighting as any).triage_status as any) ||
+                      (activeSighting.normalized_payload?.isBenign ? 'false_positive' : 'pending')
+                    } 
+                  />
+                </div>
               </div>
 
               {/* Sender Details */}
@@ -296,6 +302,16 @@ export function SightingsQueueView() {
                   </div>
                 </div>
               )}
+
+              {/* Finding Provenance & Evidence ID */}
+              <FindingSourceInfo
+                finding={{
+                  data_mode: (activeSighting as any).data_mode || (activeSighting.source_kind === 'demo_generator' ? 'synthetic_demo' : 'live'),
+                  observed_at: activeSighting.observed_at || activeSighting.created_at,
+                  collected_at: activeSighting.created_at,
+                  raw_evidence_id: activeSighting.normalized_payload?.sha256 || activeSighting.normalized_payload?.evidence_hash,
+                }}
+              />
 
               {/* Campaign Link CTA */}
               {!activeSighting.normalized_payload?.isBenign && (

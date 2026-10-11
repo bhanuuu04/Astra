@@ -11,11 +11,13 @@ import {
   BellRing,
   BookOpen,
   Command,
+  Database,
   Fingerprint,
   LayoutDashboard,
   Menu,
   Network,
   Search,
+  Send,
   Shield,
   Smartphone,
   X,
@@ -31,7 +33,9 @@ const primaryNavigation = [
   { href: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/sightings', label: 'Findings queue', icon: Bell },
   { href: '/campaigns', label: 'Campaigns', icon: Network },
+  { href: '/responses', label: 'Response cases', icon: Send },
   { href: '/brands', label: 'Brand DNA', icon: Fingerprint },
+  { href: '/connectors', label: 'Connectors', icon: Database },
 ];
 
 const monitorNavigation = [
@@ -43,7 +47,9 @@ const pageNames: Record<string, string> = {
   overview: 'Overview',
   sightings: 'Findings queue',
   campaigns: 'Campaigns',
+  responses: 'Response cases',
   brands: 'Brand DNA',
+  connectors: 'Connectors',
   apps: 'Mobile App Radar',
   alerts: 'Alert feed',
   landing: 'Product tour',

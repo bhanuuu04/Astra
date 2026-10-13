@@ -11,6 +11,8 @@ from app.domain.response_case_service import create_response_case_draft, approve
 from app.domain.linking_service import compute_campaign_edges_and_clusters
 from app.schemas.finding import FindingIngest
 from app.storage.evidence_storage import load_evidence_content
+from app.detectors.rules import damerau_levenshtein_distance, detect_lookalike_variations
+
 
 
 @pytest.fixture
@@ -291,3 +293,59 @@ def test_campaign_cluster_distinct_identities(db_session):
     titles = [c.title for c in campaigns]
     assert "@fake_fintech_alpha" in titles[0] or "@fake_fintech_alpha" in titles[1]
     assert "@fake_fintech_beta" in titles[0] or "@fake_fintech_beta" in titles[1]
+
+
+def test_lookalike_detection_variations_and_benign_decoy():
+    # 1. Adjacent character swap (Damerau distance = 1 vs Levenshtein distance = 2)
+    swap_res = detect_lookalike_variations(
+        candidate="nvoapay",
+        brand_name="novapay"
+    )
+    assert swap_res["has_lookalike"] is True
+    assert "CHARACTER_SWAP" in swap_res["variations"]
+    assert swap_res["damerau_distance"] == 1
+    assert swap_res["levenshtein_distance"] == 2
+
+    # 2. Added high-risk word (novapay_support / official_novapay)
+    added_res = detect_lookalike_variations(
+        candidate="novapay_support",
+        brand_name="novapay"
+    )
+    assert added_res["has_lookalike"] is True
+    assert "ADDED_WORD" in added_res["variations"]
+    assert "support" in added_res["matched_added_words"]
+
+    # 3. Spacing / delimiter variation (nova pay vs novapay)
+    spacing_res = detect_lookalike_variations(
+        candidate="nova pay",
+        brand_name="novapay"
+    )
+    assert spacing_res["has_lookalike"] is True
+    assert "SPACING_CHANGE" in spacing_res["variations"]
+
+    # 4. Homoglyph substitution (n0vapay vs novapay)
+    homo_res = detect_lookalike_variations(
+        candidate="n0vapay",
+        brand_name="novapay"
+    )
+    assert homo_res["has_lookalike"] is True
+    assert "HOMOGLYPH" in homo_res["variations"]
+
+    # 5. Benign Decoy Guard: false-positive suppression for legitimate local businesses
+    benign_res = detect_lookalike_variations(
+        candidate="Nova Pay Plumbing",
+        brand_name="novapay",
+        content="Residential plumbing, water heater repair, and pipe maintenance services."
+    )
+    assert benign_res["is_benign_decoy"] is True
+    assert benign_res["has_lookalike"] is False  # Suppressed from rogue lookalike alert
+
+    # 6. Decoy overridden if active scam/urgency trigger is present
+    scam_decoy_res = detect_lookalike_variations(
+        candidate="Nova Pay Plumbing Scam",
+        brand_name="novapay",
+        content="Account suspended, enter your password and connect wallet within 24 hours."
+    )
+    assert scam_decoy_res["is_benign_decoy"] is False
+    assert scam_decoy_res["has_lookalike"] is True
+

@@ -430,7 +430,7 @@ def sync_connector_telemetry(
         )
         .order_by(Brand.created_at.asc())
     ).all())
-    if not brands and get_settings().app_env.lower() == "test":
+    if not brands and get_settings().app_env.lower() in ("test", "testing", "development", "local"):
         brands = list(session.scalars(
             select(Brand).where(Brand.tenant_id == tenant_id, Brand.status.in_(("active", "enrolled")))
         ).all())

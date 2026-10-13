@@ -77,6 +77,44 @@ export function levenshteinDistance(a: string, b: string): number {
 }
 
 /**
+ * Calculate Damerau-Levenshtein distance accounting for adjacent transpositions (swaps)
+ */
+export function damerauLevenshteinDistance(a: string, b: string): number {
+  const da: Record<string, number> = {};
+  for (let i = 0; i < (a + b).length; i++) {
+    da[(a + b)[i]] = 0;
+  }
+  const d: number[][] = Array(a.length + 2).fill(0).map(() => Array(b.length + 2).fill(0));
+  const maxdist = a.length + b.length;
+  d[0][0] = maxdist;
+  for (let i = 0; i <= a.length; i++) {
+    d[i + 1][0] = maxdist;
+    d[i + 1][1] = i;
+  }
+  for (let j = 0; j <= b.length; j++) {
+    d[0][j + 1] = maxdist;
+    d[1][j + 1] = j;
+  }
+  for (let i = 1; i <= a.length; i++) {
+    let db = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const k = da[b[j - 1]] || 0;
+      const l = db;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      if (cost === 0) db = j;
+      d[i + 1][j + 1] = Math.min(
+        d[i][j + 1] + 1,
+        d[i + 1][j] + 1,
+        d[i][j] + cost,
+        d[k][l] + (i - k - 1) + 1 + (j - l - 1)
+      );
+    }
+    da[a[i - 1]] = i;
+  }
+  return d[a.length + 1][b.length + 1];
+}
+
+/**
  * Calculate string similarity percentage (0 to 100)
  */
 export function calculateSimilarity(s1: string, s2: string): number {
@@ -85,6 +123,95 @@ export function calculateSimilarity(s1: string, s2: string): number {
   if (longer.length === 0) return 100;
   const distance = levenshteinDistance(longer, shorter);
   return Math.round(((longer.length - distance) / longer.length) * 100);
+}
+
+const LOOKALIKE_ADDED_WORDS = [
+  'support', 'help', 'care', 'service', 'desk', 'official',
+  'rewards', 'verify', 'security', 'team', 'pay', 'login',
+  'portal', 'app', 'claim', 'giveaway', 'wallet', 'bonus',
+  'promo', 'assist', 'center', 'global', 'bot', 'airdrop'
+];
+
+const BENIGN_DECOY_TRIGGERS = [
+  'plumbing', 'bakery', 'contractor', 'landscaping', 'restaurant',
+  'cafe', 'mechanic', 'dentist', 'hardware', 'construction',
+  'electrician', 'roofing', 'salon', 'laundry', 'barber', 'carpentry',
+  'pharmacy', 'vet', 'florist', 'bookstore', 'towing', 'cleaners'
+];
+
+export interface LookalikeResult {
+  hasLookalike: boolean;
+  variations: string[]; // 'CHARACTER_SWAP' | 'ADDED_WORD' | 'SPACING_CHANGE' | 'HOMOGLYPH'
+  matchedAddedWords: string[];
+  isBenignDecoy: boolean;
+  details: string[];
+  damerauDistance: number;
+  levenshteinDistance: number;
+}
+
+export function detectLookalikeVariations(candidate: string, brandName: string, content = ''): LookalikeResult {
+  const rawCand = (candidate || '').trim().toLowerCase();
+  const rawBrand = (brandName || '').trim().toLowerCase();
+  const normCand = normalizeHomoglyphs(rawCand);
+  const normBrand = normalizeHomoglyphs(rawBrand);
+
+  const variations: string[] = [];
+  const matchedWords: string[] = [];
+  let isBenign = false;
+  const details: string[] = [];
+
+  // Benign decoy guard
+  const fullText = `${candidate} ${content}`.toLowerCase();
+  const foundBenign = BENIGN_DECOY_TRIGGERS.find(w => fullText.includes(w));
+  if (foundBenign) {
+    const hasScam = URGENCY_TRIGGERS.some(t => fullText.includes(t)) || CREDENTIAL_HARVEST_TRIGGERS.some(t => fullText.includes(t));
+    if (!hasScam) {
+      isBenign = true;
+      details.push(`Benign industry indicator: '${foundBenign}'`);
+    }
+  }
+
+  // Spacing change
+  const cleanSpacingCand = rawCand.replace(/[\s_\-\.]+/g, '');
+  const cleanSpacingBrand = rawBrand.replace(/[\s_\-\.]+/g, '');
+  if (cleanSpacingCand === cleanSpacingBrand && rawCand !== rawBrand) {
+    variations.push('SPACING_CHANGE');
+    details.push(`Spacing variation ('${rawCand}' vs '${rawBrand}')`);
+  }
+
+  // Character swap
+  const dDist = damerauLevenshteinDistance(normCand, normBrand);
+  const lDist = levenshteinDistance(normCand, normBrand);
+  if (dDist < lDist && dDist <= 2 && normBrand.length >= 4) {
+    variations.push('CHARACTER_SWAP');
+    details.push(`Adjacent character transposition (Damerau distance: ${dDist})`);
+  }
+
+  // Added high-risk word
+  for (const word of LOOKALIKE_ADDED_WORDS) {
+    const pattern = new RegExp(`(^|[_\-\\.\\s])${word}([_\-\\.\\s]|$)|${normBrand}[_\-\\.]?${word}|${word}[_\-\\.]?${normBrand}`, 'i');
+    if (pattern.test(rawCand)) {
+      variations.push('ADDED_WORD');
+      matchedWords.push(word);
+      details.push(`Added high-risk keyword: '${word}'`);
+    }
+  }
+
+  // Homoglyph substitution
+  if (normCand === normBrand && rawCand !== rawBrand && !variations.includes('SPACING_CHANGE')) {
+    variations.push('HOMOGLYPH');
+    details.push('Visual homoglyph substitution');
+  }
+
+  return {
+    hasLookalike: variations.length > 0 && !isBenign,
+    variations: Array.from(new Set(variations)),
+    matchedAddedWords: Array.from(new Set(matchedWords)),
+    isBenignDecoy: isBenign,
+    details,
+    damerauDistance: dDist,
+    levenshteinDistance: lDist
+  };
 }
 
 // Suspicious URL Shorteners & High-Risk TLDs
@@ -149,51 +276,81 @@ export function analyzeSocialMessage(
   const isOfficialAccount = officialHandles.includes(safeUsername.toLowerCase().replace('@', ''));
 
   if (!isOfficialAccount) {
-    // Check for Brand Name in Sender Handle or Display Name
-    const containsBrandInUsername = normalizedSenderUsername.includes(normalizedBrandName);
-    const containsBrandInDisplay = normalizedSenderDisplay.includes(normalizedBrandName);
+    // Run exact Kampus.VC Lookalike Variation Analysis (Character Swaps, Added Words, Spacing Changes, Benign Decoys)
+    const userLookalike = detectLookalikeVariations(safeUsername, brand?.brandName || '', safeContent);
+    const displayLookalike = detectLookalikeVariations(safeDisplayName, brand?.brandName || '', safeContent);
+    const combinedVariations = Array.from(new Set([...userLookalike.variations, ...displayLookalike.variations]));
+    const isBenignDecoy = userLookalike.isBenignDecoy || displayLookalike.isBenignDecoy;
 
-    // Lookalike keywords often combined with brand impersonation
-    const brandSpoofKeywords = ['support', 'help', 'desk', 'service', 'official', 'team', 'care', 'security', 'verify', 'admin', 'bot'];
-    const matchedSpoofWords = brandSpoofKeywords.filter(k => 
-      safeUsername.toLowerCase().includes(k) || safeDisplayName.toLowerCase().includes(k)
-    );
-
-    if (containsBrandInUsername || containsBrandInDisplay) {
-      impersonationScore += 55;
-      categories.push('brand_impersonation');
-
+    if (isBenignDecoy) {
+      // Benign Decoy Guard: Legitimate non-infringing entity (e.g. "Nova Pay Plumbing")
+      // Do not escalate impersonation score
       indicators.push({
         type: 'impersonation',
-        severity: 'critical',
-        title: 'Brand Name Ingestion Detected in Untrusted Account',
-        description: `Sender account incorporates brand name "${brand.brandName}" in their username/display name while not being on the authorized handle list.`,
-        evidence: `Username: @${sender.username} | Display Name: "${sender.displayName}"`
+        severity: 'low',
+        title: 'Benign Business Guard Active',
+        description: `Entity contains brand name "${brand?.brandName}" but matches benign business patterns (${[...userLookalike.details, ...displayLookalike.details].join(', ')}). False-positive suppression active.`,
+        evidence: `Decoy matched: ${safeDisplayName}`
       });
-
-      if (matchedSpoofWords.length > 0) {
-        impersonationScore += 30;
-        indicators.push({
-          type: 'impersonation',
-          severity: 'critical',
-          title: 'Spoofed Department Keywords Detected',
-          description: `Account mimics official brand departments (${matchedSpoofWords.join(', ')}).`,
-          evidence: `Matched Keywords: [${matchedSpoofWords.join(', ')}]`
-        });
-      }
     } else {
-      // Fuzzy Similarity Check (Typosquatting / Homoglyph Attack)
-      const usernameSimilarity = calculateSimilarity(normalizedSenderUsername, normalizedBrandName);
-      if (usernameSimilarity >= 70 && usernameSimilarity < 100) {
-        impersonationScore += 45;
+      // Check for Brand Name in Sender Handle or Display Name
+      const containsBrandInUsername = normalizedSenderUsername.includes(normalizedBrandName);
+      const containsBrandInDisplay = normalizedSenderDisplay.includes(normalizedBrandName);
+
+      // Lookalike keywords often combined with brand impersonation
+      const brandSpoofKeywords = ['support', 'help', 'desk', 'service', 'official', 'team', 'care', 'security', 'verify', 'admin', 'bot'];
+      const matchedSpoofWords = brandSpoofKeywords.filter(k => 
+        safeUsername.toLowerCase().includes(k) || safeDisplayName.toLowerCase().includes(k)
+      );
+
+      if (combinedVariations.length > 0) {
+        impersonationScore += 50;
         categories.push('brand_impersonation');
         indicators.push({
           type: 'impersonation',
-          severity: 'high',
-          title: 'High Typosquatting Similarity to Brand',
-          description: `Sender handle @${sender.username} has a ${usernameSimilarity}% phonetic/levenshtein match to official brand "${brand.brandName}".`,
-          evidence: `Similarity: ${usernameSimilarity}%`
+          severity: combinedVariations.includes('CHARACTER_SWAP') || combinedVariations.includes('ADDED_WORD') ? 'critical' : 'high',
+          title: `Lookalike Variation Detected [${combinedVariations.join(', ')}]`,
+          description: `Sender account exhibits specific lookalike evasion patterns: ${[...userLookalike.details, ...displayLookalike.details].join('; ')}.`,
+          evidence: `Variations: [${combinedVariations.join(', ')}] | Damerau Distance: ${userLookalike.damerauDistance}`
         });
+      }
+
+      if (containsBrandInUsername || containsBrandInDisplay) {
+        impersonationScore += 55;
+        if (!categories.includes('brand_impersonation')) categories.push('brand_impersonation');
+
+        indicators.push({
+          type: 'impersonation',
+          severity: 'critical',
+          title: 'Brand Name Ingestion Detected in Untrusted Account',
+          description: `Sender account incorporates brand name "${brand.brandName}" in their username/display name while not being on the authorized handle list.`,
+          evidence: `Username: @${sender.username} | Display Name: "${sender.displayName}"`
+        });
+
+        if (matchedSpoofWords.length > 0) {
+          impersonationScore += 30;
+          indicators.push({
+            type: 'impersonation',
+            severity: 'critical',
+            title: 'Spoofed Department Keywords Detected',
+            description: `Account mimics official brand departments (${matchedSpoofWords.join(', ')}).`,
+            evidence: `Matched Keywords: [${matchedSpoofWords.join(', ')}]`
+          });
+        }
+      } else {
+        // Fuzzy Similarity Check (Typosquatting / Homoglyph Attack)
+        const usernameSimilarity = calculateSimilarity(normalizedSenderUsername, normalizedBrandName);
+        if (usernameSimilarity >= 70 && usernameSimilarity < 100) {
+          impersonationScore += 45;
+          if (!categories.includes('brand_impersonation')) categories.push('brand_impersonation');
+          indicators.push({
+            type: 'impersonation',
+            severity: 'high',
+            title: 'High Typosquatting Similarity to Brand',
+            description: `Sender handle @${sender.username} has a ${usernameSimilarity}% phonetic/levenshtein match to official brand "${brand.brandName}".`,
+            evidence: `Similarity: ${usernameSimilarity}%`
+          });
+        }
       }
     }
 

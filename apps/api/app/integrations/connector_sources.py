@@ -248,7 +248,7 @@ def collect_virustotal(
     api_key: str,
 ) -> list[Any]:
     """Enrich URLs already submitted to ASTRA; VT is not treated as a discovery feed."""
-    if api_key.startswith(("test_", "mock_")) and get_settings().app_env.lower() == "test":
+    if api_key.startswith(("test_", "mock_")) and get_settings().app_env.lower() in ("test", "testing", "development", "local"):
         return [_ingest(
             session, tenant_id, brand, connector,
             surface="virustotal", source_kind="web_domain",

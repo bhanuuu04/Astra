@@ -9,6 +9,7 @@ from app.detectors.rules import (
     URGENCY_TRIGGERS,
     URL_SHORTENERS,
     calculate_similarity,
+    detect_lookalike_variations,
     extract_crypto_wallets,
     extract_urls,
     normalize_homoglyphs,
@@ -51,6 +52,14 @@ def run_detectors_on_sighting(
 
     is_official = any(h in username.lower() for h in official_handles)
     if not is_official and (username or display_name):
+        # Run rigorous lookalike variation analysis (swaps, added words, spacing, benign decoys)
+        user_lookalike = detect_lookalike_variations(username, brand_name, content)
+        display_lookalike = detect_lookalike_variations(display_name, brand_name, content)
+        
+        is_benign = user_lookalike.get("is_benign_decoy") or display_lookalike.get("is_benign_decoy")
+        detected_variations = list(set(user_lookalike.get("variations", []) + display_lookalike.get("variations", [])))
+        matched_added_words = list(set(user_lookalike.get("matched_added_words", []) + display_lookalike.get("matched_added_words", [])))
+        
         similarity = max(
             calculate_similarity(normalized_user, normalized_brand_name),
             calculate_similarity(normalized_display, normalized_brand_name),
@@ -65,15 +74,39 @@ def run_detectors_on_sighting(
         spoof_keywords = ["support", "help", "desk", "official", "verify", "security", "team"]
         matched_spoofs = [k for k in spoof_keywords if k in username.lower() or k in display_name.lower()]
 
-        if has_direct_name or similarity >= 70:
-            score = 0.95 if has_direct_name and matched_spoofs else 0.85
+        if is_benign:
+            # Benign decoy guard: legitimate non-infringing business (e.g. Nova Pay Plumbing)
+            # Downgrade score to benign level (0.15) to guarantee no false alarms
+            signals.append({
+                "detector_key": "benign_decoy_guard",
+                "detector_version": DETECTOR_VERSION,
+                "score": 0.15,
+                "threshold": 0.65,
+                "explanation": (
+                    f"Candidate contains brand token '{brand_name}' but matches benign business pattern "
+                    f"({', '.join(user_lookalike.get('details', []) + display_lookalike.get('details', []))}). "
+                    f"Suppressed from threat escalation."
+                ),
+                "evidence_ids": [f"benign:@{username}"],
+                "feature_values": {
+                    "is_benign_decoy": True,
+                    "similarity": similarity,
+                    "suppressed": True,
+                },
+            })
+        elif has_direct_name or similarity >= 70 or detected_variations:
+            score = 0.95 if (has_direct_name and (matched_spoofs or "ADDED_WORD" in detected_variations)) else 0.85
+            if "CHARACTER_SWAP" in detected_variations:
+                score = 0.92
+
+            variation_summary = f" [Variations: {', '.join(detected_variations)}]" if detected_variations else ""
             signals.append({
                 "detector_key": "brand_impersonation",
                 "detector_version": DETECTOR_VERSION,
                 "score": score,
                 "threshold": 0.65,
                 "explanation": (
-                    f"Sender mimics brand '{brand_name}' using lookalike or homoglyph pattern "
+                    f"Sender mimics brand '{brand_name}' using lookalike pattern{variation_summary} "
                     f"(Username: @{username}, Similarity: {similarity}%)."
                 ),
                 "evidence_ids": [f"sender:@{username}"],
@@ -81,6 +114,11 @@ def run_detectors_on_sighting(
                     "similarity": similarity,
                     "matched_spoofs": matched_spoofs,
                     "normalized_username": normalized_user,
+                    "variations": detected_variations,
+                    "matched_added_words": matched_added_words,
+                    "is_character_swap": "CHARACTER_SWAP" in detected_variations,
+                    "is_spacing_change": "SPACING_CHANGE" in detected_variations,
+                    "is_added_word": "ADDED_WORD" in detected_variations,
                 },
             })
 

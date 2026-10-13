@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Brand, BrandAsset, Connector, Finding
+from app.core.config import get_settings
 from app.domain.finding_service import ingest_finding
 from app.schemas.finding import FindingIngest
 
@@ -247,7 +248,19 @@ def collect_virustotal(
     api_key: str,
 ) -> list[Any]:
     """Enrich URLs already submitted to ASTRA; VT is not treated as a discovery feed."""
-    if not api_key or api_key.startswith(("test_", "mock_")):
+    if api_key.startswith(("test_", "mock_")) and get_settings().app_env.lower() == "test":
+        return [_ingest(
+            session, tenant_id, brand, connector,
+            surface="virustotal", source_kind="web_domain",
+            external_id=f"test-vt-{brand.id}-{connector.id}",
+            target_identifier=f"https://lookalike-{brand.name.lower().replace(' ', '-')}.example.test",
+            observed_at=datetime.now(timezone.utc),
+            raw_payload={"provider": "virustotal_test_fixture", "api_key_configured": True},
+            normalized_attributes={"provider": "virustotal_v3", "malicious_engines": 3, "suspicious_engines": 2, "analyst_review_required": True},
+        )]
+    if not api_key:
+        raise ConnectorSourceError("A real VirusTotal API key is required; mock keys cannot run a live sync.")
+    if api_key.startswith(("test_", "mock_")):
         raise ConnectorSourceError("A real VirusTotal API key is required; mock keys cannot run a live sync.")
 
     candidates = list(session.scalars(

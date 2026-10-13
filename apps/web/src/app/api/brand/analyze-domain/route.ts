@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import { resolveServerIdentity } from '@/lib/server-auth';
 
 const NVIDIA_NIM_BASE_URL = process.env.NVIDIA_NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1';
@@ -12,14 +14,54 @@ interface DomainMetadata {
   socials?: Record<string, string>;
 }
 
-// Clean and normalize domain string
-function sanitizeDomain(raw: string): string {
-  let cleaned = raw.trim().toLowerCase();
-  cleaned = cleaned.replace(/^https?:\/\//i, '');
-  cleaned = cleaned.replace(/^www\./i, '');
-  cleaned = cleaned.replace(/\/.*$/, '');
-  cleaned = cleaned.replace(/[^a-z0-9.-]/g, '');
-  return cleaned;
+function isPrivateOrReservedAddress(address: string): boolean {
+  if (net.isIPv4(address)) {
+    const [a, b] = address.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && (b === 0 || b === 168)) ||
+      (a === 198 && (b === 18 || b === 19));
+  }
+
+  if (net.isIPv6(address)) {
+    const normalized = address.toLowerCase();
+    return normalized === '::' || normalized === '::1' ||
+      normalized.startsWith('fc') || normalized.startsWith('fd') ||
+      normalized.startsWith('fe8') || normalized.startsWith('fe9') ||
+      normalized.startsWith('fea') || normalized.startsWith('feb') ||
+      normalized.startsWith('ff');
+  }
+
+  return true;
+}
+
+// Validate and normalize a public HTTPS hostname before server-side fetching.
+async function normalizePublicDomain(raw: string): Promise<string> {
+  const input = raw.trim();
+  if (!input || input.length > 253 || /[\u0000-\u001f\u007f]/.test(input)) {
+    throw new Error('Please provide a valid public domain name.');
+  }
+
+  const parsed = new URL(input.includes('://') ? input : `https://${input}`);
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) {
+    throw new Error('Only public HTTPS domains are supported.');
+  }
+
+  const hostname = parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  if (!hostname.includes('.') || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(hostname)) {
+    throw new Error('Please provide a valid public domain name.');
+  }
+  if (net.isIP(hostname) || hostname === 'localhost' || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    throw new Error('Private and internal hosts are not allowed.');
+  }
+
+  const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(({ address }) => isPrivateOrReservedAddress(address))) {
+    throw new Error('The domain does not resolve to a public address.');
+  }
+  return hostname;
 }
 
 // Extract base brand name guess from domain (e.g. "nilapay.com" -> "Nilapay", "stripe.com" -> "Stripe")
@@ -38,6 +80,7 @@ async function scrapeHomepage(domain: string): Promise<DomainMetadata> {
   try {
     const url = `https://${domain}`;
     const res = await fetch(url, {
+      redirect: 'error',
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AstraBrandSentinel/2.0',
@@ -121,9 +164,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Please provide a valid domain name.' }, { status: 400 });
     }
 
-    const domain = sanitizeDomain(rawDomain);
-    if (!domain || !domain.includes('.')) {
-      return NextResponse.json({ error: 'Please provide a full domain (e.g. acme.com or stripe.com).' }, { status: 400 });
+    let domain: string;
+    try {
+      domain = await normalizePublicDomain(rawDomain);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Please provide a valid public domain.' }, { status: 400 });
     }
     if (!NVIDIA_NIM_API_KEY) {
       return NextResponse.json({ error: 'AI-assisted domain research is not configured. Add the provider key or enter brand details manually.' }, { status: 503 });

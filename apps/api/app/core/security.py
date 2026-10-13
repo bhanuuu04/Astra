@@ -238,7 +238,16 @@ def get_current_tenant_context(
             headers={"WWW-Authenticate": "Bearer"},
         )
     else:
-        # Development local fallback only when credentials omitted and allow_anonymous_dev is enabled
+        # Development local fallback ONLY when:
+        # 1. Credentials omitted
+        # 2. allow_anonymous_dev is explicitly enabled
+        # 3. Environment is explicitly 'local' or 'test'
+        if not settings.is_local_dev:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Anonymous access not permitted in {settings.app_env} environment. Use explicit local/test mode.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         token_tenant_id = DEFAULT_DEMO_TENANT_ID
         derived_role = ROLE_ANALYST
         derived_actor = "analyst@astra.local"
@@ -289,9 +298,20 @@ def get_current_tenant_context(
         else session.scalar(user_query.where(User.email == derived_actor))
     )
 
-    is_dev_anonymous = not provided_key and not is_prod and settings.allow_anonymous_dev
+    # SECURITY: Only auto-provision identities in explicit local/test mode
+    is_dev_anonymous = not provided_key and settings.is_local_dev and settings.allow_anonymous_dev
     identity_created = False
+    
     if not user and (is_dev_anonymous or is_super_admin):
+        # WARNING: Auto-provisioning only for local development or super-admin bootstrap
+        # This should NEVER run in staging, preview, or production
+        if not settings.is_local_dev and not is_super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User identity must be pre-provisioned in non-local environments.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         user = User(
             id=derived_user_id or uuid.uuid4(),
             email=derived_actor,
@@ -315,7 +335,15 @@ def get_current_tenant_context(
             TenantMembership.user_id == user.id,
         )
     )
+    
     if not membership and (is_dev_anonymous or is_super_admin):
+        # Only auto-create memberships in local dev or for super-admin bootstrap
+        if not settings.is_local_dev and not is_super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tenant membership must be pre-provisioned in non-local environments.",
+            )
+        
         membership = TenantMembership(
             id=uuid.uuid4(),
             tenant_id=tenant.id,
@@ -325,6 +353,7 @@ def get_current_tenant_context(
         session.add(membership)
         session.flush()
         identity_created = True
+        
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

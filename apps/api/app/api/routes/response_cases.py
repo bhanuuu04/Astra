@@ -5,7 +5,14 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.security import TenantContext, get_current_tenant_context, require_write_permission
+from app.core.security import (
+    ROLE_ORG_ADMIN,
+    ROLE_REVIEWER,
+    TenantContext,
+    get_current_tenant_context,
+    require_role,
+    require_write_permission,
+)
 from app.db.session import get_session
 from app.domain.response_case_service import (
     approve_response_case,
@@ -202,7 +209,7 @@ def handle_approve_response_case(
     response_case_id: uuid.UUID,
     approval: ResponseCaseApprove,
     session: Session = Depends(get_session),
-    context: TenantContext = Depends(require_write_permission),
+    context: TenantContext = Depends(require_role(ROLE_REVIEWER, ROLE_ORG_ADMIN)),
 ) -> ResponseCaseResponse:
     """Approve response case for dispatch (Reviewer/Lead only).
     
@@ -231,6 +238,7 @@ def handle_approve_response_case(
             tenant_id=context.tenant_id,
             response_case_id=response_case_id,
             approved_by=context.user_id,
+            approver_role=context.role,
             approval_notes=approval.approval_notes
         )
         

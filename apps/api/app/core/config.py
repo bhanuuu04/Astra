@@ -1,6 +1,19 @@
 from functools import lru_cache
+from enum import Enum
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Environment(str, Enum):
+    """Strict environment enumeration"""
+    LOCAL = "local"
+    TEST = "test"
+    TESTING = "testing"
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PREVIEW = "preview"
+    PRODUCTION = "production"
+    PROD = "prod"
 
 
 class Settings(BaseSettings):
@@ -8,7 +21,7 @@ class Settings(BaseSettings):
 
     app_name: str = "ASTRA API"
     app_env: str = "development"
-    database_url: str = "postgresql+psycopg://astra:astra_dev@localhost:5432/astra"
+    database_url: str = ""
     cors_origins: str = "http://localhost:3000"
 
     # Suspicious URL/app reputation
@@ -21,7 +34,7 @@ class Settings(BaseSettings):
     composio_api_key: str = ""
 
     # Meta / Instagram Graph API
-    meta_verify_token: str = "astra_meta_verify_secret"
+    meta_verify_token: str = ""
     meta_app_secret: str = ""
     meta_page_access_token: str = ""
 
@@ -36,13 +49,14 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
 
     # Security & Tenant Isolation
-    admin_api_key: str = "astra_admin_dev_secret"
-    astra_internal_api_key: str = ""
-    api_secret_key: str = ""
-    jwt_secret: str = "astra_enterprise_jwt_signing_secret_dev"
+    # SECURITY: These MUST be overridden in non-local environments
+    admin_api_key: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
+    astra_internal_api_key: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
+    api_secret_key: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
+    jwt_secret: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 1440  # 24 hours
-    allow_anonymous_dev: bool = True
+    allow_anonymous_dev: bool = False
     allow_demo_reset: bool = False
 
     # Storage for raw evidence objects
@@ -56,33 +70,62 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+    
+    @property
+    def is_local_dev(self) -> bool:
+        """True only for explicit local development mode"""
+        return self.app_env.lower() in {"development", Environment.LOCAL.value, Environment.TEST.value, Environment.TESTING.value}
+    
+    @property
+    def is_production(self) -> bool:
+        """True for production and prod environments"""
+        return self.app_env.lower() in {Environment.PRODUCTION.value, Environment.PROD.value}
 
     def validate_runtime_security(self) -> None:
-        """Fail closed when a production deployment still has development credentials."""
-        if self.app_env.lower() not in {"production", "prod"}:
+        """
+        Fail closed: validate security configuration for ALL non-local environments.
+        
+        This runs for: development, staging, preview, production, and any misspelled environment.
+        Only explicit local/test modes skip validation.
+        """
+        if self.is_local_dev:
             return
 
         problems: list[str] = []
-        if len(self.jwt_secret) < 32 or self.jwt_secret == "astra_enterprise_jwt_signing_secret_dev":
-            problems.append("JWT_SECRET must be a unique secret with at least 32 characters")
-        if len(self.admin_api_key) < 32 or self.admin_api_key == "astra_admin_dev_secret":
-            problems.append("ADMIN_API_KEY must be a unique secret with at least 32 characters")
-        if len(self.astra_internal_api_key) < 32 or self.astra_internal_api_key.startswith("replace-this"):
-            problems.append("ASTRA_INTERNAL_API_KEY must be a unique secret with at least 32 characters")
+        
+        # Check for insecure default secrets
+        insecure_patterns = ["INSECURE_DEFAULT", "astra_admin_dev_secret", "astra_enterprise_jwt", 
+                           "astra_internal_dev", "astra_meta_verify_secret", "replace-this"]
+        
+        if any(pattern in self.jwt_secret for pattern in insecure_patterns) or len(self.jwt_secret) < 32:
+            problems.append(f"JWT_SECRET must be a unique secret with at least 32 characters (env: {self.app_env})")
+        
+        if any(pattern in self.admin_api_key for pattern in insecure_patterns) or len(self.admin_api_key) < 32:
+            problems.append(f"ADMIN_API_KEY must be a unique secret with at least 32 characters (env: {self.app_env})")
+        
+        
         if self.allow_anonymous_dev:
-            problems.append("ALLOW_ANONYMOUS_DEV must be false")
+            problems.append(f"ALLOW_ANONYMOUS_DEV must be false in {self.app_env} environment")
+        
         if any("*" in origin for origin in self.allowed_origins):
-            problems.append("CORS_ORIGINS must contain exact origins only")
-        if not self.allowed_origins or any(
-            origin.startswith("http://localhost") or origin.startswith("http://127.0.0.1")
-            for origin in self.allowed_origins
-        ):
-            problems.append("CORS_ORIGINS must be set to non-local deployment origins")
-        if any(not origin.startswith("https://") for origin in self.allowed_origins):
-            problems.append("CORS_ORIGINS must use HTTPS in production")
+            problems.append("CORS_ORIGINS must contain exact origins only (no wildcards)")
+        
+        # For production, enforce HTTPS and no localhost
+        if self.is_production:
+            if not self.allowed_origins or any(
+                origin.startswith("http://localhost") or origin.startswith("http://127.0.0.1")
+                for origin in self.allowed_origins
+            ):
+                problems.append("CORS_ORIGINS must be set to non-local deployment origins in production")
+            
+            if any(not origin.startswith("https://") for origin in self.allowed_origins):
+                problems.append("CORS_ORIGINS must use HTTPS in production")
+            
 
         if problems:
-            raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
+            raise RuntimeError(
+                "Unsafe production configuration: " + "; ".join(problems)
+            )
 
 
 @lru_cache

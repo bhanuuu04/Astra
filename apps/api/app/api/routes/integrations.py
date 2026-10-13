@@ -24,7 +24,6 @@ router = APIRouter(prefix="/api/v1", tags=["integrations"])
 
 
 class ComposioSyncRequest(BaseModel):
-    user_id: Optional[str] = None
     brand_id: Optional[uuid.UUID] = None
 
 
@@ -48,7 +47,9 @@ class AISummaryRequest(BaseModel):
 
 
 @router.get("/integrations/status")
-def get_integrations_status() -> Dict[str, Any]:
+def get_integrations_status(
+    context: TenantContext = Depends(get_current_tenant_context),
+) -> Dict[str, Any]:
     """Return honest health & configuration status of all third-party external connectors.
     Connectors that lack valid credentials are never labeled as 'live'.
     """
@@ -141,8 +142,8 @@ async def sync_composio_telemetry(
             detail="No brand registered for this organization. Please enroll a brand before syncing.",
         )
 
-    user_id = request.user_id
-    if not user_id and context.user_id:
+    user_id = None
+    if context.user_id:
         user = session.scalar(select(User).where(User.id == context.user_id))
         if user and user.composio_user_id:
             user_id = user.composio_user_id

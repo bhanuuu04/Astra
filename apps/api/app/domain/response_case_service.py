@@ -125,6 +125,7 @@ def approve_response_case(
     tenant_id: uuid.UUID,
     response_case_id: uuid.UUID,
     approved_by: uuid.UUID,
+    approver_role: str,
     approval_notes: Optional[str] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None
@@ -140,6 +141,7 @@ def approve_response_case(
         tenant_id: Tenant ID (enforced)
         response_case_id: Response case to approve
         approved_by: User ID approving
+        approver_role: Tenant role of the approving user
         approval_notes: Optional approval notes
         ip_address: Client IP for audit
         user_agent: Client user agent for audit
@@ -150,6 +152,9 @@ def approve_response_case(
     Raises:
         ValueError: If case not found, wrong state, or separation of duties violation
     """
+    if approver_role not in ("reviewer", "org_admin"):
+        raise ValueError("Only reviewers or organization administrators can approve response cases")
+
     response_case = session.scalar(
         select(ResponseCase).where(
             ResponseCase.id == response_case_id,

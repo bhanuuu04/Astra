@@ -180,6 +180,7 @@ def test_response_case_draft_and_governance(db_session):
         tenant_id=tenant.id,
         response_case_id=rc.id,
         approved_by=reviewer_id,
+        approver_role="reviewer",
         approval_notes="Reviewed and approved by lead analyst"
     )
     assert approved.lifecycle_state == "approved"
@@ -207,6 +208,54 @@ def test_response_case_draft_and_governance(db_session):
     assert resolved.lifecycle_state == "resolved"
     assert resolved.resolved_at is not None
     assert resolved.external_case_reference == "CF-TICKET-88910"
+
+
+def test_response_case_approval_requires_reviewer_or_org_admin(db_session):
+    tenant = Tenant(id=uuid.uuid4(), name="Approval Tenant")
+    brand = Brand(id=uuid.uuid4(), tenant_id=tenant.id, name="Approval Brand")
+    finding = Finding(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        brand_id=brand.id,
+        source_kind="web",
+        surface="domain",
+        external_id="approval-phish.example",
+        target_identifier="https://approval-phish.example",
+        observed_at=datetime.now(timezone.utc),
+        triage_status="confirmed_threat",
+    )
+    db_session.add_all([tenant, brand, finding])
+    db_session.commit()
+
+    draft = create_response_case_draft(
+        session=db_session,
+        tenant_id=tenant.id,
+        finding_id=finding.id,
+        cluster_id=None,
+        target_provider="cloudflare_abuse",
+        submission_payload={"draft_body": "Please remove this domain."},
+        evidence_manifest=[],
+        drafted_by=uuid.uuid4(),
+    )
+
+    with pytest.raises(ValueError, match="Only reviewers or organization administrators"):
+        approve_response_case(
+            session=db_session,
+            tenant_id=tenant.id,
+            response_case_id=draft.id,
+            approved_by=uuid.uuid4(),
+            approver_role="analyst",
+        )
+    assert draft.lifecycle_state == "draft"
+
+    approved = approve_response_case(
+        session=db_session,
+        tenant_id=tenant.id,
+        response_case_id=draft.id,
+        approved_by=uuid.uuid4(),
+        approver_role="org_admin",
+    )
+    assert approved.lifecycle_state == "approved"
 
 
 def test_campaign_cluster_distinct_identities(db_session):

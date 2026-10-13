@@ -515,3 +515,46 @@ def complete_user_onboarding(
     return {"success": False, "error": "User not found"}
 
 
+def reset_user_onboarding(
+    session: Session,
+    clerk_id: Optional[str] = None,
+    email: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Reset user onboarding status to allow restarting the setup guide from the beginning."""
+    user = None
+    if clerk_id:
+        user = session.scalar(select(User).where(User.clerk_id == clerk_id))
+    if not user and email:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+
+    if not user:
+        if email or clerk_id:
+            return {"success": False, "error": "User not found for provided credentials"}
+        user = session.scalar(select(User).order_by(User.created_at.desc()))
+
+    if user:
+        user.onboarding_completed = False
+        user.primary_brand_id = None
+        session.flush()
+
+        # Delete previous brands for this user's tenant so the old brand profile does not reappear
+        from app.db.models import Brand, TenantMembership
+        membership = session.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id))
+        if membership:
+            old_brands = session.scalars(select(Brand).where(Brand.tenant_id == membership.tenant_id)).all()
+            for b in old_brands:
+                session.delete(b)
+
+        session.commit()
+        return {
+            "success": True,
+            "user_id": str(user.id),
+            "email": user.email,
+            "onboarding_completed": False,
+            "primary_brand_id": None,
+        }
+
+    return {"success": False, "error": "User not found"}
+
+
+

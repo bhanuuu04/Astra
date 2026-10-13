@@ -9,7 +9,8 @@ const isPublicRoute = createRouteMatcher([
   '/landing(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/api/(.*)'
+  '/api/health(.*)',
+  '/api/webhooks/(.*)'  // Webhooks have their own signature-based auth
 ]);
 
 const clerkHandler = clerkMiddleware(async (auth, request) => {

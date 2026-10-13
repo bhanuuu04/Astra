@@ -20,7 +20,7 @@ services:
     build:
       context: ./apps/api
     environment:
-      APP_ENV: development
+      APP_ENV: local
       DATABASE_URL: postgresql+psycopg://astra:astra_dev@db:5432/astra
       CORS_ORIGINS: http://localhost:3000,http://localhost:3001
       ASTRA_INTERNAL_API_KEY: ${ASTRA_INTERNAL_API_KEY:-}
@@ -42,7 +42,7 @@ services:
     build:
       context: ./apps/api
     environment:
-      APP_ENV: development
+      APP_ENV: local
       DATABASE_URL: postgresql+psycopg://astra:astra_dev@db:5432/astra
       CONNECTOR_AUTO_SYNC_ENABLED: "true"
       CONNECTOR_AUTO_SYNC_INTERVAL_SECONDS: "3600"

@@ -3,8 +3,7 @@ import crypto from 'crypto';
 import { analyzeSocialMessage } from '@/lib/threat-engine';
 import { DEFAULT_BRAND_REGISTRY } from '@/lib/store';
 import { SenderProfile, SocialMessage, SocialPlatform } from '@/types/threat';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { validateHexSignature, isValidUUID } from '@/lib/validation';
 
 export async function GET(
   req: NextRequest,
@@ -105,17 +104,36 @@ export async function POST(
       }
 
       const providedHash = signatureHeader.slice(7).trim();
+      
+      // Validate hex format before attempting to decode
+      if (!validateHexSignature(providedHash, 64)) {
+        return NextResponse.json(
+          { error: 'Invalid signature format' },
+          { status: 401 }
+        );
+      }
+
       const expectedHash = crypto
         .createHmac('sha256', appSecret)
         .update(rawText)
         .digest('hex');
 
-      if (
-        providedHash.length !== expectedHash.length ||
-        !crypto.timingSafeEqual(Buffer.from(providedHash, 'hex'), Buffer.from(expectedHash, 'hex'))
-      ) {
+      try {
+        const providedBytes = Buffer.from(providedHash, 'hex');
+        const expectedBytes = Buffer.from(expectedHash, 'hex');
+        
+        if (
+          providedBytes.length !== expectedBytes.length ||
+          !crypto.timingSafeEqual(providedBytes, expectedBytes)
+        ) {
+          return NextResponse.json(
+            { error: 'Invalid Meta X-Hub-Signature-256' },
+            { status: 401 }
+          );
+        }
+      } catch (err) {
         return NextResponse.json(
-          { error: 'Invalid Meta X-Hub-Signature-256' },
+          { error: 'Signature verification failed' },
           { status: 401 }
         );
       }
@@ -172,22 +190,27 @@ export async function POST(
     }
 
     // 2. Tenant and Brand Context Scoping
+    // TODO: Map webhook credential to server-side tenant/brand record
+    // For now, accept IDs but they should be verified against webhook credential mapping
     const searchParams = req.nextUrl.searchParams;
     const paramTenantId = searchParams.get('tenant_id') || req.headers.get('x-astra-tenant-id');
     const paramBrandId = searchParams.get('brand_id') || req.headers.get('x-astra-brand-id');
 
-    if (paramTenantId && !UUID_REGEX.test(paramTenantId)) {
+    if (paramTenantId && !isValidUUID(paramTenantId)) {
       return NextResponse.json(
         { error: 'Invalid tenant_id format. Must be a valid UUID.' },
         { status: 400 }
       );
     }
-    if (paramBrandId && !UUID_REGEX.test(paramBrandId)) {
+    if (paramBrandId && !isValidUUID(paramBrandId)) {
       return NextResponse.json(
         { error: 'Invalid brand_id format. Must be a valid UUID.' },
         { status: 400 }
       );
     }
+    
+    // TODO: Verify webhook credential is authorized for this tenant/brand combination
+    // TODO: Load actual brand registry for the resolved brand instead of DEFAULT
 
     // 3. Normalize Incoming Payloads across Social Providers
     let extractedSender: SenderProfile;
@@ -330,8 +353,17 @@ export async function POST(
       backendErrorDetail = fetchErr?.message || 'Ingestion upstream connection failed';
     }
 
-    // 6. Truthful HTTP Response Contract
+    // 6. Truthful HTTP Response Contract (without leaking backend details)
     if (!dbIngestionSuccess) {
+      // Log detailed diagnostics server-side but don't expose to webhook caller
+      console.error('Webhook ingestion failed:', {
+        platform,
+        backendStatusCode,
+        backendErrorDetail,
+        tenantId: paramTenantId,
+        brandId: paramBrandId
+      });
+      
       return NextResponse.json(
         {
           success: false,
@@ -340,11 +372,7 @@ export async function POST(
           threat_analyzed: true,
           platform,
           threatSeverity: threatAnalysis.severity,
-          riskScore: threatAnalysis.riskScore,
-          diagnostic: {
-            backendStatusCode,
-            backendErrorDetail
-          }
+          riskScore: threatAnalysis.riskScore
         },
         { status: 502 }
       );

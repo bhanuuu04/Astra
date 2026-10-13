@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0"
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Error: no test runner configured yet\" && exit 1",
+    "audit": "npm audit --audit-level=moderate"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.14",
@@ -30,6 +34,8 @@
     "@types/node": "24.0.0",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.0",
     "tailwindcss": "4.3.0",
     "typescript": "5.9.3"
   }

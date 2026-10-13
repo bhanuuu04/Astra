@@ -22,7 +22,7 @@ import {
   Radio,
   Download,
 } from 'lucide-react';
-import { listSightings, listCampaigns, type Sighting, type Campaign } from '@/lib/api';
+import { listSightings, listCampaigns, listBrands, type Sighting, type Campaign, type Brand } from '@/lib/api';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
 import { useDemoSafe } from '@/providers/DemoProvider';
 
@@ -238,16 +238,23 @@ export function AlertsView() {
   const [readAlertIds, setReadAlertIds] = useState<Set<string>>(() => new Set());
   const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(() => new Set());
 
+  const { data: realBrands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => listBrands(),
+    enabled: !isDemoMode,
+  });
+  const currentBrandId = realBrands[0]?.id;
+
   const { data: realSightings, isLoading: realSightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
-    queryKey: ['sightings'],
-    queryFn: () => listSightings(),
+    queryKey: ['sightings', currentBrandId],
+    queryFn: () => listSightings(currentBrandId),
     enabled: !isDemoMode,
     refetchInterval: livePolling ? 15000 : false,
   });
 
   const { data: realCampaigns, isLoading: realCampaignsLoading, isError: campaignsError, refetch: refetchCampaigns } = useQuery({
-    queryKey: ['campaigns'],
-    queryFn: () => listCampaigns(),
+    queryKey: ['campaigns', currentBrandId],
+    queryFn: () => listCampaigns(currentBrandId),
     enabled: !isDemoMode,
     refetchInterval: livePolling ? 30000 : false,
   });

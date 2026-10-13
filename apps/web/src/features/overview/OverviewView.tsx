@@ -199,15 +199,17 @@ export function OverviewView() {
   const isDemoMode = demo?.isDemoMode ?? false;
 
   const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
-  const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview'], queryFn: getOverview, enabled: !isDemoMode, refetchInterval: 30000 });
-  const { data: realCampaigns = [], isLoading: loadingCampaigns, isError: campaignsError, refetch: refetchCampaigns } = useQuery({ queryKey: ['campaigns'], queryFn: () => listCampaigns(), enabled: !isDemoMode });
-  const { data: realSightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings'], queryFn: () => listSightings(), enabled: !isDemoMode });
   const { data: realBrands = [], isLoading: loadingBrands, isError: brandsError, refetch: refetchBrands } = useQuery<Brand[]>({ queryKey: ['brands'], queryFn: () => listBrands(), enabled: !isDemoMode });
+  const brands = isDemoMode ? (demo?.brands as any[]) : realBrands;
+  const currentBrandId = brands[0]?.id;
+
+  const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview'], queryFn: getOverview, enabled: !isDemoMode, refetchInterval: 30000 });
+  const { data: realCampaigns = [], isLoading: loadingCampaigns, isError: campaignsError, refetch: refetchCampaigns } = useQuery({ queryKey: ['campaigns', currentBrandId], queryFn: () => listCampaigns(currentBrandId), enabled: !isDemoMode });
+  const { data: realSightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings', currentBrandId], queryFn: () => listSightings(currentBrandId), enabled: !isDemoMode });
 
   const overview = isDemoMode ? (demo?.overview as any) : realOverview;
   const campaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
   const sightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
-  const brands = isDemoMode ? (demo?.brands as any[]) : realBrands;
 
   // Onboarding Guard: If authenticated and no brand has been registered for this user, direct straight to /guide
   useEffect(() => {

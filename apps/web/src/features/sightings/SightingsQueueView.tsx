@@ -14,7 +14,7 @@ import {
   Network 
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { listSightings, Sighting } from '@/lib/api';
+import { listSightings, listBrands, Sighting, Brand } from '@/lib/api';
 import { DataModeBadge } from '@/components/ui/DataModeBadge';
 import { TriageStatusBadge } from '@/components/ui/TriageStatusBadge';
 import { FindingSourceInfo } from '@/components/findings/FindingSourceInfo';
@@ -40,9 +40,16 @@ export function SightingsQueueView() {
     setMounted(true);
   }, []);
 
+  const { data: realBrands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => listBrands(),
+    enabled: !isDemoMode,
+  });
+  const currentBrandId = searchParams.get('brand') || realBrands[0]?.id;
+
   const { data: realSightings = [], isLoading: realLoading, isError: realError, error } = useQuery({
-    queryKey: ['sightings'],
-    queryFn: () => listSightings(),
+    queryKey: ['sightings', currentBrandId],
+    queryFn: () => listSightings(currentBrandId),
     enabled: !isDemoMode,
   });
 

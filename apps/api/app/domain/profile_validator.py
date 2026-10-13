@@ -125,14 +125,19 @@ async def verify_social_profile_live(
 
             # Specific platform heuristics for successful 2xx responses
             if plat == "instagram":
-                if "page isn't available" in resp.text.lower() or "page may have been removed" in resp.text.lower():
+                text_lower = resp.text.lower()
+                if "page isn't available" in text_lower or "page may have been removed" in text_lower:
                     return False, target_url, "not_found: Instagram page isn't available or was removed"
+                # Check for profile title: real accounts have "(@handle)" or "&#064;handle" or "photos and videos"
+                title_match = re.search(r'<title>(.*?)</title>', resp.text, re.IGNORECASE)
+                title_text = title_match.group(1).strip() if title_match else ""
+                has_profile_title = ("@" in title_text or "&#064;" in title_text or "photos and videos" in title_text.lower())
+                if title_text == "Instagram" or not has_profile_title:
+                    return False, target_url, "not_found: Instagram profile does not exist or requires authentication"
                 return True, target_url, None
 
             if plat == "telegram":
-                if "tgme_page_extra" in resp.text or "tgme_page_title" in resp.text:
-                    if "If you have Telegram, you can contact" in resp.text:
-                        return True, target_url, None
+                if ("tgme_page_action" in resp.text or "tgme_action_button_new" in resp.text) and "tgme_page_title" in resp.text:
                     return True, target_url, None
                 return False, target_url, "not_found: Telegram handle does not exist"
 

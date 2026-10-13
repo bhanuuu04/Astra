@@ -233,10 +233,12 @@ async function astraFetch(url: string, init?: RequestInit): Promise<Response> {
   return response;
 }
 
-export async function getOverview(): Promise<Overview | null> {
+export async function getOverview(brandId?: string): Promise<Overview | null> {
   const tenantId = getActiveTenant()?.id || 'anon';
-  return getOrSetCache(`overview_${tenantId}`, async () => {
-    const response = await astraFetch(`${apiBaseUrl}/api/v1/overview`, { cache: "no-store" });
+  return getOrSetCache(`overview_${tenantId}_${brandId || 'all'}`, async () => {
+    const url = new URL(`${apiBaseUrl}/api/v1/overview`);
+    if (brandId) url.searchParams.set("brand_id", brandId);
+    const response = await astraFetch(url.toString(), { cache: "no-store" });
     return (await response.json()) as Overview;
   }, 10);
 }

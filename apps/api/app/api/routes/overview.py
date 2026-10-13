@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+import uuid
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -13,6 +16,7 @@ router = APIRouter(prefix="/api/v1", tags=["overview"])
 
 @router.get("/overview", response_model=OverviewResponse)
 def get_overview(
+    brand_id: Optional[uuid.UUID] = Query(None, description="Filter statistics by brand"),
     session: Session = Depends(get_session),
     context: TenantContext = Depends(get_current_tenant_context),
 ) -> OverviewResponse:
@@ -22,21 +26,28 @@ def get_overview(
         select(func.count()).select_from(Brand).where(Brand.tenant_id == tenant_id)
     ) or 0
 
-    sightings_count = session.scalar(
-        select(func.count()).select_from(Sighting).where(Sighting.tenant_id == tenant_id)
-    ) or 0
+    sightings_stmt = select(func.count()).select_from(Sighting).where(Sighting.tenant_id == tenant_id)
+    if brand_id:
+        sightings_stmt = sightings_stmt.where(Sighting.brand_id == brand_id)
+    sightings_count = session.scalar(sightings_stmt) or 0
 
-    active_campaigns = session.scalar(
+    camps_stmt = (
         select(func.count())
         .select_from(Campaign)
         .where(Campaign.tenant_id == tenant_id, Campaign.status.notin_(["closed", "rejected"]))
-    ) or 0
+    )
+    if brand_id:
+        camps_stmt = camps_stmt.where(Campaign.brand_id == brand_id)
+    active_campaigns = session.scalar(camps_stmt) or 0
 
-    high_risk = session.scalar(
+    high_risk_stmt = (
         select(func.count())
         .select_from(Campaign)
         .where(Campaign.tenant_id == tenant_id, Campaign.risk_score >= 70)
-    ) or 0
+    )
+    if brand_id:
+        high_risk_stmt = high_risk_stmt.where(Campaign.brand_id == brand_id)
+    high_risk = session.scalar(high_risk_stmt) or 0
 
     return OverviewResponse(
         brands=int(brands_count),

@@ -203,7 +203,7 @@ export function OverviewView() {
   const brands = isDemoMode ? (demo?.brands as any[]) : realBrands;
   const currentBrandId = brands[0]?.id;
 
-  const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview'], queryFn: getOverview, enabled: !isDemoMode, refetchInterval: 30000 });
+  const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview', currentBrandId], queryFn: () => getOverview(currentBrandId), enabled: !isDemoMode, refetchInterval: 30000 });
   const { data: realCampaigns = [], isLoading: loadingCampaigns, isError: campaignsError, refetch: refetchCampaigns } = useQuery({ queryKey: ['campaigns', currentBrandId], queryFn: () => listCampaigns(currentBrandId), enabled: !isDemoMode });
   const { data: realSightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings', currentBrandId], queryFn: () => listSightings(currentBrandId), enabled: !isDemoMode });
 

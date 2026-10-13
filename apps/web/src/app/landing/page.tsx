@@ -33,6 +33,7 @@ import {
 import { useAuth, UserButton } from '@clerk/nextjs';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { type AuthResponse } from '@/lib/api';
+import { DemoEntryModal } from '@/components/demo/DemoEntryModal';
 
 // Motion physics: 180ms ease-out matching Notion design language
 const transitionQuick = { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const };
@@ -41,6 +42,7 @@ const transitionSmooth = { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const };
 export default function LandingPage() {
   const { isSignedIn } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
   
   // Interactive product demo tab
   const [activeDemoTab, setActiveDemoTab] = useState<'radar' | 'dms' | 'dna' | 'nim'>('radar');
@@ -78,7 +80,16 @@ export default function LandingPage() {
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setDemoModalOpen(true)}
+              className="flex items-center gap-1.5 text-[13px] font-bold text-amber-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:brightness-105 active:scale-[0.98] px-3.5 py-1.5 rounded-[6px] shadow-xs border border-amber-400/80 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-900" />
+              <span>BYTE XL Judges Demo</span>
+            </button>
+
             {isSignedIn ? (
               <div className="flex items-center gap-3">
                 <Link
@@ -99,7 +110,7 @@ export default function LandingPage() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/sign-in?type=consumer"
-                  className="text-[13px] font-medium text-[#787774] hover:text-[#37352f] px-2.5 py-1.5 rounded-[6px] hover:bg-[#f7f6f3] transition cursor-pointer"
+                  className="text-[13px] font-medium text-[#787774] hover:text-[#37352f] px-2.5 py-1.5 rounded-[6px] hover:bg-[#f7f6f3] transition cursor-pointer hidden lg:inline-flex"
                 >
                   Consumer Login
                 </Link>
@@ -166,21 +177,35 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...transitionSmooth, delay: 0.18 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
+            className="flex flex-col items-center justify-center gap-3.5 pt-4"
           >
+            {/* Prominent BYTE XL Judges Demo Button */}
+            <motion.button
+              type="button"
+              onClick={() => setDemoModalOpen(true)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-[10px] bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-extrabold text-[16px] shadow-[0_8px_32px_rgba(245,158,11,0.35)] transition-all cursor-pointer border border-amber-300 ring-4 ring-amber-400/20"
+            >
+              <Sparkles className="w-5 h-5 text-amber-950 animate-pulse" />
+              <span>BYTE XL Judges Demo</span>
+              <span className="text-xs font-bold uppercase tracking-wider bg-amber-950/20 px-2 py-0.5 rounded-full text-amber-950">1-Click Live Tour</span>
+              <ArrowRight className="w-5 h-5 text-amber-950 transition-transform group-hover:translate-x-1" />
+            </motion.button>
+
             {isSignedIn ? (
               <Link
                 href="/guide"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[15px] shadow-xs transition active:scale-[0.98]"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[14px] shadow-xs transition active:scale-[0.98]"
               >
                 <span>Launch Security Workspace</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
                 <Link
                   href="/sign-up?type=brand"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[15px] shadow-xs transition active:scale-[0.98] cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[14px] shadow-xs transition active:scale-[0.98] cursor-pointer"
                 >
                   <Building2 className="w-4 h-4" />
                   <span>Start Brand Protection</span>
@@ -188,7 +213,7 @@ export default function LandingPage() {
                 </Link>
                 <Link
                   href="/sign-in?type=consumer"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[8px] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-[#37352f] font-medium text-[15px] shadow-xs transition active:scale-[0.98] cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-[8px] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-[#37352f] font-medium text-[14px] shadow-xs transition active:scale-[0.98] cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4 text-[#0f7b6c]" />
                   <span>Consumer Scam Shield</span>
@@ -832,6 +857,10 @@ export default function LandingPage() {
         onSuccess={(authData: AuthResponse) => {
           window.location.href = '/guide';
         }}
+      />
+      <DemoEntryModal
+        open={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
       />
     </div>
   );

@@ -16,17 +16,31 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listCampaigns, runAnalysisJob } from '@/lib/api';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 export function CampaignListView() {
   const queryClient = useQueryClient();
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
 
-  const { data: campaigns = [], isLoading, isError, error, refetch } = useQuery({
+  const { data: realCampaigns = [], isLoading: realLoading, isError: realError, error, refetch } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => listCampaigns(),
+    enabled: !isDemoMode,
   });
 
+  const campaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
+  const isLoading = isDemoMode ? false : realLoading;
+  const isError = isDemoMode ? false : realError;
+
   const analysisMutation = useMutation({
-    mutationFn: () => runAnalysisJob(),
+    mutationFn: () => {
+      if (isDemoMode) {
+        demo?.addSimulatedAction('run_clustering');
+        return Promise.resolve({} as any);
+      }
+      return runAnalysisJob();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
     },

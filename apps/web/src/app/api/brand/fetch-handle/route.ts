@@ -101,18 +101,16 @@ export async function POST(request: Request) {
     let profileTitle: string | null = null;
     let avatarUrl: string = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanHandle)}&background=0f7b6c&color=fff&rounded=true`;
 
-    // Attempt non-blocking profile probe
+    // Non-blocking fast profile check (max 500ms bounded)
     const norm = platform.toLowerCase().replace('x_twitter', 'twitter');
     let probeUrl = '';
-    if (norm === 'instagram') probeUrl = `https://www.instagram.com/${cleanHandle}/`;
-    else if (norm === 'twitter' || norm === 'x') probeUrl = `https://x.com/${cleanHandle}`;
-    else if (norm === 'linkedin') probeUrl = `https://www.linkedin.com/company/${cleanHandle.replace('company/', '')}/`;
-    else if (norm === 'facebook') probeUrl = `https://www.facebook.com/${cleanHandle}`;
-    else if (norm === 'youtube') probeUrl = `https://www.youtube.com/@${cleanHandle}`;
+    // Only probe public services that permit fast server-side inspection
+    if (norm === 'youtube') probeUrl = `https://www.youtube.com/@${cleanHandle}`;
+    else if (norm === 'github') probeUrl = `https://github.com/${cleanHandle}`;
 
     if (probeUrl) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const timeoutId = setTimeout(() => controller.abort(), 500);
 
       try {
         const probeRes = await fetch(probeUrl, {
@@ -138,7 +136,6 @@ export async function POST(request: Request) {
           }
         }
       } catch {
-        // Network timeout / bot protection fallback: still valid syntactically
         existsCheck = true;
       } finally {
         clearTimeout(timeoutId);

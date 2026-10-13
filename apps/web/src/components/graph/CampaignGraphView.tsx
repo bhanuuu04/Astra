@@ -95,6 +95,8 @@ interface CampaignGraphViewProps {
   onRefresh?: () => void;
 }
 
+const strSlice = (id?: string) => (id ? id.substring(0, 6) : '000000');
+
 export function CampaignGraphView({
   campaignDetail,
   onRefresh,
@@ -329,8 +331,6 @@ export function CampaignGraphView({
       setEdges(dynamicEdges);
     }
   }, [campaignDetail, setNodes, setEdges]);
-
-  const strSlice = (id: string) => id ? id.substring(0, 6) : '000000';
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     if (edge.data) {

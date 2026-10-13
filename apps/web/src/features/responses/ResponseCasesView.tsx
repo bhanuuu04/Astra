@@ -25,6 +25,7 @@ import { ResponseCaseTimeline } from '@/components/responses/ResponseCaseTimelin
 import { ResponseCaseActions } from '@/components/responses/ResponseCaseActions';
 import { Button } from '@/components/ui/button';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 export function ResponseCasesView() {
   const queryClient = useQueryClient();
@@ -34,18 +35,41 @@ export function ResponseCasesView() {
   const [selectedFindingId, setSelectedFindingId] = useState<string>('');
   const [targetProvider, setTargetProvider] = useState('cloudflare_abuse');
 
-  const { data, isLoading, error: casesError, refetch: refetchCases } = useQuery({
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
+  const { data, isLoading: apiLoading, error: casesError, refetch: refetchCases } = useQuery({
     queryKey: ['response_cases'],
     queryFn: () => listResponseCases(),
+    enabled: !isDemoMode,
   });
 
   const { data: findingsData, isLoading: findingsLoading, isError: findingsError, refetch: refetchFindings } = useQuery({
     queryKey: ['response_draft_findings'],
     queryFn: () => listFindings({ limit: 50, offset: 0 }),
+    enabled: !isDemoMode,
   });
 
-  const cases = data?.cases || [];
+  const demoDisplayCases: ResponseCase[] = (demo?.responseCases ?? []).map((rc, idx) => ({
+    id: rc.action_id,
+    tenant_id: 'demo-tenant-bytexl-2026',
+    finding_id: 'demo-sight-002',
+    campaign_cluster_id: rc.campaign_id,
+    lifecycle_state: (idx === 0 ? 'approved' : idx === 1 ? 'submitted' : 'resolved') as any,
+    target_provider: rc.drafts[0]?.recipient_name || 'Cloudflare Abuse Team',
+    case_type: 'infringement_takedown',
+    draft_recipient: rc.drafts[0]?.contact_email || 'abuse@cloudflare.com',
+    draft_subject: rc.drafts[0]?.subject || 'Abuse Report: Phishing Infrastructure',
+    draft_body: rc.drafts[0]?.body_text || 'Formal abuse complaint and evidence package.',
+    drafted_by: 'Demo Security Analyst',
+    approved_by: 'Automated Rule Engine',
+    created_at: rc.created_at,
+  }));
+
+  const cases = isDemoMode ? demoDisplayCases : (data?.cases || []);
   const displayCases: ResponseCase[] = cases;
+  const isLoading = isDemoMode ? false : apiLoading;
+
   const eligibleFindings: Finding[] = (findingsData?.findings || []).filter((finding) => finding.raw_evidence_id && finding.triage_status === 'confirmed_threat');
   const selectedFinding = eligibleFindings.find((finding) => finding.id === selectedFindingId) || eligibleFindings[0];
 
@@ -53,6 +77,13 @@ export function ResponseCasesView() {
 
   const handleApprove = async (id: string) => {
     setActionError(null);
+    if (isDemoMode) {
+      demo?.triggerTakedown(id);
+      demo?.addSimulatedAction('approve_case');
+      setActionSuccess('Simulated case approved. Platform takedown dispatched.');
+      setTimeout(() => setActionSuccess(null), 4000);
+      return;
+    }
     try {
       await approveResponseCase(id);
       setActionSuccess('Response case approved for dispatch.');
@@ -65,6 +96,12 @@ export function ResponseCasesView() {
 
   const handleDispatch = async (id: string) => {
     setActionError(null);
+    if (isDemoMode) {
+      demo?.addSimulatedAction('dispatch_case');
+      setActionSuccess('Simulated dispatch to destination provider completed.');
+      setTimeout(() => setActionSuccess(null), 4000);
+      return;
+    }
     try {
       await dispatchResponseCase(id);
       setActionSuccess('Response case dispatched to destination provider.');
@@ -77,6 +114,12 @@ export function ResponseCasesView() {
 
   const handleResolve = async (id: string) => {
     setActionError(null);
+    if (isDemoMode) {
+      demo?.addSimulatedAction('resolve_case');
+      setActionSuccess('Simulated case marked resolved.');
+      setTimeout(() => setActionSuccess(null), 4000);
+      return;
+    }
     try {
       await resolveResponseCase(id, 'Case verified and resolved by security analyst.');
       setActionSuccess('Response case resolved successfully.');
@@ -147,7 +190,7 @@ export function ResponseCasesView() {
       )}
 
       {/* Main Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div data-tour="response-cases" className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left List Column */}
         <div className="lg:col-span-5 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-[#787774] mb-2">

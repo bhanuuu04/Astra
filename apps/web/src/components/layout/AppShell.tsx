@@ -49,6 +49,9 @@ import {
   type UserInfo,
 } from '@/lib/api';
 import { isClerkAuthConfigured } from '@/lib/auth-config';
+import { useDemoSafe } from '@/providers/DemoProvider';
+import { DemoModeBanner } from '@/components/demo/DemoModeBanner';
+import { GuidedTour, TourLauncher } from '@/components/demo/GuidedTour';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -96,6 +99,10 @@ export function AppShell({ children }: AppShellProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false);
   const [authModalOpen, setAuthModalOpen] = React.useState(false);
 
+  // Demo mode context
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
   // Clerk authentication state
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
@@ -110,17 +117,19 @@ export function AppShell({ children }: AppShellProps) {
     pathname.startsWith('/landing') || 
     pathname.startsWith('/sign-in') || 
     pathname.startsWith('/sign-up') ||
-    pathname.startsWith('/guide');
+    pathname.startsWith('/guide') ||
+    pathname.startsWith('/demo');
 
   // Client-side authentication guard: enforce login on all protected dashboard routes
+  // Skip if demo mode is active — demo has its own localStorage session
   React.useEffect(() => {
+    if (isDemoMode) return; // Demo mode bypasses auth
     const hasLocalAuth = !clerkAuthConfigured && Boolean(getActiveUser() && getAuthToken());
     if (isAuthLoaded && !(clerkAuthConfigured ? isSignedIn : hasLocalAuth) && !isStandalonePage) {
-      // Always redirect to /sign-in without a redirect_url so after login
-      // Clerk routes to /guide (the forceRedirectUrl) instead of back here.
       window.location.href = '/sign-in';
     }
-  }, [isAuthLoaded, isSignedIn, isStandalonePage]);
+  }, [isAuthLoaded, isSignedIn, isStandalonePage, isDemoMode]);
+
 
   // Post-sign-in: Sync user to Supabase, isolate tenant state, handle onboarding routing
   React.useEffect(() => {
@@ -180,6 +189,9 @@ export function AppShell({ children }: AppShellProps) {
           }
         })
         .catch((err) => console.warn('User sync notice:', err));
+    } else if (isDemoMode) {
+      setLocalUser(demo?.user as any);
+      setTenant(demo?.tenant as any);
     } else if (isAuthLoaded && !isSignedIn) {
       if (clerkAuthConfigured) {
         clearSession();
@@ -205,7 +217,7 @@ export function AppShell({ children }: AppShellProps) {
         }).catch(() => {});
       }
     }
-  }, [isSignedIn, clerkUser, isAuthLoaded, pathname, isStandalonePage, queryClient]);
+  }, [isSignedIn, clerkUser, isAuthLoaded, pathname, isStandalonePage, queryClient, isDemoMode, demo]);
 
   const routeParts = pathname.split('/').filter(Boolean);
   const pageRoot = routeParts[0] || 'overview';
@@ -220,14 +232,22 @@ export function AppShell({ children }: AppShellProps) {
     enabled: Boolean(tenant?.id),
     refetchInterval: pathname.startsWith('/alerts') ? 30000 : false,
   });
+  const [currentTime, setCurrentTime] = React.useState<number>(0);
+  React.useEffect(() => {
+    setCurrentTime(Date.now());
+    const timer = setInterval(() => setCurrentTime(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const unreadAlerts = React.useMemo(() => {
-    const cutoff = Date.now() - 1000 * 60 * 30;
+    if (!currentTime) return 0;
+    const cutoff = currentTime - 1000 * 60 * 30;
     return sightings.filter((s: Sighting) => {
       const ts = new Date(s.observed_at || s.created_at).getTime();
       const risk = s.normalized_payload?.threat_analysis?.risk_score || 0;
       return ts > cutoff && risk >= 0.7;
     }).length;
-  }, [sightings]);
+  }, [sightings, currentTime]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -387,6 +407,7 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <DemoModeBanner />
         <header className="astra-topbar z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 sm:px-7">
           <div className="flex min-w-0 items-center gap-2.5">
             <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 md:hidden"><Menu className="h-4 w-4" /></button>
@@ -429,6 +450,8 @@ export function AppShell({ children }: AppShellProps) {
           }}
         />
         <main className="astra-main min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <GuidedTour />
+        <TourLauncher />
       </div>
     </div>
   );

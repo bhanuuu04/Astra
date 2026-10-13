@@ -277,6 +277,36 @@ export async function createBrand(
   }
 }
 
+export async function resetBrandProfile(): Promise<{ success: boolean; message: string }> {
+  appCache.clear();
+  try {
+    if (typeof window !== "undefined") {
+      const nextRes = await fetch("/api/brand/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (nextRes.ok) {
+        return await nextRes.json();
+      }
+    }
+  } catch (e) {
+    console.warn("Next.js brand reset route error, falling back to direct API:", e);
+  }
+
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/reset`, {
+    method: "POST",
+  });
+  return await res.json();
+}
+
+export async function deleteBrand(brandId: string): Promise<boolean> {
+  appCache.clear();
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}`, {
+    method: "DELETE",
+  });
+  return res.ok;
+}
+
 export async function addBrandAsset(
   brandId: string,
   assetType: string,
@@ -381,6 +411,83 @@ export async function listSightings(brandId?: string, surface?: string): Promise
     const res = await astraFetch(url.toString(), { cache: "no-store" });
     return (await res.json()) as Sighting[];
   }, 10);
+}
+
+export type SightingActionResponse = {
+  sighting_id: string;
+  status: string;
+  triage_status: string;
+  is_benign: boolean;
+  message: string;
+  takedown_requested_at?: string | null;
+  whitelisted_at?: string | null;
+  dismissed_at?: string | null;
+};
+
+export async function whitelistSighting(sightingId: string, reason?: string): Promise<SightingActionResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/sightings/${sightingId}/whitelist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason || "Claimed legitimate brand asset by analyst" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to whitelist sighting" }));
+    throw new Error(err.detail || "Failed to whitelist sighting");
+  }
+  appCache.invalidate("sightings");
+  appCache.invalidate("overview");
+  return await res.json();
+}
+
+export async function dismissSighting(sightingId: string, reason?: string): Promise<SightingActionResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/sightings/${sightingId}/dismiss`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason || "Dismissed false positive by analyst" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to dismiss sighting" }));
+    throw new Error(err.detail || "Failed to dismiss sighting");
+  }
+  appCache.invalidate("sightings");
+  appCache.invalidate("overview");
+  return await res.json();
+}
+
+export async function requestTakedownForSighting(
+  sightingId: string,
+  targetProvider?: string,
+  notes?: string
+): Promise<SightingActionResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/sightings/${sightingId}/takedown`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      target_provider: targetProvider || "Registrar Abuse Contact",
+      notes: notes || "Brand impersonation and unauthorized trademark usage takedown request",
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to submit takedown request" }));
+    throw new Error(err.detail || "Failed to submit takedown request");
+  }
+  appCache.invalidate("sightings");
+  appCache.invalidate("overview");
+  return await res.json();
+}
+
+export async function reopenSighting(sightingId: string): Promise<SightingActionResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/sightings/${sightingId}/reopen`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to reopen sighting" }));
+    throw new Error(err.detail || "Failed to reopen sighting");
+  }
+  appCache.invalidate("sightings");
+  appCache.invalidate("overview");
+  return await res.json();
 }
 
 export async function resetDemo(): Promise<DemoResetResult | null> {

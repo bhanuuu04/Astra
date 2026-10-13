@@ -28,6 +28,33 @@ def create_brand(session: Session, data: BrandCreate, tenant_id: Optional[uuid.U
             tenant = get_or_create_default_tenant(session)
             tenant_id = tenant.id
 
+    # Check if a brand profile already exists for this tenant
+    existing_brand = session.scalar(
+        select(Brand)
+        .options(selectinload(Brand.assets))
+        .where(Brand.tenant_id == tenant_id)
+        .order_by(Brand.created_at.desc())
+    )
+
+    if existing_brand:
+        # Update existing brand profile instead of creating redundant duplicate profiles
+        existing_brand.name = data.name
+        existing_brand.status = data.status or "active"
+
+        # Reconcile assets if new assets are provided
+        if data.assets is not None:
+            # Delete existing assets for this brand to replace with new profile assets
+            for old_asset in list(existing_brand.assets):
+                session.delete(old_asset)
+            session.flush()
+
+            for asset_in in data.assets:
+                add_brand_asset(session, existing_brand.id, asset_in)
+
+        session.commit()
+        session.refresh(existing_brand)
+        return existing_brand
+
     brand = Brand(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
@@ -42,6 +69,7 @@ def create_brand(session: Session, data: BrandCreate, tenant_id: Optional[uuid.U
             add_brand_asset(session, brand.id, asset_in)
 
     session.commit()
+    session.refresh(brand)
     return brand
 
 
@@ -111,4 +139,59 @@ def delete_brand_asset(session: Session, brand_id: uuid.UUID, asset_id: uuid.UUI
     session.delete(asset)
     session.commit()
     return True
+
+
+def delete_brand(session: Session, brand_id: uuid.UUID, tenant_id: Optional[uuid.UUID] = None) -> bool:
+    """Delete a brand and clean up references on users and tenant."""
+    from app.db.models import Tenant, User
+    stmt = select(Brand).where(Brand.id == brand_id)
+    if tenant_id:
+        stmt = stmt.where(Brand.tenant_id == tenant_id)
+    brand = session.scalar(stmt)
+    if not brand:
+        return False
+
+    actual_tenant_id = brand.tenant_id
+
+    # Unset references on users and tenant
+    users = session.scalars(select(User).where(User.primary_brand_id == brand_id)).all()
+    for u in users:
+        u.primary_brand_id = None
+        u.onboarding_completed = False
+
+    tenant = session.scalar(select(Tenant).where(Tenant.id == actual_tenant_id))
+    if tenant and tenant.primary_brand_id == brand_id:
+        tenant.primary_brand_id = None
+
+    # Delete brand (cascades to assets, sightings, campaigns, evidence)
+    session.delete(brand)
+    session.commit()
+    return True
+
+
+def reset_tenant_brands(session: Session, tenant_id: uuid.UUID) -> int:
+    """Reset and delete all brands and brand assets for a tenant."""
+    from app.db.models import Tenant, TenantMembership, User
+    brands = list(session.scalars(select(Brand).where(Brand.tenant_id == tenant_id)).all())
+    count = len(brands)
+
+    # Clear users' onboarding and primary brand in this tenant
+    memberships = session.scalars(select(TenantMembership).where(TenantMembership.tenant_id == tenant_id)).all()
+    user_ids = [m.user_id for m in memberships]
+    if user_ids:
+        users = session.scalars(select(User).where(User.id.in_(user_ids))).all()
+        for u in users:
+            u.primary_brand_id = None
+            u.onboarding_completed = False
+
+    tenant = session.scalar(select(Tenant).where(Tenant.id == tenant_id))
+    if tenant:
+        tenant.primary_brand_id = None
+
+    for b in brands:
+        session.delete(b)
+
+    session.commit()
+    return count
+
 

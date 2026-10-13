@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Layers, 
   Plus, 
@@ -14,14 +15,17 @@ import {
   CreditCard, 
   Phone, 
   UserCheck,
+  RotateCcw,
+  Loader2,
   X
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { listBrands, createBrand, Brand } from '@/lib/api';
+import { listBrands, createBrand, resetBrandProfile, getActiveUser, Brand } from '@/lib/api';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 const brandEnrollmentSchema = z.object({
   name: z.string().min(2, 'Brand name must be at least 2 characters'),
@@ -41,13 +45,57 @@ const brandEnrollmentSchema = z.object({
 type BrandEnrollmentFormValues = z.infer<typeof brandEnrollmentSchema>;
 
 export function BrandRegistryView() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
-  const { data: brands = [], isLoading, isError, error, refetch } = useQuery({
+  const handleResetBrands = async () => {
+    if (!window.confirm("Are you sure you want to reset all brand profiles in this workspace?\n\nThis will remove all brands and associated sightings from the database so you can start fresh.")) {
+      return;
+    }
+    setIsResetting(true);
+    try {
+      await resetBrandProfile();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('astra_onboarding_completed');
+        localStorage.removeItem('astra_user_role');
+        localStorage.removeItem('astra_intended_account_type');
+        localStorage.removeItem('astra_current_brand_dna');
+        localStorage.removeItem('astra_configured_brand');
+        localStorage.removeItem('brand_onboarding_v1');
+        localStorage.removeItem('brand_onboarding_v2');
+        const activeUser = getActiveUser();
+        if (activeUser?.email) {
+          localStorage.removeItem(`astra_onboarding_completed_${activeUser.email.toLowerCase()}`);
+        }
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['brands'] }),
+        queryClient.invalidateQueries({ queryKey: ['overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['sightings'] }),
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+      ]);
+      router.push('/guide?reset=true');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to reset brand profiles.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
+  const { data: realBrands = [], isLoading: realLoading, isError: realError, error, refetch } = useQuery({
     queryKey: ['brands'],
     queryFn: () => listBrands(),
+    enabled: !isDemoMode,
   });
+
+  const brands: Brand[] = isDemoMode ? ((demo?.brands as unknown) as Brand[]) : realBrands;
+  const isLoading = isDemoMode ? false : realLoading;
+  const isError = isDemoMode ? false : realError;
 
   const {
     register,
@@ -124,7 +172,23 @@ export function BrandRegistryView() {
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
+          {brands.length > 0 && (
+            <button
+              type="button"
+              onClick={handleResetBrands}
+              disabled={isResetting}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-[6px] text-xs font-semibold shadow-2xs transition cursor-pointer disabled:opacity-50"
+              title="Reset all brand profiles in this workspace"
+            >
+              {isResetting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+              )}
+              <span>{isResetting ? 'Resetting…' : 'Reset brand profile'}</span>
+            </button>
+          )}
           <button
             onClick={() => setIsEnrollModalOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 bg-[#0f7b6c] hover:bg-[#0b5e52] text-white rounded-[6px] text-xs font-semibold shadow-2xs transition cursor-pointer"
@@ -136,7 +200,7 @@ export function BrandRegistryView() {
       </div>
 
       {/* Brand Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div data-tour="brand-registry" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {isLoading ? (
           <div className="col-span-full py-12 text-center text-[#9b9a97] text-xs">
             Loading enrolled brands...

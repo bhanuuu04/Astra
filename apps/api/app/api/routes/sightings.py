@@ -8,12 +8,23 @@ from sqlalchemy.orm import Session
 from app.core.security import TenantContext, get_current_tenant_context, require_write_permission
 from app.db.models import EvidenceObject, Sighting
 from app.db.session import get_session
-from app.domain.sighting_service import ingest_batch, list_sightings
+from app.domain.sighting_service import (
+    dismiss_sighting,
+    ingest_batch,
+    list_sightings,
+    reopen_sighting,
+    takedown_sighting,
+    whitelist_sighting,
+)
 from app.schemas.sighting import (
     EvidenceDetailResponse,
+    SightingActionResponse,
     SightingBatchRequest,
     SightingBatchResponse,
+    SightingDismissRequest,
     SightingResponse,
+    SightingTakedownRequest,
+    SightingWhitelistRequest,
 )
 from app.storage.evidence_storage import load_evidence_content, verify_evidence_integrity
 
@@ -89,3 +100,109 @@ def handle_get_sighting_evidence(
             )
         )
     return results
+
+
+@router.post("/{sighting_id}/whitelist", response_model=SightingActionResponse)
+def handle_whitelist_sighting(
+    sighting_id: uuid.UUID,
+    req: SightingWhitelistRequest = SightingWhitelistRequest(),
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> SightingActionResponse:
+    """Claim target as a legitimate brand asset and whitelist from future threat scans."""
+    try:
+        sighting = whitelist_sighting(
+            session=session,
+            sighting_id=sighting_id,
+            tenant_id=context.tenant_id,
+            actor=context.actor,
+            reason=req.reason or "",
+        )
+        return SightingActionResponse(
+            success=True,
+            sighting=SightingResponse.model_validate(sighting),
+            message="Target successfully whitelisted and added to verified brand perimeter.",
+            triage_status="whitelisted",
+            is_benign=True,
+            sighting_id=str(sighting.id),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{sighting_id}/dismiss", response_model=SightingActionResponse)
+def handle_dismiss_sighting(
+    sighting_id: uuid.UUID,
+    req: SightingDismissRequest = SightingDismissRequest(),
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> SightingActionResponse:
+    """Dismiss threat finding as false positive or benign non-infringing entity."""
+    try:
+        sighting = dismiss_sighting(
+            session=session,
+            sighting_id=sighting_id,
+            tenant_id=context.tenant_id,
+            actor=context.actor,
+            reason=req.reason or "",
+        )
+        return SightingActionResponse(
+            success=True,
+            sighting=SightingResponse.model_validate(sighting),
+            message="Finding dismissed as false positive.",
+            triage_status="dismissed",
+            is_benign=False,
+            sighting_id=str(sighting.id),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{sighting_id}/takedown")
+def handle_takedown_sighting(
+    sighting_id: uuid.UUID,
+    req: SightingTakedownRequest = SightingTakedownRequest(),
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> dict:
+    """Initiate a formal takedown request or abuse report against this impersonator."""
+    try:
+        result = takedown_sighting(
+            session=session,
+            sighting_id=sighting_id,
+            tenant_id=context.tenant_id,
+            actor=context.actor,
+            user_id=context.user_id,
+            target_provider=req.target_provider,
+            notes=req.notes or "",
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{sighting_id}/reopen", response_model=SightingActionResponse)
+def handle_reopen_sighting(
+    sighting_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> SightingActionResponse:
+    """Reopen a previously whitelisted or dismissed sighting back to active investigation."""
+    try:
+        sighting = reopen_sighting(
+            session=session,
+            sighting_id=sighting_id,
+            tenant_id=context.tenant_id,
+            actor=context.actor,
+        )
+        return SightingActionResponse(
+            success=True,
+            sighting=SightingResponse.model_validate(sighting),
+            message="Finding reopened for active investigation.",
+            triage_status="active",
+            is_benign=False,
+            sighting_id=str(sighting.id),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+

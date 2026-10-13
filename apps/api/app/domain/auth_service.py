@@ -538,12 +538,17 @@ def reset_user_onboarding(
         session.flush()
 
         # Delete previous brands for this user's tenant so the old brand profile does not reappear
-        from app.db.models import Brand, TenantMembership
+        from app.db.models import Brand, Tenant, TenantMembership
         membership = session.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id))
         if membership:
+            tenant = session.scalar(select(Tenant).where(Tenant.id == membership.tenant_id))
+            if tenant:
+                tenant.primary_brand_id = None
             old_brands = session.scalars(select(Brand).where(Brand.tenant_id == membership.tenant_id)).all()
             for b in old_brands:
                 session.delete(b)
+            from app.domain.threat_scan_service import clear_scan_state
+            clear_scan_state(str(membership.tenant_id))
 
         session.commit()
         return {

@@ -19,17 +19,19 @@ import {
   Network,
   Play,
   Radar,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Smartphone,
   Sparkles,
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getActiveUser, getOverview, listCampaigns, listSightings, listBrands, runAnalysisJob, type Campaign, type Sighting, type Brand } from '@/lib/api';
+import { getActiveUser, getOverview, listCampaigns, listSightings, listBrands, runAnalysisJob, resetBrandProfile, type Campaign, type Sighting, type Brand } from '@/lib/api';
 import { ThreatTelemetryCharts } from '@/components/analytics/ThreatTelemetryCharts';
 import { ThreatScanHUD } from './ThreatScanHUD';
 import { CategorizedThreatsBoard } from './CategorizedThreatsBoard';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 const panel = 'rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]';
 
@@ -193,14 +195,23 @@ export function OverviewView() {
   const router = useRouter();
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
   const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
-  const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview'], queryFn: getOverview, refetchInterval: 30000 });
-  const { data: campaigns = [], isLoading: loadingCampaigns, isError: campaignsError, refetch: refetchCampaigns } = useQuery({ queryKey: ['campaigns'], queryFn: () => listCampaigns() });
-  const { data: sightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings'], queryFn: () => listSightings() });
-  const { data: brands = [], isLoading: loadingBrands, isError: brandsError, refetch: refetchBrands } = useQuery<Brand[]>({ queryKey: ['brands'], queryFn: () => listBrands() });
+  const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview'], queryFn: getOverview, enabled: !isDemoMode, refetchInterval: 30000 });
+  const { data: realCampaigns = [], isLoading: loadingCampaigns, isError: campaignsError, refetch: refetchCampaigns } = useQuery({ queryKey: ['campaigns'], queryFn: () => listCampaigns(), enabled: !isDemoMode });
+  const { data: realSightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings'], queryFn: () => listSightings(), enabled: !isDemoMode });
+  const { data: realBrands = [], isLoading: loadingBrands, isError: brandsError, refetch: refetchBrands } = useQuery<Brand[]>({ queryKey: ['brands'], queryFn: () => listBrands(), enabled: !isDemoMode });
+
+  const overview = isDemoMode ? (demo?.overview as any) : realOverview;
+  const campaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
+  const sightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
+  const brands = isDemoMode ? (demo?.brands as any[]) : realBrands;
 
   // Onboarding Guard: If authenticated and no brand has been registered for this user, direct straight to /guide
   useEffect(() => {
+    if (isDemoMode) return;
     if (isAuthLoaded && isSignedIn && !loadingBrands && !brandsError && brands.length === 0) {
       const activeUser = getActiveUser();
       const email = activeUser?.email?.toLowerCase();
@@ -209,11 +220,11 @@ export function OverviewView() {
         router.replace('/guide');
       }
     }
-  }, [isAuthLoaded, isSignedIn, loadingBrands, brandsError, brands.length, router]);
+  }, [isAuthLoaded, isSignedIn, loadingBrands, brandsError, brands.length, router, isDemoMode]);
 
   const currentBrandInfo = useMemo(() => {
     const b = brands[0] || null;
-    const domainAsset = b?.assets?.find((asset) => asset.asset_type === 'domain');
+    const domainAsset = b?.assets?.find((asset: any) => asset.asset_type === 'domain');
     return {
       name: b?.name || null,
       domain: domainAsset?.canonical_value || null,
@@ -223,21 +234,84 @@ export function OverviewView() {
 
 
   const analysisMutation = useMutation({
-    mutationFn: () => runAnalysisJob(brands[0]?.id),
+    mutationFn: () => {
+      if (isDemoMode) {
+        demo?.addSimulatedAction('run_analysis');
+        return Promise.resolve({
+          run_id: 'demo-run-' + Date.now(),
+          status: 'completed',
+          brand_id: brands[0]?.id || 'demo-brand',
+          sightings_processed: 15,
+          signals_generated: 12,
+          edges_proposed: 4,
+          campaigns_updated: 2,
+          created_at: new Date().toISOString(),
+        });
+      }
+      const bId = brands[0]?.id;
+      if (!bId) {
+        throw new Error('Please enroll a brand before running analysis.');
+      }
+      return runAnalysisJob(bId);
+    },
     onMutate: () => setAnalysisProgress('Starting analysis…'),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       void queryClient.invalidateQueries({ queryKey: ['overview'] });
       void queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       void queryClient.invalidateQueries({ queryKey: ['sightings'] });
       setAnalysisProgress(data ? `Analysis completed · ${data.signals_generated} signals · ${data.edges_proposed} proposed links` : 'Analysis completed.');
       setTimeout(() => setAnalysisProgress(null), 5000);
     },
-    onError: () => {
-      setAnalysisProgress('Analysis could not reach the API. Check the service connection and try again.');
+    onError: (err: any) => {
+      setAnalysisProgress(err?.message || 'Analysis failed. Check your connection and try again.');
       setTimeout(() => setAnalysisProgress(null), 5000);
     },
   });
 
+  const [isResettingBrand, setIsResettingBrand] = useState(false);
+
+  const handleResetBrand = async () => {
+    const brandName = currentBrandInfo.name || 'this brand';
+    const confirmed = window.confirm(
+      `Are you sure you want to reset the brand profile for "${brandName}"?\n\nThis will remove this brand profile and all associated scan data from the database so you can start fresh.`
+    );
+    if (!confirmed) return;
+
+    setIsResettingBrand(true);
+    try {
+      await resetBrandProfile();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('astra_onboarding_completed');
+        localStorage.removeItem('astra_user_role');
+        localStorage.removeItem('astra_intended_account_type');
+        localStorage.removeItem('astra_current_brand_dna');
+        localStorage.removeItem('astra_configured_brand');
+        localStorage.removeItem('brand_onboarding_v1');
+        localStorage.removeItem('brand_onboarding_v2');
+        const activeUser = getActiveUser();
+        if (activeUser?.email) {
+          localStorage.removeItem(`astra_onboarding_completed_${activeUser.email.toLowerCase()}`);
+        }
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('astra_onboarding_completed_') || k.startsWith('astra_current_brand_dna_'))) {
+            localStorage.removeItem(k);
+          }
+        }
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['brands'] }),
+        queryClient.invalidateQueries({ queryKey: ['overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['sightings'] }),
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+      ]);
+      router.push('/guide?reset=true');
+    } catch (err: any) {
+      alert(err?.message || 'Failed to reset brand profile. Please try again.');
+    } finally {
+      setIsResettingBrand(false);
+    }
+  };
 
   const sortedCampaigns = useMemo(() => [...campaigns].sort((a, b) => b.risk_score - a.risk_score), [campaigns]);
   const sortedSightings = useMemo(() => [...sightings].sort((a, b) => new Date(b.observed_at || b.created_at).getTime() - new Date(a.observed_at || a.created_at).getTime()), [sightings]);
@@ -313,24 +387,46 @@ export function OverviewView() {
             <Sparkles className="h-3.5 w-3.5 text-teal-700" />
             <span>{currentBrandInfo.name ? 'Manage brand' : 'Set up a brand'}</span>
           </Link>
+          {currentBrandInfo.name && (
+            <button
+              type="button"
+              onClick={handleResetBrand}
+              disabled={isResettingBrand}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/70 px-3 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:opacity-50"
+              title="Clear this brand profile from the database and restart onboarding"
+            >
+              {isResettingBrand ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5 text-rose-600" />
+              )}
+              <span>{isResettingBrand ? 'Resetting…' : 'Reset brand profile'}</span>
+            </button>
+          )}
         </div>
       </section>
 
       {/* LIVE OSINT THREAT SCANNER & PERIMETER RADAR HUD */}
-      <ThreatScanHUD
-        brandId={brands[0]?.id}
-        brandName={currentBrandInfo.name || 'No brand enrolled'}
-        brandDomain={currentBrandInfo.domain || ''}
-      />
+      <div data-tour="threat-hud">
+        <ThreatScanHUD
+          brandId={brands[0]?.id}
+          brandName={currentBrandInfo.name || 'No brand enrolled'}
+          brandDomain={currentBrandInfo.domain || ''}
+        />
+      </div>
 
       {/* CATEGORIZED LIVE THREAT INTELLIGENCE & SCAM ACCOUNTS BOARD */}
       <CategorizedThreatsBoard
         sightings={sortedSightings}
         campaigns={campaigns}
+        onThreatUpdated={() => {
+          void refetchSightings();
+          void refetchOverview();
+        }}
       />
 
       {/* 3. KEY METRICS */}
-      <section aria-label="Overview metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section data-tour="stat-cards" aria-label="Overview metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Active campaigns" value={activeCampaignValue} detail="Campaigns currently under investigation" icon={Network} loading={loadingOverview && loadingCampaigns} />
         <StatCard label="High-risk campaigns" value={highRiskValue} detail="Risk score of 80 or higher" icon={CircleAlert} tone="rose" loading={loadingOverview && loadingCampaigns} />
         <StatCard label="Recent findings" value={sightingsValue} detail="Sightings recorded across monitored surfaces" icon={Activity} loading={loadingOverview && loadingSightings} />
@@ -344,7 +440,7 @@ export function OverviewView() {
 
       {/* 5. INVESTIGATIONS & SURFACE COVERAGE */}
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.85fr)]">
-        <div className={`${panel} p-4 sm:p-5`}>
+        <div data-tour="priority-campaigns" className={`${panel} p-4 sm:p-5`}>
           <div className="flex flex-wrap items-start justify-between gap-3 pb-3">
             <div>
               <h2 className="text-sm font-bold text-[#37352f]">Priority investigations</h2>

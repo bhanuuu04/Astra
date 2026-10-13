@@ -158,19 +158,10 @@ export function SocialChannelsStep({
     });
     setFetchStatuses(initialStatuses);
 
-    const updatedResults: Record<string, string> = { ...editableHandles };
-    const newStatuses: Record<string, 'verified' | 'error'> = {};
-
-    for (const app of SUPPORTED_APPS) {
+    const fetchPromises = SUPPORTED_APPS.map(async (app) => {
       const handle = editableHandles[app.id]?.trim();
-      // If handle is 'none' or empty, mark verified immediately without API request
       if (!handle || handle === 'none') {
-        newStatuses[app.id] = 'verified';
-        setFetchStatuses((prev) => ({
-          ...prev,
-          [app.id]: 'verified',
-        }));
-        continue;
+        return { appId: app.id, handle: 'none', status: 'verified' as const };
       }
 
       try {
@@ -185,25 +176,23 @@ export function SocialChannelsStep({
         });
 
         const data = await res.json();
-        if (res.ok && data.canonicalHandle) {
-          updatedResults[app.id] = data.canonicalHandle;
-          newStatuses[app.id] = 'verified';
-        } else {
-          newStatuses[app.id] = 'verified'; // fallback gracefully
-        }
+        const canonical = (res.ok && data.canonicalHandle) ? data.canonicalHandle : handle;
+        return { appId: app.id, handle: canonical, status: 'verified' as const };
       } catch {
-        newStatuses[app.id] = 'verified';
+        return { appId: app.id, handle, status: 'verified' as const };
       }
+    });
 
-      setFetchStatuses((prev) => ({
-        ...prev,
-        [app.id]: 'verified',
-      }));
+    const results = await Promise.all(fetchPromises);
+    const updatedResults: Record<string, string> = { ...editableHandles };
+    const newStatuses: Record<string, 'verified' | 'error'> = {};
 
-      // Small delay for fluid visual cadence
-      await new Promise((r) => setTimeout(r, 180));
+    for (const r of results) {
+      updatedResults[r.appId] = r.handle;
+      newStatuses[r.appId] = r.status;
     }
 
+    setFetchStatuses(newStatuses);
     setEditableHandles(updatedResults);
     setIsBulkFetching(false);
     setBulkFetchComplete(true);

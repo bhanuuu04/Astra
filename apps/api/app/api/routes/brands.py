@@ -12,11 +12,13 @@ from app.db.session import get_session
 from app.domain.brand_service import (
     add_brand_asset,
     create_brand,
+    delete_brand,
     delete_brand_asset,
     get_brand,
     get_brand_asset,
     get_brand_assets,
     list_brands,
+    reset_tenant_brands,
 )
 from app.domain.profile_validator import verify_social_profile_live
 from app.domain.verification_service import (
@@ -60,6 +62,37 @@ def handle_create_brand(
             user.primary_brand_id = brand.id
             user.onboarding_completed = True
             session.commit()
+
+    # Automatically initiate background threat surface scan for the newly enrolled brand
+    try:
+        import asyncio
+        from app.domain.threat_scan_service import run_osint_threat_scan, set_scan_state
+
+        init_scan_state = {
+            "is_scanning": True,
+            "status": "running",
+            "brand_id": str(brand.id),
+            "progress_pct": 5,
+            "stage": "Phase 1: Establishing Canonical Brand Perimeter & DNS Invariants...",
+            "stage_index": 1,
+            "total_stages": 4,
+            "eta_seconds": 35,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "logs": [
+                f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Threat Surface Sentinel activated for newly enrolled brand: {brand.name}"
+            ],
+            "findings_found": 0,
+            "live_threats": [],
+            "completed_at": None,
+        }
+        set_scan_state(f"{brand.tenant_id}:{brand.id}", init_scan_state)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(run_osint_threat_scan(brand_id=brand.id, tenant_id=brand.tenant_id))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
     assets = get_brand_assets(session, brand.id)
     return BrandResponse(
@@ -366,3 +399,37 @@ def handle_delete_brand_asset(
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand asset not found")
     return {"deleted": True, "asset_id": str(asset_id)}
+
+
+@router.post("/reset", summary="Reset brand profile for authenticated tenant")
+def handle_reset_brands(
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> Dict[str, Any]:
+    from app.domain.threat_scan_service import clear_scan_state
+    clear_scan_state(str(context.tenant_id))
+    count = reset_tenant_brands(session, tenant_id=context.tenant_id)
+    return {
+        "success": True,
+        "message": f"Brand profile reset successfully ({count} profile(s) cleared).",
+        "tenant_id": str(context.tenant_id),
+    }
+
+
+@router.delete("/{brand_id}", summary="Delete brand")
+def handle_delete_brand(
+    brand_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> Dict[str, Any]:
+    from app.domain.threat_scan_service import clear_scan_state
+    clear_scan_state(str(brand_id))
+    clear_scan_state(str(context.tenant_id))
+    success = delete_brand(session, brand_id, tenant_id=context.tenant_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Brand {brand_id} not found for authenticated tenant",
+        )
+    return {"success": True, "message": "Brand deleted successfully."}
+

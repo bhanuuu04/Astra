@@ -18,11 +18,15 @@ import { listSightings, Sighting } from '@/lib/api';
 import { DataModeBadge } from '@/components/ui/DataModeBadge';
 import { TriageStatusBadge } from '@/components/ui/TriageStatusBadge';
 import { FindingSourceInfo } from '@/components/findings/FindingSourceInfo';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 export function SightingsQueueView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
 
   const selectedSurface = searchParams.get('surface') || 'all';
   const selectedType = searchParams.get('type') || 'all';
@@ -36,10 +40,15 @@ export function SightingsQueueView() {
     setMounted(true);
   }, []);
 
-  const { data: sightings = [], isLoading, isError, error } = useQuery({
+  const { data: realSightings = [], isLoading: realLoading, isError: realError, error } = useQuery({
     queryKey: ['sightings'],
     queryFn: () => listSightings(),
+    enabled: !isDemoMode,
   });
+
+  const sightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
+  const isLoading = isDemoMode ? false : realLoading;
+  const isError = isDemoMode ? false : realError;
 
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -225,7 +234,7 @@ export function SightingsQueueView() {
       {/* Sightings List */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* Findings table */}
-        <div className="min-w-0 overflow-hidden rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div data-tour="findings-queue" className="min-w-0 overflow-hidden rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center justify-between border-b border-[#e3e2e0] px-4 py-3 sm:px-5">
             <div>
               <h2 className="text-sm font-semibold text-[#37352f]">Observed Findings</h2>
@@ -266,7 +275,10 @@ export function SightingsQueueView() {
                     <button
                       type="button"
                       key={sighting.id}
-                      onClick={() => setActiveSighting(sighting)}
+                      onClick={() => {
+                        setActiveSighting(sighting);
+                        if (isDemoMode) demo?.inspectFinding(sighting.id);
+                      }}
                       className={`grid w-full grid-cols-[84px_minmax(220px,1.5fr)_minmax(100px,.75fr)_minmax(126px,.8fr)_minmax(120px,.8fr)] items-center gap-3 border-b border-[#e3e2e0] px-4 py-3.5 text-left transition sm:px-5 ${
                         isSelected
                           ? 'bg-[#f7f6f3] shadow-[inset_3px_0_0_#0f7b6c]'

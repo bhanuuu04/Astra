@@ -59,3 +59,26 @@ class EvidenceDetailResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class SightingWhitelistRequest(BaseModel):
+    reason: Optional[str] = Field(None, description="Reason for whitelisting / claiming this asset")
+
+
+class SightingDismissRequest(BaseModel):
+    reason: Optional[str] = Field(None, description="Reason for dismissing as false positive")
+
+
+class SightingTakedownRequest(BaseModel):
+    target_provider: Optional[str] = Field(None, description="Provider: registrar_dmca, cloudflare_abuse, meta_takedown, x_abuse, google_abuse")
+    notes: Optional[str] = Field(None, description="Notes or case description for the takedown request")
+
+
+class SightingActionResponse(BaseModel):
+    success: bool
+    sighting: SightingResponse
+    message: str
+    triage_status: Optional[str] = None
+    is_benign: Optional[bool] = None
+    sighting_id: Optional[str] = None
+
+

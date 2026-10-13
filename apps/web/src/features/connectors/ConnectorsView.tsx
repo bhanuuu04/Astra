@@ -27,6 +27,7 @@ import {
 } from '@/lib/api';
 import { ConnectorStatusCard, type ConnectorData } from '@/components/connectors/ConnectorStatusCard';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 const CONNECTOR_PRESETS: Record<string, { name: string; defaultKey: string; keyLabel: string; keyPlaceholder: string; extraField?: string }> = {
   virustotal: {
@@ -80,15 +81,36 @@ export function ConnectorsView() {
   const [secondaryCredential, setSecondaryCredential] = useState<string>('');
   const [rateLimit, setRateLimit] = useState<number>(60);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
+  const { data, isLoading: apiLoading, isError: apiError, error, refetch } = useQuery({
     queryKey: ['connectors'],
     queryFn: () => listConnectors(),
+    enabled: !isDemoMode,
     refetchInterval: 30000,
   });
 
-  const connectors = data?.connectors || [];
+  const demoConnectors: ConnectorData[] = (demo?.connectors ?? []).map((c, i) => ({
+    id: `demo-conn-${i + 1}`,
+    name: c.name,
+    connector_type: c.platform,
+    status: c.enabled ? 'active' : 'unconfigured',
+    last_successful_sync_at: c.lastSyncedAt,
+    last_health_check_at: c.lastSyncedAt,
+    rate_limit_rpm: 120,
+  }));
+
+  const connectors = isDemoMode ? demoConnectors : (data?.connectors || []);
+  const isLoading = isDemoMode ? false : apiLoading;
+  const isError = isDemoMode ? false : apiError;
 
   const handleHealthCheck = async (id: string) => {
+    if (isDemoMode) {
+      demo?.addSimulatedAction('check_connector_health');
+      setNotification({ message: 'Connector credentials verified and active! Status: Optimal', type: 'success' });
+      return;
+    }
     setCheckingId(id);
     try {
       const res = await checkConnectorHealth(id);
@@ -106,6 +128,11 @@ export function ConnectorsView() {
   };
 
   const handleSync = async (id: string) => {
+    if (isDemoMode) {
+      demo?.addSimulatedAction('sync_connector');
+      setNotification({ message: 'Provider sync complete. 15 source records ingested for analyst review.', type: 'success' });
+      return;
+    }
     setSyncingId(id);
     try {
       const res = await syncConnector(id);
@@ -346,7 +373,7 @@ export function ConnectorsView() {
           {[0, 1, 2].map((item) => <div key={item} className="h-52 animate-pulse rounded-xl border border-[#e3e2e0] bg-white" />)}
         </div>
       ) : !isError && (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div data-tour="connectors" className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
         {displayConnectors.map((connector) => (
           <ConnectorStatusCard
             key={connector.id}

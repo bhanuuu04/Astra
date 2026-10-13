@@ -165,6 +165,7 @@ def handle_get_run_signals(
 
 
 @router.post("/start-scan", response_model=ThreatScanStatusResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/threat-scan", response_model=ThreatScanStatusResponse, status_code=status.HTTP_202_ACCEPTED)
 async def handle_start_threat_scan(
     request: ThreatScanRequest,
     session: Session = Depends(get_session),
@@ -208,21 +209,20 @@ async def handle_start_threat_scan(
 
     # Launch asynchronous background worker
     async def _scan_worker(b_id: uuid.UUID, t_id: uuid.UUID):
-        with SessionLocal() as worker_session:
-            try:
-                await run_osint_threat_scan(worker_session, b_id, t_id)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).exception("Background scan worker failed")
-                failed_state = get_scan_state(f"{t_id}:{b_id}") or {}
-                failed_state.update({
-                    "is_scanning": False,
-                    "status": "failed",
-                    "stage": f"Scan failed: {str(e)}",
-                    "completed_at": datetime.now(timezone.utc).isoformat(),
-                })
-                set_scan_state(f"{t_id}:{b_id}", failed_state)
-                set_scan_state(str(t_id), failed_state)
+        try:
+            await run_osint_threat_scan(brand_id=b_id, tenant_id=t_id)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("Background scan worker failed")
+            failed_state = get_scan_state(f"{t_id}:{b_id}") or {}
+            failed_state.update({
+                "is_scanning": False,
+                "status": "failed",
+                "stage": f"Scan failed: {str(e)}",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+            set_scan_state(f"{t_id}:{b_id}", failed_state)
+            set_scan_state(str(t_id), failed_state)
 
     asyncio.create_task(_scan_worker(brand_id, tenant_id))
     return ThreatScanStatusResponse(**initial_state)

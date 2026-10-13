@@ -140,7 +140,7 @@ export function BrandOnboardingForm({
     const domainPrefix = cleanedDomain.split('.')[0];
     const inferredBrandName = data.brandName || domainPrefix.charAt(0).toUpperCase() + domainPrefix.slice(1);
 
-    // Stage 1: Domain & Brand Name (Delay 200ms)
+    // Stage 1: Domain & Brand Name (Delay 35ms)
     setFillingStepMessage('1/6: Resolving Brand Name & Domain...');
     setAutoFilledFields(new Set(['brandName', 'domain']));
     setFormData((prev) => ({
@@ -148,9 +148,9 @@ export function BrandOnboardingForm({
       brandName: inferredBrandName,
       domain: cleanedDomain,
     }));
-    await new Promise((r) => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 35));
 
-    // Stage 2: Legal Entity, Industry & Logo (Delay 240ms)
+    // Stage 2: Legal Entity, Industry & Logo (Delay 35ms)
     setFillingStepMessage('2/6: Auto-filling Corporate DNA & Logo...');
     setAutoFilledFields((prev) => new Set([...prev, 'legalName', 'industry', 'logoUrl']));
     setFormData((prev) => ({
@@ -159,18 +159,18 @@ export function BrandOnboardingForm({
       industry: data.industry || 'Enterprise SaaS & Cloud',
       logoUrl: data.logoUrl || `https://www.google.com/s2/favicons?domain=${cleanedDomain}&sz=128`,
     }));
-    await new Promise((r) => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 35));
 
-    // Stage 3: Executive Summary / Bio (Delay 260ms)
+    // Stage 3: Executive Summary / Bio (Delay 35ms)
     setFillingStepMessage('3/6: Synthesizing Brand Bio & Overview...');
     setAutoFilledFields((prev) => new Set([...prev, 'summary']));
     setFormData((prev) => ({
       ...prev,
       summary: data.summary || `${inferredBrandName} is a verified commercial web property operating on ${cleanedDomain}.`,
     }));
-    await new Promise((r) => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 35));
 
-    // Stage 4: Security & Support Emails + Headquarters (Delay 240ms)
+    // Stage 4: Security & Support Emails + Headquarters (Delay 35ms)
     setFillingStepMessage('4/6: Establishing Incident Response & Headquarters...');
     setAutoFilledFields((prev) => new Set([...prev, 'securityEmail', 'supportEmail', 'headquarters']));
     setFormData((prev) => ({
@@ -179,9 +179,9 @@ export function BrandOnboardingForm({
       supportEmail: `support@${cleanedDomain}`,
       headquarters: data.headquarters || 'United States & Global',
     }));
-    await new Promise((r) => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 35));
 
-    // Stage 5: Threat Keywords & Lookalikes (Delay 260ms)
+    // Stage 5: Threat Keywords & Lookalikes (Delay 35ms)
     setFillingStepMessage('5/6: Configuring Trademark Keywords & Typosquats...');
     setAutoFilledFields((prev) => new Set([...prev, 'threatKeywords', 'highRiskTyposquats']));
     setFormData((prev) => ({
@@ -189,9 +189,9 @@ export function BrandOnboardingForm({
       threatKeywords: data.threatKeywords?.length ? data.threatKeywords : ['login', 'verify', 'support', 'billing', 'kyc'],
       highRiskTyposquats: data.highRiskTyposquats?.length ? data.highRiskTyposquats : [`${domainPrefix}-support.com`, `verify-${cleanedDomain}`, `${domainPrefix}-portal.net`],
     }));
-    await new Promise((r) => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 35));
 
-    // Stage 6: Official Social Handles (Delay 280ms)
+    // Stage 6: Official Social Handles (Delay 40ms)
     setFillingStepMessage('6/6: Connecting Verified Social Footprint...');
     setAutoFilledFields((prev) => new Set([...prev, 'socials']));
     setFormData((prev) => ({
@@ -206,20 +206,20 @@ export function BrandOnboardingForm({
       socialCandidates: data.socialCandidates || {},
       confidenceScore: data.confidenceScore || 98,
     }));
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 40));
 
     setIsSmoothFilling(false);
     setFillingStepMessage('');
 
     setFetchNotice({
-      message: `✨ Successfully analyzed ${cleanedDomain}! Form smoothly filled with ${data.confidenceScore || 98}% AI confidence.`,
+      message: `✨ Successfully analyzed ${cleanedDomain}! Form filled with ${data.confidenceScore || 98}% confidence.`,
       isError: false,
     });
 
-    // Clear highlight glow after 6 seconds
+    // Clear highlight glow after 4 seconds
     setTimeout(() => {
       setAutoFilledFields(new Set());
-    }, 6000);
+    }, 4000);
   };
 
   // Handle Domain Auto-Fetch via API
@@ -238,10 +238,7 @@ export function BrandOnboardingForm({
 
     setIsFetching(true);
     setFetchNotice(null);
-    setFetchProgress('Resolving DNS and perimeter security baseline...');
-
-    const t1 = setTimeout(() => setFetchProgress('Scraping OpenGraph metadata & brand profiles...'), 600);
-    const t2 = setTimeout(() => setFetchProgress('NVIDIA Nemotron 3.5 synthesizing Brand DNA invariants...'), 1400);
+    setFetchProgress('Inspecting domain DNS & live perimeter...');
 
     try {
       const res = await fetch('/api/brand/analyze-domain', {
@@ -255,7 +252,8 @@ export function BrandOnboardingForm({
         throw new Error(data.error || 'Failed to analyze domain.');
       }
 
-      // Smooth animated transition filling
+      setFetchProgress('Populating Brand DNA profile...');
+      // Fast animated transition filling
       await executeSmoothFill(data, cleaned);
 
     } catch (err: any) {
@@ -285,8 +283,6 @@ export function BrandOnboardingForm({
 
       await executeSmoothFill(fallback, cleaned);
     } finally {
-      clearTimeout(t1);
-      clearTimeout(t2);
       setIsFetching(false);
       setFetchProgress('');
     }
@@ -966,10 +962,10 @@ export function BrandOnboardingForm({
           <div className="p-3 rounded-[8px] bg-slate-50 border border-slate-200/80 text-xs text-[#787774] space-y-1">
             <p className="font-semibold text-[#37352f] flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-[#0f7b6c]" />
-              Official Presence Ground-Truth &amp; "None" Zero-Trust Rule:
+              Official Presence Ground-Truth &amp; &quot;None&quot; Zero-Trust Rule:
             </p>
             <p className="text-[11px] leading-relaxed">
-              If your brand does <strong>not</strong> operate an official account on a platform, select <strong>"None"</strong>. ASTRA will enforce a zero-presence invariant, instantly reporting and flagging any accounts found on that platform as malicious impersonators.
+              If your brand does <strong>not</strong> operate an official account on a platform, select <strong>&quot;None&quot;</strong>. ASTRA will enforce a zero-presence invariant, instantly reporting and flagging any accounts found on that platform as malicious impersonators.
             </p>
           </div>
 

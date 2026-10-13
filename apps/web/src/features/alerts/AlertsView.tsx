@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { listSightings, listCampaigns, type Sighting, type Campaign } from '@/lib/api';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 type AlertLevel = 'critical' | 'high' | 'medium' | 'info';
 
@@ -73,12 +74,12 @@ function levelMeta(level: AlertLevel) {
   }
 }
 
-function surfaceIcon(surface?: string) {
-  if (!surface) return Activity;
+function SurfaceIcon({ surface, className }: { surface?: string; className?: string }) {
+  if (!surface) return <Activity className={className} />;
   const s = surface.toLowerCase();
-  if (s.includes('apk') || s.includes('app')) return Smartphone;
-  if (s.includes('web') || s.includes('domain')) return Globe2;
-  return Fingerprint;
+  if (s.includes('apk') || s.includes('app')) return <Smartphone className={className} />;
+  if (s.includes('web') || s.includes('domain')) return <Globe2 className={className} />;
+  return <Fingerprint className={className} />;
 }
 
 function formatRelative(value: string) {
@@ -165,7 +166,6 @@ function AlertRow({ alert, onRead, onDismiss }: {
 }) {
   const meta = levelMeta(alert.level);
   const Icon = meta.icon;
-  const SIcon = surfaceIcon(alert.surface);
 
   return (
     <div className={`group relative flex gap-3.5 rounded-[8px] border p-4 sm:p-5 transition-all bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${meta.style} ${!alert.read ? '' : 'opacity-70'}`}>
@@ -182,7 +182,7 @@ function AlertRow({ alert, onRead, onDismiss }: {
 
         {/* Look-alike Name Variation Pills (Kampus.VC Bonus Criterion) */}
         {alert.lookalikeTags && alert.lookalikeTags.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <div data-tour="lookalike-tags" className="mt-2.5 flex flex-wrap items-center gap-1.5">
             {alert.lookalikeTags.map((tag) => (
               <span
                 key={tag}
@@ -197,7 +197,7 @@ function AlertRow({ alert, onRead, onDismiss }: {
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {alert.surface && (
             <span className="flex items-center gap-1.5 text-xs text-[#787774] font-medium capitalize">
-              <SIcon className="h-3.5 w-3.5 text-[#9b9a97]" />
+              <SurfaceIcon surface={alert.surface} className="h-3.5 w-3.5 text-[#9b9a97]" />
               {alert.surface.replaceAll('_', ' ')}
             </span>
           )}
@@ -228,6 +228,9 @@ function AlertRow({ alert, onRead, onDismiss }: {
 }
 
 export function AlertsView() {
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [levelFilter, setLevelFilter] = useState<AlertLevel | 'all'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -235,17 +238,24 @@ export function AlertsView() {
   const [readAlertIds, setReadAlertIds] = useState<Set<string>>(() => new Set());
   const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(() => new Set());
 
-  const { data: sightings, isLoading: sightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
+  const { data: realSightings, isLoading: realSightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
     queryKey: ['sightings'],
     queryFn: () => listSightings(),
+    enabled: !isDemoMode,
     refetchInterval: livePolling ? 15000 : false,
   });
 
-  const { data: campaigns, isLoading: campaignsLoading, isError: campaignsError, refetch: refetchCampaigns } = useQuery({
+  const { data: realCampaigns, isLoading: realCampaignsLoading, isError: campaignsError, refetch: refetchCampaigns } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => listCampaigns(),
+    enabled: !isDemoMode,
     refetchInterval: livePolling ? 30000 : false,
   });
+
+  const sightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
+  const campaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
+  const sightingsLoading = isDemoMode ? false : realSightingsLoading;
+  const campaignsLoading = isDemoMode ? false : realCampaignsLoading;
 
   useEffect(() => {
     const sightingsReady = sightings !== undefined || sightingsError;
@@ -267,6 +277,9 @@ export function AlertsView() {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
   };
   const handleDismiss = (id: string) => {
+    if (isDemoMode) {
+      demo?.dismissAlert(id);
+    }
     setDismissedAlertIds((current) => new Set(current).add(id));
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
@@ -432,7 +445,7 @@ export function AlertsView() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div data-tour="alert-list" className="space-y-3">
           {filtered.map((alert) => (
             <AlertRow key={alert.id} alert={alert} onRead={handleRead} onDismiss={handleDismiss} />
           ))}

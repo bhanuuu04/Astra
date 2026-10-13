@@ -19,6 +19,7 @@ import {
 import { listSightings, listMobileAppRadar, checkVirusTotal, type Sighting, type MobileAppFinding } from '@/lib/api';
 import { DataModeBadge, type DataMode } from '@/components/ui/DataModeBadge';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 const panel = 'rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]';
 
@@ -283,6 +284,9 @@ function parseSightingsToApps(sightings: Sighting[]): AppEntry[] {
 
 export function AppsRadarView() {
   const queryClient = useQueryClient();
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<AppEntry['status'] | 'all'>('all');
   const [apps, setApps] = useState<AppEntry[]>([]);
@@ -292,14 +296,37 @@ export function AppsRadarView() {
   const { data: radarData, isLoading: radarLoading, isError: radarError, refetch: refetchRadar } = useQuery({
     queryKey: ['mobile_apps_radar'],
     queryFn: () => listMobileAppRadar(),
+    enabled: !isDemoMode,
   });
 
   const { data: sightings = [], isLoading: sightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
     queryKey: ['sightings'],
     queryFn: () => listSightings(),
+    enabled: !isDemoMode,
   });
 
   React.useEffect(() => {
+    if (isDemoMode) {
+      const demoRadarApps: AppEntry[] = (demo?.rogueApps ?? []).map((ra) => ({
+        id: ra.id,
+        appName: ra.appName,
+        packageName: ra.packageName,
+        publisherName: 'Unknown APK Mirror',
+        isPublisherMismatch: true,
+        hasResemblingDescription: true,
+        officialCertMatch: false,
+        downloadUrl: ra.downloadUrl,
+        sha256: ra.sha256,
+        riskScore: ra.riskScore,
+        status: ra.status as any,
+        sourcePlatform: ra.sourcePlatform,
+        discoveredAt: ra.discoveredAt,
+        impersonationDetails: ra.impersonationDetails,
+        dataMode: 'synthetic_demo',
+      }));
+      setApps(demoRadarApps);
+      return;
+    }
     if (radarData && radarData.apps && radarData.apps.length > 0) {
       const liveRadarApps: AppEntry[] = radarData.apps.map((a: MobileAppFinding) => {
         const evidence = a.impersonation_evidence || {};
@@ -332,7 +359,7 @@ export function AppsRadarView() {
     } else {
       setApps([]);
     }
-  }, [radarData, sightings]);
+  }, [radarData, sightings, isDemoMode, demo]);
 
   const handleVtCheck = async (id: string, hash?: string, url?: string) => {
     setVtLoading(id);
@@ -516,7 +543,7 @@ export function AppsRadarView() {
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div data-tour="app-radar" className="space-y-4">
           {filtered.map((app) => (
             <AppCard
               key={app.id}

@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { ClerkProvider } from "@clerk/nextjs";
+import { DemoProvider } from "@/providers/DemoProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,12 +29,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${inter.variable} ${mono.variable} font-sans antialiased min-h-screen bg-slate-50 text-slate-900`}>
-        <ClerkProvider publishableKey={clerkPublishableKey}>
-          <QueryProvider>
-            <AppShell>{children}</AppShell>
-          </QueryProvider>
-        </ClerkProvider>
+        <DemoProvider>
+          <ClerkProvider publishableKey={clerkPublishableKey}>
+            <QueryProvider>
+              <AppShell>{children}</AppShell>
+            </QueryProvider>
+          </ClerkProvider>
+        </DemoProvider>
       </body>
     </html>
   );
 }
+

@@ -18,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCampaign, submitCampaignDecision, CampaignDetail } from '@/lib/api';
 import { CampaignGraphView } from '@/components/graph/CampaignGraphView';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 interface CampaignDetailViewProps {
   campaignId: string;
@@ -25,16 +26,38 @@ interface CampaignDetailViewProps {
 
 export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
   const queryClient = useQueryClient();
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
   const [decisionFeedback, setDecisionFeedback] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
-  const { data: campaignDetail, isLoading, isError, refetch } = useQuery({
+  const isDemoTarget = isDemoMode || campaignId.startsWith('demo-');
+  const demoCampaign = demo?.campaigns?.find((c) => c.id === campaignId) || demo?.campaigns?.[0];
+  const demoMembers = (demo?.sightings ?? []).filter((s) => demoCampaign?.members?.includes(s.id));
+  const demoDetail: CampaignDetail | null = isDemoTarget && demoCampaign ? {
+    campaign: demoCampaign as any,
+    members: demoMembers as any[],
+    edges: (demoCampaign.edges || []) as any[],
+    signals: (demoCampaign.signals || []) as any[],
+  } : null;
+
+  const { data: apiCampaignDetail, isLoading: apiLoading, isError: apiError, refetch } = useQuery({
     queryKey: ['campaign', campaignId],
     queryFn: () => getCampaign(campaignId),
+    enabled: !isDemoTarget,
   });
+
+  const campaignDetail = isDemoTarget ? demoDetail : apiCampaignDetail;
+  const isLoading = isDemoTarget ? false : apiLoading;
+  const isError = isDemoTarget ? false : apiError;
 
   const decisionMutation = useMutation({
     mutationFn: async ({ decision, reason }: { decision: string; reason: string }) => {
+      if (isDemoTarget) {
+        demo?.addSimulatedAction(`campaign_decision_${decision}`);
+        return Promise.resolve({} as any);
+      }
       return await submitCampaignDecision(campaignId, decision, reason);
     },
     onSuccess: (_, variables) => {
@@ -157,7 +180,7 @@ export function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
       </div>
 
       {/* Interactive React Flow Canvas */}
-      <div className="flex-1 min-h-0 relative">
+      <div data-tour="campaign-graph" className="flex-1 min-h-0 relative">
         <CampaignGraphView campaignDetail={campaignDetail} onRefresh={refetch} />
       </div>
     </div>

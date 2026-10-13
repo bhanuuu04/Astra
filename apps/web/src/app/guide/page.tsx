@@ -35,6 +35,8 @@ import {
 import { AccountTypeSelector, type AccountType } from '@/components/auth/AccountTypeSelector';
 import { BrandOnboardingForm, type BrandFormData } from '@/components/brand/BrandOnboardingForm';
 import { SocialChannelsStep } from '@/components/socials/SocialChannelsStep';
+import { resetBrandProfile } from '@/lib/api';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 interface ChannelApp {
   id: string;
@@ -181,9 +183,42 @@ export default function GuideOnboardingPage() {
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
 
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+
   // Determine Initial Step & Role based on URL or local storage
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    if (isDemoMode) {
+      setSelectedRole('brand');
+      setStep(1);
+      setBrandFormData({
+        brandName: 'NexBank Financial',
+        domain: 'nexbank.com',
+        legalName: 'NexBank Financial Group Inc.',
+        industry: 'Fintech & Digital Banking',
+        companySize: '251-1000 employees',
+        summary: 'Cloud-native digital banking platform serving over 2.4 million retail and business customers across mobile, web, and unified payment interfaces.',
+        logoUrl: '',
+        securityEmail: 'security@nexbank.com',
+        supportEmail: 'support@nexbank.com',
+        headquarters: 'San Francisco, CA & Mumbai, IN',
+        threatKeywords: ['login', 'verify', 'support', 'otp', 'kyc', 'airdrop', 'rewards', 'transfer'],
+        highRiskTyposquats: ['nexb4nk.com', 'nexbank-verify.com', 'nexbank-secure-login.com'],
+        socials: {
+          x_twitter: 'NexBankOfficial',
+          instagram: 'nexbank.official',
+          linkedin: 'nexbank-financial',
+          facebook: 'NexBankOfficial',
+          youtube: 'NexBankOfficial',
+        },
+        socialCandidates: {},
+        confidenceScore: 98,
+      });
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const queryType = urlParams.get('type') as AccountType | null;
     const queryStep = urlParams.get('step');
@@ -193,8 +228,13 @@ export default function GuideOnboardingPage() {
       localStorage.removeItem('astra_onboarding_completed');
       localStorage.removeItem('astra_user_role');
       localStorage.removeItem('astra_intended_account_type');
+      localStorage.removeItem('astra_current_brand_dna');
+      localStorage.removeItem('astra_configured_brand');
+      localStorage.removeItem('brand_onboarding_v1');
+      localStorage.removeItem('brand_onboarding_v2');
       setStep(0);
       setSelectedRole(null);
+      setConnectedApps({});
       setResetBannerVisible(true);
       return;
     }
@@ -267,14 +307,21 @@ export default function GuideOnboardingPage() {
 
   // Manual reset helper
   const handleManualReset = async () => {
-    if (window.confirm("Restart setup and change account type?")) {
+    if (window.confirm("Restart setup and change account type? This will clear any enrolled brand in the database.")) {
       setIsResetSession(true);
+      try {
+        await resetBrandProfile();
+      } catch (e) {
+        console.warn("Backend reset warning:", e);
+      }
       if (typeof window !== 'undefined') {
         localStorage.removeItem('astra_onboarding_completed');
         localStorage.removeItem('astra_user_role');
         localStorage.removeItem('astra_intended_account_type');
         localStorage.removeItem('astra_current_brand_dna');
         localStorage.removeItem('astra_configured_brand');
+        localStorage.removeItem('brand_onboarding_v1');
+        localStorage.removeItem('brand_onboarding_v2');
       }
       setStep(0);
       setSelectedRole(null);
@@ -634,6 +681,7 @@ export default function GuideOnboardingPage() {
           {/* STEP 1: DETAILED BRAND SETUP FORM WITH AUTO-FETCH & FRAMER MOTION ANIMATION */}
           {step === 1 && (
             <motion.div
+              data-tour="onboarding-dna"
               key="step-1"
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}

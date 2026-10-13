@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   Plus, 
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
+import { useDemoSafe } from '@/providers/DemoProvider';
 import { 
   getBrand, 
   addBrandAsset, 
@@ -35,6 +37,7 @@ import {
   verifyAssetManual, 
   verifyAssetSocial,
   deleteBrandAsset,
+  deleteBrand,
   Brand, 
   BrandAsset,
   DnsChallengeInstructions
@@ -45,7 +48,9 @@ interface BrandDetailViewProps {
 }
 
 export function BrandDetailView({ brandId }: BrandDetailViewProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const [isDeletingBrand, setIsDeletingBrand] = useState(false);
   const [newAssetType, setNewAssetType] = useState('domain');
   const [newCanonicalVal, setNewCanonicalVal] = useState('');
   const [newCertFingerprint, setNewCertFingerprint] = useState('');
@@ -66,10 +71,20 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
   const [isManualVerifying, setIsManualVerifying] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
 
-  const { data: brand, isLoading, isError, refetch } = useQuery({
+  const demo = useDemoSafe();
+  const isDemoMode = demo?.isDemoMode ?? false;
+  const isDemoBrand = isDemoMode || brandId.startsWith('demo-');
+  const demoBrand = isDemoBrand ? (demo?.brands?.find((b) => b.id === brandId) || demo?.brands?.[0]) : null;
+
+  const { data: apiBrand, isLoading: apiLoading, isError: apiError, refetch } = useQuery({
     queryKey: ['brand', brandId],
     queryFn: () => getBrand(brandId),
+    enabled: !isDemoBrand,
   });
+
+  const brand: Brand | null = isDemoBrand ? ((demoBrand as unknown) as Brand) : (apiBrand ?? null);
+  const isLoading = isDemoBrand ? false : apiLoading;
+  const isError = isDemoBrand ? false : apiError;
 
   const addAssetMutation = useMutation({
     mutationFn: async () => {
@@ -164,6 +179,28 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  const handleDeleteBrand = async () => {
+    const brandName = brand?.name || 'this brand';
+    if (!window.confirm(`Are you sure you want to delete brand profile "${brandName}"?\n\nThis will remove the brand and all linked assets from the database.`)) {
+      return;
+    }
+    setIsDeletingBrand(true);
+    try {
+      const ok = await deleteBrand(brandId);
+      if (ok) {
+        queryClient.invalidateQueries({ queryKey: ['brands'] });
+        queryClient.invalidateQueries({ queryKey: ['overview'] });
+        router.push('/brands');
+      } else {
+        alert('Could not delete brand.');
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete brand.');
+    } finally {
+      setIsDeletingBrand(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-8 text-center text-slate-400 text-sm">Loading Brand DNA details...</div>;
   }
@@ -220,13 +257,29 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-lg text-xs font-bold shadow transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Brand Asset</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-lg text-xs font-bold shadow transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Brand Asset</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteBrand}
+              disabled={isDeletingBrand}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-semibold shadow transition cursor-pointer disabled:opacity-50"
+              title="Delete this brand profile and linked assets"
+            >
+              {isDeletingBrand ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+              <span>{isDeletingBrand ? 'Deleting…' : 'Delete Brand'}</span>
+            </button>
+          </div>
         </div>
       </div>
 

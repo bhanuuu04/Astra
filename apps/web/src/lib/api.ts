@@ -944,6 +944,56 @@ export async function scanMobileAppPackage(id: string, scanType: string = 'virus
   }
 }
 
+export async function scanMobileStores(brandId?: string): Promise<{
+  brand_id: string;
+  brand_name: string;
+  total_discovered: number;
+  threats_detected: number;
+  apps: any[];
+  message: string;
+}> {
+  const payload = brandId ? { brand_id: brandId } : {};
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/apps/scan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Mobile store scan failed.');
+  }
+  return await res.json();
+}
+
+export async function analyzeMobileStoreListing(
+  urlOrPackage: string,
+  brandId?: string
+): Promise<{
+  app_info: any;
+  evaluation: {
+    impersonation_score: number;
+    verdict: string;
+    is_official: boolean;
+    signals: string[];
+    details: string;
+    publisher_mismatch: boolean;
+    has_resembling_description: boolean;
+    detected_keywords?: string[];
+  };
+}> {
+  const payload = { url_or_package: urlOrPackage, brand_id: brandId };
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/apps/analyze-listing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Store listing analysis failed.');
+  }
+  return await res.json();
+}
+
 // -------------------------------------------------------------
 // DRP Phase 0 & 1: Response Cases API
 // -------------------------------------------------------------

@@ -108,3 +108,27 @@ class AppListingComparisonResult(BaseModel):
     title_brand_match: bool = False
     measured_risk_score: float = 0.0
     signals: List[str] = Field(default_factory=list)
+
+
+class StoreAppScanRequest(BaseModel):
+    brand_id: Optional[uuid.UUID] = None
+
+
+class StoreAppScanResponse(BaseModel):
+    brand_id: uuid.UUID
+    brand_name: str
+    total_discovered: int
+    threats_detected: int
+    apps: List[Dict[str, Any]]
+    message: str
+
+
+class StoreAppAnalyzeRequest(BaseModel):
+    url_or_package: str
+    brand_id: Optional[uuid.UUID] = None
+
+
+class StoreAppAnalyzeResponse(BaseModel):
+    app_info: Dict[str, Any]
+    evaluation: Dict[str, Any]
+

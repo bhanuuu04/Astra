@@ -474,9 +474,48 @@ async def run_osint_threat_scan(
             f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Audited public social surfaces. No active collision profiles detected."
         )
 
+    # 3b. Mobile App Store Sentinel (Google Play & Apple App Store)
+    state["stage"] = "Phase 3b: Auditing Google Play Store & Apple App Store for Impersonating Apps..."
+    state["progress_pct"] = 82
+    state["eta_seconds"] = 8
+    state["logs"].append(
+        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Auditing Google Play & Apple App Store for rogue brand applications..."
+    )
+    _publish_state(state, actual_tenant_id, actual_brand_id)
+
+    with _scoped_session(provided_session) as db:
+        brand_obj = db.scalar(select(Brand).where(Brand.id == actual_brand_id))
+        if brand_obj:
+            from app.domain.store_scanner import scan_and_ingest_mobile_store_apps
+            try:
+                store_apps = scan_and_ingest_mobile_store_apps(db, brand_obj, actual_tenant_id)
+                threat_store_apps = [a for a in store_apps if a.get("is_threat")]
+                for sa in threat_store_apps:
+                    state["logs"].append(
+                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [STORE DISCOVERY] Detected candidate app '{sa['app_title']}' ({sa['store_source']}) by '{sa['publisher_name']}' - Impersonation Risk: {sa['risk_score']}%"
+                    )
+                    threat_item = {
+                        "id": sa["finding_id"],
+                        "surface": sa["store_source"],
+                        "target": sa["app_title"],
+                        "target_url": sa["store_url"],
+                        "risk_score": sa["risk_score"],
+                        "summary": sa["details"],
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    live_threats_list.append(threat_item)
+                state["live_threats"] = list(live_threats_list)
+                state["findings_found"] = len(live_threats_list)
+                if not threat_store_apps:
+                    state["logs"].append(
+                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Google Play & Apple App Store audit completed. No malicious lookalike packages detected."
+                    )
+            except Exception as e:
+                logger.warning(f"Error auditing mobile stores in OSINT scan: {e}")
+
     # 4. Ingest Discovered Findings into Database
-    state["progress_pct"] = 85
-    state["eta_seconds"] = 6
+    state["progress_pct"] = 88
+    state["eta_seconds"] = 4
     state["stage"] = "Phase 4: Cryptographic Ingestion & Autonomous Correlation..."
     state["stage_index"] = 4
     _publish_state(state, actual_tenant_id, actual_brand_id)

@@ -6,15 +6,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.security import TenantContext, get_current_tenant_context, require_write_permission
+from app.db.models import Brand
 from app.db.session import get_session
 from app.domain.mobile_app_service import (
     get_mobile_app_radar,
     queue_apk_scan,
 )
+from app.domain.store_scanner import (
+    analyze_single_store_url_or_pkg,
+    scan_and_ingest_mobile_store_apps,
+)
 from app.schemas.mobile_app import (
     MobileAppRadarListResponse,
     MobileAppScanRequest,
     MobileAppScanResponse,
+    StoreAppAnalyzeRequest,
+    StoreAppAnalyzeResponse,
+    StoreAppScanRequest,
+    StoreAppScanResponse,
 )
 
 router = APIRouter(prefix="/api/v1/apps", tags=["mobile_apps"])
@@ -133,3 +142,97 @@ def handle_scan_app_package(
         scan_id=None,  # TODO: Return actual scan ID from queue
         message=message
     )
+
+
+@router.post("/scan", response_model=StoreAppScanResponse)
+def handle_scan_store_apps(
+    request: Optional[StoreAppScanRequest] = None,
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(require_write_permission),
+) -> StoreAppScanResponse:
+    """Scan Apple App Store & Google Play for brand app impersonations.
+
+    - Queries live listings on Google Play & Apple App Store
+    - Performs heuristic and publisher identity comparison against brand
+    - Calculates impersonation risk score and detects rogue lookalikes
+    - Automatically ingests verified findings into Mobile App Radar and Sightings queue
+    """
+    from sqlalchemy import select
+
+    brand_id = request.brand_id if request else None
+
+    # Resolve brand
+    if brand_id:
+        brand = session.scalar(select(Brand).where(Brand.id == brand_id, Brand.tenant_id == context.tenant_id))
+    else:
+        brand = session.scalar(select(Brand).where(Brand.tenant_id == context.tenant_id).order_by(Brand.created_at.desc()))
+
+    if not brand:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No enrolled brand found for this workspace. Please enroll a brand first."
+        )
+
+    discovered_apps = scan_and_ingest_mobile_store_apps(session, brand, context.tenant_id)
+    threats = [a for a in discovered_apps if a.get("is_threat")]
+
+    return StoreAppScanResponse(
+        brand_id=brand.id,
+        brand_name=brand.name,
+        total_discovered=len(discovered_apps),
+        threats_detected=len(threats),
+        apps=discovered_apps,
+        message=f"App store audit complete for '{brand.name}'. Analyzed {len(discovered_apps)} public store applications; {len(threats)} potential brand impersonators flagged."
+    )
+
+
+@router.post("/analyze-listing", response_model=StoreAppAnalyzeResponse)
+def handle_analyze_store_listing(
+    request: StoreAppAnalyzeRequest,
+    session: Session = Depends(get_session),
+    context: TenantContext = Depends(get_current_tenant_context),
+) -> StoreAppAnalyzeResponse:
+    """Analyze any arbitrary Google Play or App Store listing or package ID on demand.
+
+    Inspects developer identity, title, package, and description keywords to determine
+    whether it impersonates the specified or active brand.
+    """
+    from sqlalchemy import select
+    from app.db.models import BrandAsset
+
+    brand_id = request.brand_id
+    if brand_id:
+        brand = session.scalar(select(Brand).where(Brand.id == brand_id, Brand.tenant_id == context.tenant_id))
+    else:
+        brand = session.scalar(select(Brand).where(Brand.tenant_id == context.tenant_id).order_by(Brand.created_at.desc()))
+
+    brand_name = brand.name if brand else "Brand"
+    official_packages: list[str] = []
+    official_publishers: list[str] = []
+
+    if brand:
+        brand_assets = list(session.scalars(select(BrandAsset).where(BrandAsset.brand_id == brand.id)).all())
+        official_packages = [
+            a.canonical_value.lower().strip()
+            for a in brand_assets
+            if a.asset_type in ("mobile_app", "mobile_app_pkg")
+        ]
+        official_publishers = [
+            (a.asset_metadata or {}).get("publisher_name", "").strip()
+            for a in brand_assets
+            if (a.asset_metadata or {}).get("publisher_name")
+        ]
+        official_publishers.append(brand.name)
+
+    result = analyze_single_store_url_or_pkg(
+        url_or_pkg=request.url_or_package,
+        brand_name=brand_name,
+        official_packages=official_packages,
+        official_publishers=official_publishers,
+    )
+
+    return StoreAppAnalyzeResponse(
+        app_info=result["app_info"],
+        evaluation=result["evaluation"],
+    )
+

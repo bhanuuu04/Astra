@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Smartphone,
   ShieldAlert,
@@ -15,8 +15,25 @@ import {
   RefreshCw,
   AlertTriangle,
   Download,
+  Play,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  X,
+  ShieldQuestion,
+  Globe2,
 } from 'lucide-react';
-import { listSightings, listMobileAppRadar, checkVirusTotal, type Sighting, type MobileAppFinding } from '@/lib/api';
+import {
+  listSightings,
+  listMobileAppRadar,
+  listBrands,
+  scanMobileStores,
+  analyzeMobileStoreListing,
+  checkVirusTotal,
+  type Sighting,
+  type MobileAppFinding,
+  type Brand,
+} from '@/lib/api';
 import { DataModeBadge, type DataMode } from '@/components/ui/DataModeBadge';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
 import { useDemoSafe } from '@/providers/DemoProvider';
@@ -149,6 +166,16 @@ function AppCard({ app, onVtCheck, isChecking, checkError }: {
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-500 border-t border-slate-100 pt-3">
           <span>Observed: <strong>{formatDate(app.discoveredAt)}</strong></span>
           <span>Surface: <strong className="capitalize">{app.sourcePlatform.replaceAll('_', ' ')}</strong></span>
+          {app.downloadUrl && (
+            <a
+              href={app.downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-[#0f7b6c] hover:underline"
+            >
+              Open in Store <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
           {app.sha256 && (
             <span className="flex items-center font-mono text-[10px]">
               SHA256: {app.sha256.slice(0, 12)}…
@@ -292,18 +319,70 @@ export function AppsRadarView() {
   const [apps, setApps] = useState<AppEntry[]>([]);
   const [vtLoading, setVtLoading] = useState<string | null>(null);
   const [vtErrors, setVtErrors] = useState<Record<string, string>>({});
+  const [scanFeedback, setScanFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Analyze single listing modal state
+  const [isAnalyzeModalOpen, setIsAnalyzeModalOpen] = useState(false);
+  const [targetInput, setTargetInput] = useState('');
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  const { data: realBrands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => listBrands(),
+    enabled: !isDemoMode,
+  });
+  const currentBrand = realBrands[0] || null;
+  const currentBrandId = currentBrand?.id;
 
   const { data: radarData, isLoading: radarLoading, isError: radarError, refetch: refetchRadar } = useQuery({
-    queryKey: ['mobile_apps_radar'],
-    queryFn: () => listMobileAppRadar(),
+    queryKey: ['mobile_apps_radar', currentBrandId],
+    queryFn: () => listMobileAppRadar({ brand_id: currentBrandId }),
     enabled: !isDemoMode,
   });
 
   const { data: sightings = [], isLoading: sightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
-    queryKey: ['sightings'],
-    queryFn: () => listSightings(),
+    queryKey: ['sightings', currentBrandId],
+    queryFn: () => listSightings(currentBrandId),
     enabled: !isDemoMode,
   });
+
+  const scanStoreMutation = useMutation({
+    mutationFn: () => scanMobileStores(currentBrandId),
+    onSuccess: (data) => {
+      setScanFeedback({
+        message: data.message || `Store scan completed for ${data.brand_name}: ${data.total_discovered} apps evaluated, ${data.threats_detected} threats flagged.`,
+        type: 'success',
+      });
+      queryClient.invalidateQueries({ queryKey: ['mobile_apps_radar'] });
+      queryClient.invalidateQueries({ queryKey: ['sightings'] });
+      setTimeout(() => setScanFeedback(null), 8000);
+    },
+    onError: (err: any) => {
+      setScanFeedback({
+        message: err?.message || 'Failed to scan app stores. Please check connection.',
+        type: 'error',
+      });
+      setTimeout(() => setScanFeedback(null), 8000);
+    },
+  });
+
+  const handleAnalyzeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetInput.trim()) return;
+    setAnalyzeLoading(true);
+    setAnalyzeError(null);
+    setAnalysisResult(null);
+    try {
+      const res = await analyzeMobileStoreListing(targetInput.trim(), currentBrandId);
+      setAnalysisResult(res);
+    } catch (err: any) {
+      setAnalyzeError(err.message || 'Analysis failed. Check your URL or package ID.');
+    } finally {
+      setAnalyzeLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     if (isDemoMode) {
@@ -437,7 +516,23 @@ export function AppsRadarView() {
             Detects rogue APKs, publisher mismatches, mimicking app descriptions, and unauthorized store packages across Google Play, Apple App Store, and APK mirrors.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => scanStoreMutation.mutate()}
+            disabled={scanStoreMutation.isPending}
+            className="inline-flex h-9 items-center gap-2 rounded-[6px] bg-[#0f7b6c] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#0b5e52] disabled:opacity-60 cursor-pointer"
+          >
+            {scanStoreMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {scanStoreMutation.isPending ? 'Auditing Stores…' : 'Audit Play Store & App Store'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAnalyzeModalOpen(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[#e3e2e0] bg-white px-3 text-xs font-medium text-[#37352f] shadow-xs transition hover:bg-[#f7f6f3] cursor-pointer"
+          >
+            <Search className="h-3.5 w-3.5 text-[#0f7b6c]" />Analyze Store App
+          </button>
           <button
             onClick={exportCsv}
             className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[#e3e2e0] bg-white px-3 text-xs font-medium text-[#37352f] shadow-xs transition hover:bg-[#f7f6f3] cursor-pointer"
@@ -455,6 +550,33 @@ export function AppsRadarView() {
           </button>
         </div>
       </header>
+
+      {scanFeedback && (
+        <div
+          role="status"
+          className={`flex items-center justify-between rounded-lg border p-3.5 text-xs font-medium ${
+            scanFeedback.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : 'border-rose-200 bg-rose-50 text-rose-900'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {scanFeedback.type === 'success' ? (
+              <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            )}
+            <span>{scanFeedback.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setScanFeedback(null)}
+            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Official App Protection Guard Banner (Rubric Requirement) */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#0f7b6c]/30 bg-[#0f7b6c]/5 p-3.5 text-xs text-[#0f7b6c]">
@@ -560,6 +682,166 @@ export function AppsRadarView() {
         <span>{apps.length} total mobile applications tracked</span>
         <span>Findings reflect the sources configured for this workspace.</span>
       </footer>
+
+      {/* Interactive Store App Impersonation Analysis Modal */}
+      {isAnalyzeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div
+            className="w-full max-w-lg rounded-2xl border border-[#e3e2e0] bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#e3e2e0]">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 border border-teal-200 text-[#0f7b6c]">
+                  <Smartphone className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#37352f]">Analyze Store App Listing</h3>
+                  <p className="text-xs text-[#787774]">
+                    Audit Google Play &amp; Apple App Store listings against {currentBrand?.name || 'brand'}.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAnalyzeModalOpen(false);
+                  setAnalysisResult(null);
+                  setAnalyzeError(null);
+                }}
+                className="rounded-lg p-1 text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f] transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAnalyzeSubmit} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#37352f] mb-1">
+                  Google Play URL, App Store Link, or Package/Bundle ID
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. https://apps.apple.com/app/id... or com.example.app"
+                  value={targetInput}
+                  onChange={(e) => setTargetInput(e.target.value)}
+                  className="w-full rounded-xl border border-[#e3e2e0] bg-[#f7f6f3] px-3.5 py-2.5 text-xs text-[#37352f] placeholder:text-[#9b9a97] focus:bg-white focus:border-[#0f7b6c] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAnalyzeModalOpen(false);
+                    setAnalysisResult(null);
+                  }}
+                  className="rounded-xl border border-[#e3e2e0] bg-[#f7f6f3] px-4 py-2 text-xs font-semibold text-[#37352f] hover:bg-[#ebe8e4] transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={analyzeLoading || !targetInput.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#0b5e52] disabled:opacity-50 cursor-pointer"
+                >
+                  {analyzeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                  {analyzeLoading ? 'Auditing Listing…' : 'Run Impersonation Audit'}
+                </button>
+              </div>
+            </form>
+
+            {analyzeError && (
+              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                {analyzeError}
+              </div>
+            )}
+
+            {analysisResult && (
+              <div className="mt-4 rounded-xl border border-[#e3e2e0] bg-[#faf9f8] p-4 space-y-3 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9b9a97]">
+                      {analysisResult.app_info?.store_source === 'google_play' ? 'Google Play Store' : 'Apple App Store'}
+                    </span>
+                    <h4 className="text-sm font-bold text-[#37352f] mt-0.5">
+                      {analysisResult.app_info?.app_title}
+                    </h4>
+                    <p className="font-mono text-[11px] text-[#787774]">{analysisResult.app_info?.package_name}</p>
+                    <p className="text-[11px] text-[#787774] mt-0.5">
+                      Publisher: <strong>{analysisResult.app_info?.publisher_name || 'Unknown'}</strong>
+                    </p>
+                  </div>
+
+                  <span
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                      analysisResult.evaluation?.verdict === 'IMPERSONATION_DETECTED'
+                        ? 'border-rose-300 bg-rose-100 text-rose-800'
+                        : analysisResult.evaluation?.verdict === 'SUSPICIOUS_UNAUTHORIZED'
+                        ? 'border-amber-300 bg-amber-100 text-amber-800'
+                        : analysisResult.evaluation?.verdict === 'VERIFIED_OFFICIAL'
+                        ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                        : 'border-[#e3e2e0] bg-white text-[#787774]'
+                    }`}
+                  >
+                    {analysisResult.evaluation?.verdict?.replaceAll('_', ' ')}
+                  </span>
+                </div>
+
+                <div className="border-t border-[#e3e2e0] pt-2">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-[#37352f] mb-1">
+                    <span>Impersonation Risk Score</span>
+                    <span>{analysisResult.evaluation?.impersonation_score} / 100</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3e2e0]">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        (analysisResult.evaluation?.impersonation_score ?? 0) >= 70
+                          ? 'bg-rose-600'
+                          : (analysisResult.evaluation?.impersonation_score ?? 0) >= 40
+                          ? 'bg-amber-600'
+                          : 'bg-emerald-600'
+                      }`}
+                      style={{ width: `${analysisResult.evaluation?.impersonation_score ?? 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs leading-relaxed text-[#37352f]">
+                  <strong>Forensic verdict:</strong> {analysisResult.evaluation?.details}
+                </p>
+
+                {analysisResult.evaluation?.signals && analysisResult.evaluation.signals.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {analysisResult.evaluation.signals.map((sig: string) => (
+                      <span
+                        key={sig}
+                        className="rounded bg-white border border-[#e3e2e0] px-2 py-0.5 text-[10px] font-mono font-medium text-[#787774]"
+                      >
+                        {sig}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {analysisResult.app_info?.store_url && (
+                  <div className="pt-1">
+                    <a
+                      href={analysisResult.app_info.store_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-[#0f7b6c] hover:underline text-xs"
+                    >
+                      Inspect live store listing <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

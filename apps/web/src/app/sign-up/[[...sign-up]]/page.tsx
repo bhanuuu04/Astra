@@ -197,6 +197,31 @@ export default function SignUpPage() {
     clerkKey.startsWith('pk_')
   );
 
+  const [portalMode, setPortalMode] = useState<'brand' | 'consumer'>('brand');
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryType = urlParams.get('type') as 'brand' | 'consumer' | null;
+      if (queryType === 'consumer' || queryType === 'brand') {
+        setPortalMode(queryType);
+        localStorage.setItem('astra_intended_account_type', queryType);
+      } else {
+        const stored = localStorage.getItem('astra_intended_account_type') as 'brand' | 'consumer' | null;
+        if (stored) setPortalMode(stored);
+      }
+    }
+  }, []);
+
+  const handleTogglePortal = (mode: 'brand' | 'consumer') => {
+    setPortalMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('astra_intended_account_type', mode);
+    }
+  };
+
+  const redirectUrl = `/guide?type=${portalMode}`;
+
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#f7f6f3] text-[#37352f] p-4 sm:p-6 selection:bg-[#0f7b6c]/15 selection:text-[#0f7b6c] font-sans antialiased">
       {/* Top Header */}
@@ -219,16 +244,57 @@ export default function SignUpPage() {
       </div>
 
       {/* Main Centered Sign-Up Container */}
-      <div className="w-full flex flex-col items-center justify-center py-6 sm:py-12">
+      <div className="w-full flex flex-col items-center justify-center py-6 sm:py-10 space-y-5">
+        {/* Portal Mode Switcher */}
+        <div className="w-full max-w-[420px] bg-white rounded-[10px] border border-[#e3e2e0] p-1.5 shadow-2xs flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => handleTogglePortal('brand')}
+            className={`flex-1 py-2 px-3 rounded-[6px] text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
+              portalMode === 'brand'
+                ? 'bg-[#0f7b6c] text-white shadow-xs'
+                : 'text-[#787774] hover:text-[#37352f] hover:bg-[#f7f6f3]'
+            }`}
+          >
+            <span>🏢 Brand Account</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTogglePortal('consumer')}
+            className={`flex-1 py-2 px-3 rounded-[6px] text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
+              portalMode === 'consumer'
+                ? 'bg-[#0f7b6c] text-white shadow-xs'
+                : 'text-[#787774] hover:text-[#37352f] hover:bg-[#f7f6f3]'
+            }`}
+          >
+            <span>👤 Consumer Account</span>
+          </button>
+        </div>
+
+        {/* Portal Subtitle */}
+        <div className="text-center max-w-[420px]">
+          <p className="text-xs text-[#787774]">
+            {portalMode === 'brand' ? (
+              <span className="inline-flex items-center gap-1 text-[#0f7b6c] font-medium">
+                🏢 Registering for <strong>Brand Defense Workspace</strong> (Enterprise &amp; Creators)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[#0f7b6c] font-medium">
+                👤 Registering for <strong>Consumer Safety Hub</strong> (Personal Scam Shield)
+              </span>
+            )}
+          </p>
+        </div>
+
         {isClerkConfigured ? (
           <ClerkErrorBoundary fallback={<NativeSignUpForm />}>
             <div className="w-full flex justify-center">
               <SignUp 
                 routing="path" 
                 path="/sign-up" 
-                signInUrl="/sign-in"
-                fallbackRedirectUrl="/guide" 
-                forceRedirectUrl="/guide" 
+                signInUrl={`/sign-in?type=${portalMode}`}
+                fallbackRedirectUrl={redirectUrl} 
+                forceRedirectUrl={redirectUrl} 
                 appearance={{
                   elements: {
                     card: "shadow-[0_4px_24px_rgba(0,0,0,0.06)] border border-[#e3e2e0] rounded-[10px] bg-white w-full max-w-[420px] p-6 sm:p-8",

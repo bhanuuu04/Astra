@@ -163,27 +163,58 @@ async def run_osint_threat_scan(
     # 2. Generate Candidate Domains and Query Cloudflare DoH
     candidates = generate_candidate_domains(canonical_domain, brand.name)
     state["logs"].append(
-        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Generated {len(candidates)} lookalike permutations."
+        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Generated {len(candidates)} lookalike permutations across OSINT vectors."
     )
+    set_scan_state(key, state)
+    set_scan_state(str(tenant_id), state)
 
     live_discovered: List[Tuple[str, List[str]]] = []
+    live_threats_list: List[Dict[str, Any]] = []
+
     async with httpx.AsyncClient() as client:
         # Run batches of 10 concurrent requests to respect rate limits
         batch_size = 10
-        for i in range(0, len(candidates), batch_size):
+        total_batches = (len(candidates) + batch_size - 1) // batch_size
+        for batch_idx, i in enumerate(range(0, len(candidates), batch_size)):
             batch = candidates[i:i + batch_size]
             results = await asyncio.gather(*[check_domain_doh(client, d) for d in batch])
             for r in results:
                 if r:
                     live_discovered.append(r)
+                    whois_link = f"https://who.is/whois/{r[0]}"
+                    threat_item = {
+                        "category": "domain",
+                        "title": r[0],
+                        "domain": r[0],
+                        "surface": "web",
+                        "ips": r[1],
+                        "target_url": f"https://{r[0]}",
+                        "whois": whois_link,
+                        "whois_url": whois_link,
+                        "risk_score": 88,
+                        "risk_level": "high",
+                        "details": f"Active registered lookalike domain ({r[0]}) resolved to IP(s): {', '.join(r[1])}.",
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    live_threats_list.append(threat_item)
+                    state["live_threats"] = list(live_threats_list)
+                    state["findings_found"] = len(live_threats_list)
                     state["logs"].append(
                         f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [ALERT] Live registered domain detected: {r[0]} (IP: {r[1][0]})"
                     )
+            # Update progress incrementally
+            pct_step = 25 + int(35 * ((batch_idx + 1) / max(total_batches, 1)))
+            state["progress_pct"] = min(pct_step, 60)
+            state["eta_seconds"] = max(24 - int(12 * ((batch_idx + 1) / max(total_batches, 1))), 14)
+            set_scan_state(key, state)
+            set_scan_state(str(tenant_id), state)
 
-    state["progress_pct"] = 65
-    state["eta_seconds"] = 15
-    state["stage"] = "Phase 3: Auditing Social Handles & Perimeter Collisions..."
+    state["progress_pct"] = 62
+    state["eta_seconds"] = 14
+    state["stage"] = "Phase 3: Auditing Social Handles & Perimeter Impersonator Radar..."
     state["stage_index"] = 3
+    set_scan_state(key, state)
+    set_scan_state(str(tenant_id), state)
 
     # 3. Social Handles Lookalike Permutations & Live Validation
     stem = canonical_domain.split(".")[0]
@@ -198,28 +229,53 @@ async def run_osint_threat_scan(
 
     live_social_threats: List[Tuple[str, str, str]] = []
     # Probe social surfaces for active impersonator handles asynchronously
-    for handle in novel_handles:
+    for h_idx, handle in enumerate(novel_handles):
         for surf in ["telegram", "instagram"]:
             try:
                 is_live, target_url, _ = await verify_social_profile_live(surf, handle, timeout=3.0)
                 if is_live:
                     live_social_threats.append((surf, handle, target_url))
+                    clean_h = handle.lstrip("@")
+                    threat_item = {
+                        "category": "social",
+                        "title": handle,
+                        "surface": surf,
+                        "handle": handle,
+                        "platform": surf,
+                        "target_url": target_url,
+                        "risk_score": 85,
+                        "risk_level": "high",
+                        "details": f"Active verified public {surf.capitalize()} account colliding with brand perimeter.",
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    live_threats_list.append(threat_item)
+                    state["live_threats"] = list(live_threats_list)
+                    state["findings_found"] = len(live_threats_list)
                     state["logs"].append(
                         f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [ALERT] Verified live public {surf.upper()} account: {handle} ({target_url})"
                     )
             except Exception as e:
                 logger.debug(f"Handle check skipped: {e}")
 
+        # Update progress dynamically
+        soc_progress = 62 + int(20 * ((h_idx + 1) / max(len(novel_handles), 1)))
+        state["progress_pct"] = min(soc_progress, 82)
+        state["eta_seconds"] = max(14 - int(8 * ((h_idx + 1) / max(len(novel_handles), 1))), 6)
+        set_scan_state(key, state)
+        set_scan_state(str(tenant_id), state)
+
     if not live_social_threats:
         state["logs"].append(
             f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Audited public social surfaces. No active collision profiles detected."
         )
 
-    # 4. Ingest Discovered Findings into Supabase (Zero Mock Data)
+    # 4. Ingest Discovered Findings into Database
     state["progress_pct"] = 85
     state["eta_seconds"] = 6
     state["stage"] = "Phase 4: Cryptographic Ingestion & Autonomous Correlation..."
     state["stage_index"] = 4
+    set_scan_state(key, state)
+    set_scan_state(str(tenant_id), state)
 
     new_sightings: List[SightingCreate] = []
 
@@ -314,7 +370,6 @@ async def run_osint_threat_scan(
         # If no new sightings, just refresh cluster linking
         compute_campaign_edges_and_clusters(session, tenant_id=tenant_id, brand_id=brand_id)
 
-
     # Finalize state
     state["progress_pct"] = 100
     state["eta_seconds"] = 0
@@ -322,13 +377,10 @@ async def run_osint_threat_scan(
     state["status"] = "completed"
     state["stage"] = "Perimeter Hardened · Threat Surface Audit Complete."
     state["completed_at"] = datetime.now(timezone.utc).isoformat()
-    state["findings_found"] = len(new_sightings)
-    state["live_threats"] = [
-        {"domain": d[0], "ips": d[1], "whois": f"https://who.is/whois/{d[0]}"}
-        for d in live_discovered
-    ]
+    state["findings_found"] = len(live_threats_list) if live_threats_list else len(new_sightings)
+    state["live_threats"] = live_threats_list
     state["logs"].append(
-        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Audit successfully complete. {len(new_sightings)} verified telemetry records updated."
+        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Audit successfully complete. {len(live_threats_list)} active threats analyzed across perimeter."
     )
 
     set_scan_state(key, state)

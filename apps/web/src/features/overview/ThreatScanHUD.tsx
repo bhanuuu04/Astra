@@ -61,6 +61,18 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
     }
   }, [scanState?.is_scanning, scanState?.eta_seconds]);
 
+  // Auto-run coordinated threat scan when brand lands on the dashboard
+  useEffect(() => {
+    if (!brandId) return;
+    // If not already scanning and scan status is idle or never run for this brand session
+    const sessionKey = `astra_auto_scanned_${brandId}`;
+    const alreadyScanned = typeof window !== 'undefined' && sessionStorage.getItem(sessionKey);
+    if (!alreadyScanned && !scanState?.is_scanning && !scanMutation.isPending) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(sessionKey, 'true');
+      scanMutation.mutate();
+    }
+  }, [brandId, scanState?.is_scanning]);
+
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
     const interval = setInterval(() => {
@@ -69,7 +81,7 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
     return () => clearInterval(interval);
   }, [countdown]);
 
-  // When scan finishes, invalidate all dashboard data queries
+  // When scan finishes or updates, invalidate all dashboard data queries so findings stream immediately
   useEffect(() => {
     if (scanState?.status === 'completed' && !scanState?.is_scanning) {
       queryClient.invalidateQueries({ queryKey: ['overview'] });
@@ -77,6 +89,13 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
     }
   }, [scanState?.status, scanState?.is_scanning, queryClient]);
+
+  // Also invalidate sightings whenever new threats arrive mid-scan
+  useEffect(() => {
+    if (scanState?.is_scanning && (scanState?.findings_found ?? 0) > 0) {
+      queryClient.invalidateQueries({ queryKey: ['sightings'] });
+    }
+  }, [scanState?.is_scanning, scanState?.findings_found, queryClient]);
 
   const isScanning = Boolean(scanState?.is_scanning || scanMutation.isPending);
   const progressPct = scanState?.progress_pct ?? 0;
@@ -108,7 +127,7 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-[#37352f]">
-                {isScanning ? 'Analysis in progress' : 'Threat surface analysis'}
+                {isScanning ? 'Coordinated Threat Scan In Flight' : 'Perimeter Threat Radar'}
               </span>
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 isScanning
@@ -116,11 +135,11 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
                   : 'border border-[#e3e2e0] bg-white text-[#0f7b6c]'
               }`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${isScanning ? 'bg-cyan-600 animate-ping' : 'bg-[#0f7b6c]'}`} />
-                {isScanning ? 'Running' : statusError ? 'Status unavailable' : scanState?.status || 'Not started'}
+                {isScanning ? 'Scanning Vectors' : statusError ? 'Status unavailable' : scanState?.status || 'Active'}
               </span>
             </div>
             <p className="mt-0.5 text-[11px] text-[#787774]">
-              {brandDomain ? <>Current scope: <strong className="font-semibold text-[#37352f]">{brandDomain}</strong>. Review each result and its evidence before triage.</> : <>Add and verify a brand domain to establish the analysis scope.</>}
+              {brandDomain ? <>Active target scope: <strong className="font-semibold text-[#37352f]">{brandDomain}</strong> ({brandName}). Automated scripts discovering live threats &amp; scam accounts.</> : <>Enroll a brand domain to initiate automated scanning vectors.</>}
             </p>
           </div>
         </div>
@@ -139,17 +158,17 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
             type="button"
             onClick={() => scanMutation.mutate()}
             disabled={isScanning || !brandId}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0f766e] px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-2 rounded-[6px] bg-[#0f766e] px-3 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isScanning ? (
               <>
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                <span>Running…</span>
+                <span>Scanning…</span>
               </>
             ) : (
               <>
                 <RefreshCw className="h-3.5 w-3.5" />
-                <span>Run analysis</span>
+                <span>Re-run scan</span>
               </>
             )}
           </button>
@@ -175,25 +194,25 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
           <div className="space-y-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f766e]">
-                  Stage {stageIndex} of {totalStages}
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f766e]">
+                  Stage {stageIndex} of {totalStages} · Coordinated Threat Execution
                 </span>
                 <h3 className="text-sm font-bold text-[#37352f]">{stage}</h3>
               </div>
 
               {countdown !== null && (
-                <div className="flex items-center gap-2 self-start rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-3 py-1 sm:self-auto">
-                  <Clock3 className="h-3.5 w-3.5 text-[#0f7b6c]" />
-                  <span className="text-xs text-[#787774]">Estimated time:</span>
-                  <span className="font-mono text-xs font-bold text-[#37352f]">{formatCountdown(countdown)}</span>
+                <div className="flex items-center gap-2 self-start rounded-[6px] border border-cyan-200 bg-cyan-50/70 px-3 py-1 sm:self-auto">
+                  <Clock3 className="h-3.5 w-3.5 text-cyan-700 animate-pulse" />
+                  <span className="text-xs text-cyan-900 font-medium">Estimated completion:</span>
+                  <span className="font-mono text-xs font-bold text-cyan-950">{formatCountdown(countdown)}</span>
                 </div>
               )}
             </div>
 
-            {/* Progress from the current backend job */}
+            {/* Progress Bar */}
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-[#787774]">
-                <span>Analysis progress</span>
+                <span>Automated OSINT Radar Discovery</span>
                 <span className="font-mono font-bold text-[#37352f]">{progressPct}%</span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-[#f0eee9]">
@@ -206,12 +225,12 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Results to review</span>
-                <p className="mt-1 font-mono text-lg font-semibold text-slate-900">{findingsCount}</p>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Threats uncovered so far</span>
+                <p className="mt-1 font-mono text-lg font-bold text-rose-700">{findingsCount} items</p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Job status</span>
-                <p className="mt-1 text-sm font-semibold capitalize text-slate-900">{scanState?.status || 'Running'}</p>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Scanning Vector</span>
+                <p className="mt-1 text-sm font-semibold text-slate-900 truncate">{stage}</p>
               </div>
             </div>
           </div>
@@ -224,62 +243,84 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
               </div>
               <div>
                 <h3 className="text-sm font-bold text-[#37352f]">
-                  {scanState?.status === 'completed' ? 'Analysis completed' : 'No completed analysis yet'}
+                  {scanState?.status === 'completed' ? 'Automated Threat Intelligence Ingested' : 'Perimeter Scan Ready'}
                 </h3>
                 <p className="mt-0.5 text-xs text-[#787774]">
                   {scanState?.status === 'completed'
-                    ? `${findingsCount} result${findingsCount === 1 ? '' : 's'} returned. Review source details and supporting evidence before deciding whether an item is a threat.`
+                    ? `${findingsCount} live threat${findingsCount === 1 ? '' : 's'} identified across social impersonators and lookalikes. Coordinated background jobs continue monitoring.`
                     : brandDomain
-                      ? `Run an analysis for ${brandDomain}. Results depend on available sources and are not verified solely because a scan completed.`
-                      : 'Enroll a brand and add its official domain before starting an analysis.'}
+                      ? `Threat scanner is armed for ${brandDomain}. Click "Re-run scan" to execute fresh radar sweeps.`
+                      : 'Enroll a brand domain to initiate automated scanning vectors.'}
                 </p>
               </div>
             </div>
 
             {liveThreats.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900">
-                  {liveThreats.length} observed domain{liveThreats.length === 1 ? '' : 's'}
+                <span className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-900">
+                  {liveThreats.length} live signal{liveThreats.length === 1 ? '' : 's'} discovered
                 </span>
               </div>
             )}
           </div>
         )}
 
-        {/* Domains returned by the current analysis job */}
+        {/* Live Discovered Signals Carousel / Stream Cards */}
         {liveThreats.length > 0 && (
           <div className="mt-4 border-t border-[#e3e2e0] pt-3">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#37352f]">
-              Domains observed by this analysis:
+              Streamed Threat Intelligence Signals ({liveThreats.length}):
             </span>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {liveThreats.map((t) => (
-                <div
-                  key={t.domain}
-                  className="flex items-center gap-2 rounded-[6px] border border-rose-200 bg-rose-50/60 px-2.5 py-1 text-xs font-medium text-rose-900"
-                >
-                  <Globe2 className="h-3.5 w-3.5 text-rose-600 shrink-0" />
-                  <span className="font-semibold">{t.domain}</span>
-                  <span className="font-mono text-[10px] text-rose-700">({t.ips[0]})</span>
-                  <a
-                    href={`https://${t.domain}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 text-[11px] font-bold text-rose-700 hover:text-rose-900 hover:underline ml-1"
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {liveThreats.map((t, idx) => {
+                const isDomain = Boolean(t.domain || t.category === 'domain');
+                const isSocial = Boolean(t.handle || t.category === 'social');
+                const displayTitle = t.title || t.handle || t.domain || 'Threat asset';
+                const openUrl = t.target_url || (t.domain ? `https://${t.domain}` : undefined);
+                const whoisUrl = t.whois || t.whois_url;
+
+                return (
+                  <div
+                    key={`${displayTitle}-${idx}`}
+                    className="flex items-center gap-2 rounded-[6px] border border-rose-200 bg-rose-50/70 px-2.5 py-1 text-xs font-medium text-rose-900 shadow-2xs"
                   >
-                    Open ↗
-                  </a>
-                  <span className="text-rose-300">|</span>
-                  <a
-                    href={t.whois}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 text-[11px] text-rose-700 hover:text-rose-900 hover:underline"
-                  >
-                    WHOIS ↗
-                  </a>
-                </div>
-              ))}
+                    {isDomain ? (
+                      <Globe2 className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                    ) : (
+                      <span className="flex h-3.5 w-3.5 items-center justify-center text-[10px] font-bold text-purple-700 bg-purple-100 rounded-full shrink-0">@</span>
+                    )}
+                    <span className="font-bold">{displayTitle}</span>
+                    {t.surface && (
+                      <span className="rounded bg-rose-200/60 px-1 py-0.2 text-[10px] font-mono text-rose-800 uppercase">
+                        {t.surface}
+                      </span>
+                    )}
+                    {openUrl && (
+                      <a
+                        href={openUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[11px] font-bold text-rose-700 hover:text-rose-950 hover:underline ml-1"
+                      >
+                        Inspect ↗
+                      </a>
+                    )}
+                    {whoisUrl && (
+                      <>
+                        <span className="text-rose-300">|</span>
+                        <a
+                          href={whoisUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-[11px] text-rose-700 hover:text-rose-950 hover:underline"
+                        >
+                          WHOIS ↗
+                        </a>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

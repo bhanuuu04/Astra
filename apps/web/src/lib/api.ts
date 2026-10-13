@@ -469,6 +469,23 @@ export async function runAnalysisJob(brandId?: string, sightingIds?: string[]): 
   }
 }
 
+export type LiveThreatItem = {
+  category?: 'social' | 'domain' | 'app' | 'campaign' | string;
+  title?: string;
+  surface?: string;
+  handle?: string;
+  platform?: string;
+  domain?: string;
+  ips?: string[];
+  target_url?: string;
+  whois?: string;
+  whois_url?: string;
+  risk_score?: number;
+  risk_level?: string;
+  details?: string;
+  discovered_at?: string;
+};
+
 export type ThreatScanStatus = {
   is_scanning: boolean;
   status: string;
@@ -482,7 +499,7 @@ export type ThreatScanStatus = {
   completed_at?: string | null;
   logs: string[];
   findings_found: number;
-  live_threats?: Array<{ domain: string; ips: string[]; whois: string }> | null;
+  live_threats?: LiveThreatItem[] | null;
 };
 
 export async function startThreatScan(brandId?: string): Promise<ThreatScanStatus> {

@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SignIn, SignUp } from '@clerk/nextjs';
-import { X, ShieldCheck } from 'lucide-react';
+import { X, ShieldCheck, Building2, User } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,8 +13,18 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
   const [mode, setMode] = React.useState<'login' | 'register'>(initialMode);
+  const [portalType, setPortalType] = useState<'brand' | 'consumer'>('brand');
 
   if (!isOpen) return null;
+
+  const handleSelectPortal = (type: 'brand' | 'consumer') => {
+    setPortalType(type);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('astra_intended_account_type', type);
+    }
+  };
+
+  const redirectUrl = `/guide?type=${portalType}`;
 
   return (
     <div 
@@ -36,7 +46,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
                 {mode === 'login' ? 'Sign in to ASTRA' : 'Create an ASTRA Account'}
               </h2>
               <p className="text-[11px] text-[#787774] font-medium">
-                Unified Clerk Authentication · Enterprise Brand Defense
+                {portalType === 'brand' ? '🏢 Brand Security Portal' : '👤 Consumer Safety Portal'}
               </p>
             </div>
           </div>
@@ -49,13 +59,43 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
           </button>
         </div>
 
+        {/* Portal Type Switcher */}
+        <div className="w-full px-6 pt-4 bg-white">
+          <div className="bg-[#f7f6f3] p-1 rounded-[8px] border border-[#e3e2e0] flex items-center gap-1 text-xs">
+            <button
+              type="button"
+              onClick={() => handleSelectPortal('brand')}
+              className={`flex-1 py-1.5 px-3 rounded-[6px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                portalType === 'brand'
+                  ? 'bg-white text-[#37352f] shadow-xs'
+                  : 'text-[#787774] hover:text-[#37352f]'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <span>Brand Login</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPortal('consumer')}
+              className={`flex-1 py-1.5 px-3 rounded-[6px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                portalType === 'consumer'
+                  ? 'bg-white text-[#37352f] shadow-xs'
+                  : 'text-[#787774] hover:text-[#37352f]'
+              }`}
+            >
+              <User className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <span>Consumer Login</span>
+            </button>
+          </div>
+        </div>
+
         {/* Real Clerk Component Render */}
         <div className="p-4 sm:p-6 w-full flex justify-center bg-white">
           {mode === 'login' ? (
             <SignIn 
               routing="hash"
-              fallbackRedirectUrl="/guide"
-              forceRedirectUrl="/guide"
+              fallbackRedirectUrl={redirectUrl}
+              forceRedirectUrl={redirectUrl}
               signUpUrl="#sign-up"
               appearance={{
                 elements: {
@@ -73,8 +113,8 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
           ) : (
             <SignUp 
               routing="hash"
-              fallbackRedirectUrl="/guide"
-              forceRedirectUrl="/guide"
+              fallbackRedirectUrl={redirectUrl}
+              forceRedirectUrl={redirectUrl}
               signInUrl="#sign-in"
               appearance={{
                 elements: {

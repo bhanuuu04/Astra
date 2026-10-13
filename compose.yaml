@@ -26,6 +26,7 @@ services:
       ASTRA_INTERNAL_API_KEY: ${ASTRA_INTERNAL_API_KEY:-}
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
+      - "8000:8000"
       - "8001:8000"
     volumes:
       - ./apps/api:/app
@@ -60,7 +61,13 @@ services:
     environment:
       API_BASE_URL: http://api:8000
       ASTRA_INTERNAL_API_KEY: ${ASTRA_INTERNAL_API_KEY:-}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_ZGVzdGluZWQtc2VhaG9yc2UtOTU4NC5jbGVyay5hY2NvdW50cy5kZXYk}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_x8T8ns8IbpGXvzZuekr6m7uDQrrfJk3VgVOGLDfBYn}
+      NVIDIA_NIM_API_KEY: ${NVIDIA_NIM_API_KEY:-}
+      NVIDIA_NIM_BASE_URL: ${NVIDIA_NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_NIM_MODEL: ${NVIDIA_NIM_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
     ports:
+      - "3000:3000"
       - "3001:3000"
     depends_on:
       api:

@@ -27,7 +27,8 @@ import {
   Terminal,
   Shield,
   MessageSquare,
-  Share2
+  Share2,
+  Building2
 } from 'lucide-react';
 import { useAuth, UserButton } from '@clerk/nextjs';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -95,21 +96,27 @@ export default function LandingPage() {
                 />
               </div>
             ) : (
-              <>
+              <div className="flex items-center gap-2">
                 <Link
-                  href="/sign-in"
-                  className="text-[14px] font-medium text-[#787774] hover:text-[#37352f] px-3 py-1.5 rounded-[6px] transition cursor-pointer"
+                  href="/sign-in?type=consumer"
+                  className="text-[13px] font-medium text-[#787774] hover:text-[#37352f] px-2.5 py-1.5 rounded-[6px] hover:bg-[#f7f6f3] transition cursor-pointer"
                 >
-                  Log in
+                  Consumer Login
                 </Link>
                 <Link
-                  href="/sign-up"
-                  className="flex items-center gap-1.5 text-[14px] font-medium text-white bg-[#0f7b6c] hover:bg-[#0b5e52] active:scale-[0.98] px-4 py-2 rounded-[6px] shadow-xs transition-all cursor-pointer"
+                  href="/sign-in?type=brand"
+                  className="text-[13px] font-medium text-[#37352f] hover:text-[#0f7b6c] px-2.5 py-1.5 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] transition cursor-pointer"
                 >
-                  <span>Get ASTRA free</span>
+                  Brand Login
+                </Link>
+                <Link
+                  href="/sign-up?type=brand"
+                  className="flex items-center gap-1.5 text-[13px] font-medium text-white bg-[#0f7b6c] hover:bg-[#0b5e52] active:scale-[0.98] px-3.5 py-1.5 rounded-[6px] shadow-xs transition-all cursor-pointer"
+                >
+                  <span>Get Started</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -166,19 +173,27 @@ export default function LandingPage() {
                 href="/guide"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[15px] shadow-xs transition active:scale-[0.98]"
               >
-                <span>Launch Brand Setup Guide</span>
+                <span>Launch Security Workspace</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             ) : (
-              <>
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
                 <Link
-                  href="/sign-up"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[15px] shadow-xs transition active:scale-[0.98] cursor-pointer"
+                  href="/sign-up?type=brand"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[15px] shadow-xs transition active:scale-[0.98] cursor-pointer"
                 >
-                  <span>Start protecting free</span>
+                  <Building2 className="w-4 h-4" />
+                  <span>Start Brand Protection</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
-              </>
+                <Link
+                  href="/sign-in?type=consumer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[8px] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-[#37352f] font-medium text-[15px] shadow-xs transition active:scale-[0.98] cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4 text-[#0f7b6c]" />
+                  <span>Consumer Scam Shield</span>
+                </Link>
+              </div>
             )}
           </motion.div>
 

@@ -27,9 +27,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getActiveUser, getOverview, listCampaigns, listSightings, listBrands, runAnalysisJob, type Campaign, type Sighting, type Brand } from '@/lib/api';
 import { ThreatTelemetryCharts } from '@/components/analytics/ThreatTelemetryCharts';
-import { SocialConnectHub } from '@/components/socials/SocialConnectHub';
-import { InboundMessageSafetyFeed } from '@/components/messages/InboundMessageSafetyFeed';
 import { ThreatScanHUD } from './ThreatScanHUD';
+import { CategorizedThreatsBoard } from './CategorizedThreatsBoard';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 const panel = 'rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]';
@@ -324,16 +323,11 @@ export function OverviewView() {
         brandDomain={currentBrandInfo.domain || ''}
       />
 
-      {/* 1. SOCIAL BRAND CHANNELS CONNECTION HUB */}
-      <section aria-label="Social handles connection">
-
-        <SocialConnectHub />
-      </section>
-
-      {/* 2. REAL-TIME INBOUND MESSAGES & SENDER PROFILE SAFETY RADAR */}
-      <section aria-label="Inbound message threat and profile safety radar">
-        <InboundMessageSafetyFeed />
-      </section>
+      {/* CATEGORIZED LIVE THREAT INTELLIGENCE & SCAM ACCOUNTS BOARD */}
+      <CategorizedThreatsBoard
+        sightings={sortedSightings}
+        campaigns={campaigns}
+      />
 
       {/* 3. KEY METRICS */}
       <section aria-label="Overview metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

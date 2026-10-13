@@ -8,7 +8,6 @@ from app.api.routes import (
     connectors,
     demo,
     findings,
-    governance,
     health,
     integrations,
     mobile_apps,
@@ -22,7 +21,6 @@ from app.api.routes import (
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)  # Self-service authentication & onboarding
-api_router.include_router(governance.router)  # Brand ownership governance & adjudication
 api_router.include_router(settings.router)  # Database-persisted tenant settings
 api_router.include_router(overview.router)
 api_router.include_router(brands.router)

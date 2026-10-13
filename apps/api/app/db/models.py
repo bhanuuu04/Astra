@@ -90,71 +90,18 @@ class Brand(Base):
     )
 
 
-class BrandClaim(Base):
-    """Tenant-scoped brand ownership claim and cross-tenant dispute record."""
-
-    __tablename__ = "brand_claims"
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
-    brand_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("brands.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
-    official_domain: Mapped[str] = mapped_column(String(253), nullable=False, index=True)
-    applicant_email: Mapped[str] = mapped_column(String(255), nullable=False)
-    email_domain_match: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    legal_entity_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending_domain")  # pending_domain, pending_documents, pending_review, disputed, approved, rejected
-    incumbent_brand_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("brands.id", ondelete="SET NULL"), nullable=True)
-    reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
-class BrandClaimDocument(Base):
-    """Private, encrypted KYB proof attached to a brand ownership claim."""
-
-    __tablename__ = "brand_claim_documents"
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    claim_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("brand_claims.id", ondelete="CASCADE"), nullable=False, index=True)
-    document_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    content_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    object_key: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
-    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending_review")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
-class GovernanceNotice(Base):
-    """Tenant-visible governance alert, including ownership conflict notices."""
-
-    __tablename__ = "governance_notices"
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
-    claim_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("brand_claims.id", ondelete="CASCADE"), nullable=True, index=True)
-    notice_type: Mapped[str] = mapped_column(String(48), nullable=False)
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    message: Mapped[str] = mapped_column(Text, nullable=False)
-    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
 class Connector(Base):
     __tablename__ = "connectors"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
-    connector_type: Mapped[str] = mapped_column(String(64), nullable=False)  # meta_graph, google_play, virustotal, telegram_bot, x_twitter, certificate_transparency
+    connector_type: Mapped[str] = mapped_column(String(64), nullable=False)  # meta_graph, google_play, virustotal, telegram_bot, x_twitter
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="unconfigured")  # active, degraded, error, revoked, unconfigured
     auth_config_vault_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Reference to encrypted secret manager
-    sync_state: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     permitted_scopes: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, default=[])
     rate_limit_rpm: Mapped[Optional[int]] = mapped_column(nullable=True, default=60)
     last_health_check_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_sync_attempt_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_successful_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -428,21 +428,19 @@ def sync_clerk_user(
         session.add(membership)
         session.flush()
 
-    # Ensure admin accounts have their primary brand set to DOCK in the default demo tenant
     from app.db.models import Brand
     if email_clean in INITIAL_ADMIN_EMAILS:
         dock_brand = session.scalar(select(Brand).where(Brand.tenant_id == DEFAULT_DEMO_TENANT_ID))
         if dock_brand:
             user.primary_brand_id = dock_brand.id
-            user.onboarding_completed = True
             session.flush()
     else:
-        # For non-admin users, check if their dedicated tenant has any brand registered
-        user_brand = session.scalar(select(Brand).where(Brand.tenant_id == target_tenant.id).order_by(Brand.created_at.desc()))
-        if user_brand:
-            user.primary_brand_id = user_brand.id
-            user.onboarding_completed = True
-            session.flush()
+        # Only attach primary brand if user is actually onboarded; do NOT force onboarding_completed to True
+        if user.onboarding_completed:
+            user_brand = session.scalar(select(Brand).where(Brand.tenant_id == target_tenant.id).order_by(Brand.created_at.desc()))
+            if user_brand:
+                user.primary_brand_id = user_brand.id
+                session.flush()
 
     session.commit()
     logger.info(f"Supabase sync complete for {email_clean} | tenant={target_tenant.id} ({target_tenant.name})")
@@ -510,6 +508,48 @@ def complete_user_onboarding(
             "email": user.email,
             "onboarding_completed": True,
             "primary_brand_id": str(user.primary_brand_id) if user.primary_brand_id else None,
+        }
+
+    return {"success": False, "error": "User not found"}
+
+
+def reset_user_onboarding(
+    session: Session,
+    clerk_id: Optional[str] = None,
+    email: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Reset user onboarding status to allow restarting the setup guide from the beginning."""
+    user = None
+    if clerk_id:
+        user = session.scalar(select(User).where(User.clerk_id == clerk_id))
+    if not user and email:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+
+    if not user:
+        if email or clerk_id:
+            return {"success": False, "error": "User not found for provided credentials"}
+        user = session.scalar(select(User).order_by(User.created_at.desc()))
+
+    if user:
+        user.onboarding_completed = False
+        user.primary_brand_id = None
+        session.flush()
+
+        # Delete previous brands for this user's tenant so the old brand profile does not reappear
+        from app.db.models import Brand, TenantMembership
+        membership = session.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id))
+        if membership:
+            old_brands = session.scalars(select(Brand).where(Brand.tenant_id == membership.tenant_id)).all()
+            for b in old_brands:
+                session.delete(b)
+
+        session.commit()
+        return {
+            "success": True,
+            "user_id": str(user.id),
+            "email": user.email,
+            "onboarding_completed": False,
+            "primary_brand_id": None,
         }
 
     return {"success": False, "error": "User not found"}

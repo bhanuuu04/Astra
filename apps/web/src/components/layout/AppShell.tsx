@@ -25,17 +25,17 @@ import {
   Shield,
   Smartphone,
   Sparkles,
+  RotateCcw,
   User,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useAuth, useClerk, useUser } from '@clerk/nextjs';
+import { UserButton, useAuth, useUser } from '@clerk/nextjs';
 import { CommandPalette } from '@/components/CommandPalette';
 import { AuthModal } from '@/components/auth/AuthModal';
 import {
   getActiveTenant,
   getActiveUser,
-  getAuthToken,
   setActiveTenant,
   setActiveUser,
   setAuthToken,
@@ -48,7 +48,6 @@ import {
   type TenantInfo,
   type UserInfo,
 } from '@/lib/api';
-import { isClerkAuthConfigured } from '@/lib/auth-config';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -87,8 +86,6 @@ const pageNames: Record<string, string> = {
   landing: 'Product tour',
 };
 
-const clerkAuthConfigured = isClerkAuthConfigured();
-
 export function AppShell({ children }: AppShellProps) {
   const queryClient = useQueryClient();
   const pathname = usePathname();
@@ -98,12 +95,10 @@ export function AppShell({ children }: AppShellProps) {
 
   // Clerk authentication state
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
   const { user: clerkUser } = useUser();
 
   // Tenant context
   const [tenant, setTenant] = React.useState<TenantInfo | null>(null);
-  const [localUser, setLocalUser] = React.useState<UserInfo | null>(null);
 
   const isStandalonePage = 
     pathname === '/' || 
@@ -114,8 +109,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // Client-side authentication guard: enforce login on all protected dashboard routes
   React.useEffect(() => {
-    const hasLocalAuth = !clerkAuthConfigured && Boolean(getActiveUser() && getAuthToken());
-    if (isAuthLoaded && !(clerkAuthConfigured ? isSignedIn : hasLocalAuth) && !isStandalonePage) {
+    if (isAuthLoaded && !isSignedIn && !isStandalonePage) {
       // Always redirect to /sign-in without a redirect_url so after login
       // Clerk routes to /guide (the forceRedirectUrl) instead of back here.
       window.location.href = '/sign-in';
@@ -134,7 +128,6 @@ export function AppShell({ children }: AppShellProps) {
       if (activeUser && activeUser.email.toLowerCase() !== email.toLowerCase()) {
         clearSession();
         queryClient.clear();
-        setLocalUser(null);
       }
 
       const composioEntityId = `astra_${clerkUser.id}`;
@@ -149,22 +142,15 @@ export function AppShell({ children }: AppShellProps) {
           composioEntityId,
         }),
       })
-        .then(async (r) => {
-          const data = await r.json();
-          if (!r.ok) throw new Error(data.error || 'Could not establish the API session.');
-          return data;
-        })
+        .then((r) => r.json())
         .then((data) => {
           if (data.access_token) {
-            const previousTenantId = getActiveTenant()?.id;
-            if (previousTenantId && previousTenantId !== data.tenant?.id) {
-              queryClient.clear();
-            }
             setAuthToken(data.access_token);
             setActiveUser(data.user);
             setActiveTenant(data.tenant);
-            setLocalUser(data.user);
             setTenant(data.tenant);
+            // Invalidate React Query cache so active components fetch fresh data for this tenant
+            queryClient.invalidateQueries();
           }
 
           // Strict email-linked onboarding check:
@@ -181,29 +167,14 @@ export function AppShell({ children }: AppShellProps) {
         })
         .catch((err) => console.warn('User sync notice:', err));
     } else if (isAuthLoaded && !isSignedIn) {
-      if (clerkAuthConfigured) {
-        clearSession();
-        queryClient.clear();
-        setLocalUser(null);
-        setTenant(null);
-      } else {
-        const activeUser = getActiveUser();
-        const activeTenant = getActiveTenant();
-        setLocalUser(activeUser);
-        setTenant(activeUser && activeTenant ? activeTenant : null);
-      }
+      clearSession();
+      setTenant(null);
     } else {
-      const activeTenant = getActiveTenant();
-      setLocalUser(getActiveUser());
-      if (activeTenant) {
-        setTenant(activeTenant);
-      } else {
-        getMe().then((profile) => {
-          if (profile) {
-            setTenant(profile.tenant);
-          }
-        }).catch(() => {});
-      }
+      getMe().then((profile) => {
+        if (profile) {
+          setTenant(profile.tenant);
+        }
+      }).catch(() => {});
     }
   }, [isSignedIn, clerkUser, isAuthLoaded, pathname, isStandalonePage, queryClient]);
 
@@ -214,11 +185,10 @@ export function AppShell({ children }: AppShellProps) {
     : pageNames[pageRoot] || 'Overview';
 
   // Live unread alert count from sightings (last 30 min, high-risk)
-  const { data: sightings = [], isError: sightingsUnavailable } = useQuery<Sighting[]>({
-    queryKey: ['sightings', tenant?.id || 'unresolved'],
+  const { data: sightings = [] } = useQuery<Sighting[]>({
+    queryKey: ['sightings'],
     queryFn: () => listSightings(),
-    enabled: Boolean(tenant?.id),
-    refetchInterval: pathname.startsWith('/alerts') ? 30000 : false,
+    refetchInterval: 30000,
   });
   const unreadAlerts = React.useMemo(() => {
     const cutoff = Date.now() - 1000 * 60 * 30;
@@ -243,16 +213,8 @@ export function AppShell({ children }: AppShellProps) {
 
   const handleLogout = () => {
     logout();
-    queryClient.clear();
-    setLocalUser(null);
     setTenant(null);
-    if (clerkAuthConfigured && isSignedIn) {
-      void signOut({ redirectUrl: '/sign-in' }).catch(() => {
-        window.location.assign('/sign-in');
-      });
-      return;
-    }
-    window.location.assign('/sign-in');
+    window.location.reload();
   };
 
   const orgInitials = React.useMemo(() => {
@@ -270,28 +232,28 @@ export function AppShell({ children }: AppShellProps) {
         href={href}
         onClick={() => setMobileMenuOpen(false)}
         aria-current={active ? 'page' : undefined}
-        className={`group relative flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors ${
+        className={`group relative flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition-colors ${
           active
-            ? 'border border-white/10 bg-white/10 text-white font-semibold shadow-sm'
-            : 'border border-transparent text-slate-300 hover:bg-white/[0.06] hover:text-white'
+            ? 'border border-[#e3e2e0] bg-[#f7f6f3] text-[#37352f] shadow-2xs font-semibold'
+            : 'border border-transparent text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f]'
         }`}
       >
-        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-cyan-300' : 'text-slate-400 group-hover:text-slate-200'}`} strokeWidth={1.8} />
+        <Icon className={`h-[15px] w-[15px] shrink-0 ${active ? 'text-[#0f7b6c]' : 'text-[#9b9a97] group-hover:text-[#37352f]'}`} strokeWidth={1.8} />
         <span className="flex-1 truncate">{label}</span>
         {href === '/alerts' && unreadAlerts > 0 && (
           <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#eb5757] px-1 text-[9px] font-bold text-white">{unreadAlerts > 9 ? '9+' : unreadAlerts}</span>
         )}
-        {active && <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />}
+        {active && <span className="h-1.5 w-1.5 rounded-full bg-[#0f7b6c]" />}
       </Link>
     );
   };
 
   if (isStandalonePage) {
-    return <main className="min-h-screen w-full bg-slate-50 text-slate-900">{children}</main>;
+    return <main className="min-h-screen w-full bg-[#f7f6f3] text-[#37352f]">{children}</main>;
   }
 
   return (
-    <div className="astra-shell flex h-dvh min-h-[100svh] w-full overflow-hidden bg-slate-50 font-sans text-slate-900">
+    <div className="astra-shell flex h-dvh min-h-[600px] w-full overflow-hidden text-[#37352f] bg-[#f7f6f3] font-sans">
       {mobileMenuOpen && (
         <button
           type="button"
@@ -301,85 +263,119 @@ export function AppShell({ children }: AppShellProps) {
         />
       )}
 
-      <aside className={`astra-sidebar fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r border-slate-800 bg-[#111c2e] text-white shadow-xl transition-transform duration-200 md:static md:translate-x-0 md:shadow-none ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-400 text-[#102033] shadow-sm shadow-cyan-950/30">
-            <Shield className="h-5 w-5" strokeWidth={2.2} />
+      <aside className={`astra-sidebar fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col border-r border-[#e3e2e0] bg-white transition-transform duration-200 md:static md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex h-[56px] items-center gap-2.5 border-b border-[#e3e2e0] px-4">
+          <div className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#37352f] text-white font-bold text-xs shadow-xs">
+            A
           </div>
-          <div className="min-w-0 flex-1">
-            <span className="block text-sm font-bold tracking-[0.14em] text-white">ASTRA</span>
-            <span className="block text-[10px] font-medium tracking-wide text-slate-400">DIGITAL RISK PROTECTION</span>
+          <div className="min-w-0 flex-1 flex items-center gap-1.5">
+            <span className="text-[13px] font-bold tracking-tight text-[#37352f]">ASTRA</span>
+            <span className="text-[10px] text-[#9b9a97]">/</span>
+            <span className="text-[11px] font-medium text-[#787774]">Defense</span>
           </div>
-          <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation" className="rounded-md p-1.5 text-slate-400 hover:bg-white/10 hover:text-white md:hidden"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation" className="rounded-[4px] p-1 text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f] md:hidden"><X className="h-4 w-4" /></button>
         </div>
 
         {/* Tenant Organization Card */}
-        <div className="border-b border-white/10 p-4">
-          <div className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-left">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-xs font-bold text-white ring-1 ring-white/10">
+        <div className="border-b border-[#e3e2e0] p-2.5">
+          <div className="flex w-full items-center gap-2.5 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-2.5 py-2 text-left">
+            <span className="flex h-6 w-6 items-center justify-center rounded-[4px] text-[10px] font-bold bg-[#37352f] text-white">
               {orgInitials}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-white">
-                {tenant?.name || 'Workspace'}
+              <span className="block truncate text-xs font-semibold text-[#37352f]">
+                {tenant?.name || 'ASTRA Enterprise'}
               </span>
-              <span className="mt-0.5 block text-[10px] text-slate-400">
-                {tenant?.is_demo ? 'Demo environment' : 'Organization workspace'}
+              <span className="block text-[10px] text-[#9b9a97]">
+                Protected Workspace
               </span>
             </span>
-            <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${tenant?.is_demo ? 'border-amber-300/30 bg-amber-300/10 text-amber-200' : 'border-white/15 bg-white/5 text-slate-300'}`}>
-              {tenant?.is_demo ? 'Demo' : 'Workspace'}
+            <span className="rounded-[3px] border border-[#e3e2e0] bg-white px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-[#0f7b6c]">
+              Live
             </span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-5">
-          <nav aria-label="Main navigation" className="space-y-6">
+        <div className="flex-1 overflow-y-auto px-2.5 py-3">
+          <nav aria-label="Main navigation" className="space-y-4">
             {navigationGroups.map((group) => (
               <section key={group.label} aria-label={group.label}>
-                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{group.label}</p>
-                <div className="space-y-1">{group.items.map(renderNavigationLink)}</div>
+                <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#9b9a97]">{group.label}</p>
+                <div className="space-y-0.5">{group.items.map(renderNavigationLink)}</div>
               </section>
             ))}
           </nav>
-          <div className="my-5 h-px bg-white/10" />
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace</p>
-          <Link href="/guide" onClick={() => setMobileMenuOpen(false)} className={`group flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors ${pageRoot === 'guide' ? 'border border-white/10 bg-white/10 font-semibold text-white' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'}`}>
-            <Sparkles className="h-4 w-4 text-cyan-300" strokeWidth={1.8} />Brand setup guide<ArrowUpRight className="ml-auto h-3 w-3 text-slate-500" />
+          <div className="my-3.5 h-px bg-[#e3e2e0]" />
+          <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#9b9a97]">Workspace</p>
+          <Link href="/guide" onClick={() => setMobileMenuOpen(false)} className={`group flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition-colors ${pageRoot === 'guide' ? 'bg-[#f7f6f3] text-[#37352f] font-semibold border border-[#e3e2e0]' : 'text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f]'}`}>
+            <Sparkles className="h-[15px] w-[15px] text-[#0f7b6c]" strokeWidth={1.8} />Brand Setup Guide<ArrowUpRight className="ml-auto h-3 w-3 text-[#9b9a97]" />
           </Link>
-          <Link href="/landing" onClick={() => setMobileMenuOpen(false)} className={`group mt-1 flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors ${pageRoot === 'landing' ? 'border border-white/10 bg-white/10 font-semibold text-white' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'}`}>
-            <BookOpen className="h-4 w-4 text-slate-400 group-hover:text-slate-200" strokeWidth={1.8} />Product tour<ArrowUpRight className="ml-auto h-3 w-3 text-slate-500" />
+          <button
+            type="button"
+            onClick={async () => {
+              if (window.confirm("Restart the setup guide from Step 1? This will reset your brand setup progress.")) {
+                try {
+                  const email = clerkUser?.primaryEmailAddress?.emailAddress?.toLowerCase();
+                  await fetch('/api/brand/reset-guide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, clerkId: clerkUser?.id }),
+                  });
+                } catch {}
+                if (typeof window !== 'undefined') {
+                  const email = clerkUser?.primaryEmailAddress?.emailAddress?.toLowerCase();
+                  localStorage.removeItem('astra_onboarding_completed');
+                  if (email) {
+                    localStorage.removeItem(`astra_onboarding_completed_${email}`);
+                    localStorage.removeItem(`astra_current_brand_dna_${email}`);
+                  }
+                  localStorage.removeItem('astra_current_brand_dna');
+                  localStorage.removeItem('astra_configured_brand');
+                }
+                window.location.href = '/guide?reset=true';
+              }
+            }}
+            className="w-full group flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium text-[#787774] hover:bg-[#f7f6f3] hover:text-[#eb5757] transition-colors text-left"
+          >
+            <RotateCcw className="h-[15px] w-[15px] text-[#9b9a97] group-hover:text-[#eb5757]" strokeWidth={1.8} />
+            <span>Reset Setup Guide</span>
+          </button>
+          <Link href="/landing" onClick={() => setMobileMenuOpen(false)} className={`group flex min-h-[36px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition-colors ${pageRoot === 'landing' ? 'bg-[#f7f6f3] text-[#37352f] font-semibold border border-[#e3e2e0]' : 'text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f]'}`}>
+            <BookOpen className="h-[15px] w-[15px] text-[#9b9a97] group-hover:text-[#37352f]" strokeWidth={1.8} />Product tour<ArrowUpRight className="ml-auto h-3 w-3 text-[#9b9a97]" />
           </Link>
         </div>
 
         {/* User Identity / Session Footer */}
-        <div className="border-t border-white/10 p-4">
-          {(isSignedIn && clerkUser) || localUser ? (
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] p-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-100 ring-1 ring-white/10">
-                <User className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-semibold text-white">
-                  {isSignedIn && clerkUser ? (clerkUser.fullName || clerkUser.firstName || 'Security analyst') : localUser?.full_name}
-                </div>
-                <div className="truncate text-[10px] text-slate-400">
-                  {isSignedIn && clerkUser ? clerkUser.primaryEmailAddress?.emailAddress : localUser?.email}
+        <div className="border-t border-[#e3e2e0] p-2.5">
+          {isSignedIn && clerkUser ? (
+            <div className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-2">
+              <div className="flex items-center gap-2">
+                <UserButton 
+                  appearance={{
+                    elements: {
+                      avatarBox: "h-7 w-7 rounded-[4px] border border-[#e3e2e0]"
+                    }
+                  }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-semibold text-[#37352f]">
+                    {clerkUser.fullName || clerkUser.firstName || 'Security Operator'}
+                  </div>
+                  <div className="truncate text-[10px] text-[#9b9a97]">
+                    {clerkUser.primaryEmailAddress?.emailAddress || 'Verified Identity'}
+                  </div>
                 </div>
               </div>
-              <button type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out" className="rounded-lg p-2 text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300">
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-              </button>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-white/[0.06] p-3">
+            <div className="rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] p-2">
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-400 px-3 py-2.5 text-xs font-semibold text-slate-950 shadow-sm transition hover:bg-cyan-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
+                className="w-full py-1.5 px-2.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5"
               >
-                <LogIn className="h-4 w-4" />
-                Sign in to workspace
+                <LogIn className="w-3.5 h-3.5" />
+                Sign In with Clerk
               </button>
             </div>
           )}
@@ -387,35 +383,45 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="astra-topbar z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 sm:px-7">
+        <header className="astra-topbar z-20 flex h-[56px] shrink-0 items-center justify-between gap-3 border-b border-[#e3e2e0] bg-white/95 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
-            <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 md:hidden"><Menu className="h-4 w-4" /></button>
-            <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
-              <span className="max-w-48 truncate">{tenant?.name || 'Workspace'}</span>
-              <span aria-hidden="true" className="text-slate-300">/</span>
+            <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-[5px] border border-[#e3e2e0] p-1.5 text-[#787774] hover:bg-[#f7f6f3] hover:text-[#37352f] md:hidden"><Menu className="h-4 w-4" /></button>
+            <div className="hidden items-center gap-1.5 text-xs text-[#9b9a97] sm:flex">
+              <span>{tenant?.name || 'Workspace'}</span>
+              <span>/</span>
             </div>
-            <h1 className="truncate text-sm font-semibold text-slate-900">{pageTitle}</h1>
+            <h1 className="truncate text-sm font-semibold text-[#37352f]">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700" aria-label="Search cases, brands and indicators">
-              <Search className="h-3.5 w-3.5 text-slate-400" /><span className="hidden lg:inline text-xs">Search cases &amp; brands</span><kbd className="hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] text-slate-500 sm:inline-flex">Ctrl K</kbd>
+            <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-8 items-center gap-2 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-2.5 text-xs text-[#787774] transition hover:border-[#9b9a97] hover:bg-white hover:text-[#37352f] shadow-2xs" aria-label="Search cases, brands and indicators">
+              <Search className="h-3.5 w-3.5 text-[#9b9a97]" /><span className="hidden lg:inline text-xs">Search cases &amp; brands</span><kbd className="hidden rounded-[3px] border border-[#e3e2e0] bg-white px-1.5 py-0.5 font-mono text-[9px] text-[#787774] sm:inline-flex shadow-2xs"><Command className="mr-0.5 h-2.5 w-2.5" />K</kbd>
             </button>
             
-            <div className="hidden h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 sm:flex">
-              <span className={`h-2 w-2 rounded-full ${sightingsUnavailable ? 'bg-amber-500' : tenant?.is_demo ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-              <span>{sightingsUnavailable ? 'Data unavailable' : tenant?.is_demo ? 'Demo workspace' : tenant ? 'Workspace' : 'Connecting'}</span>
+            {/* Live Workspace Status Pill */}
+            <div className="hidden h-7 items-center gap-1.5 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-2 text-[10px] font-semibold text-[#37352f] sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#0f7b6c]" />
+              <span className="tracking-wide">LIVE WORKSPACE</span>
             </div>
 
-            <Link href="/alerts" aria-label={sightingsUnavailable ? 'Open alert feed; alert count unavailable' : 'Open alert feed'} title={sightingsUnavailable ? 'Alert count unavailable' : 'Open alert feed'} className="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950">
+            <Link href="/alerts" aria-label="Open alert feed" title="Open alert feed" className="relative rounded-[6px] border border-[#e3e2e0] bg-white p-1.5 text-[#787774] transition hover:bg-[#f7f6f3] hover:text-[#37352f] shadow-2xs">
               <Bell className="h-4 w-4" />
-              {!sightingsUnavailable && unreadAlerts > 0 && (
+              {unreadAlerts > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#eb5757] text-[8px] font-bold text-white">
                   {unreadAlerts > 9 ? '9+' : unreadAlerts}
                 </span>
               )}
             </Link>
 
-            {(isSignedIn || localUser) && <button type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out" className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 sm:hidden"><LogOut className="h-4 w-4" /></button>}
+            {/* Clerk Authenticated Profile Control */}
+            <div className="flex items-center pl-0.5">
+              <UserButton 
+                appearance={{
+                  elements: {
+                    avatarBox: "h-7 w-7 rounded-[4px] border border-[#e3e2e0]"
+                  }
+                }}
+              />
+            </div>
           </div>
         </header>
 

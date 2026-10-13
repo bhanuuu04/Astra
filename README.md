@@ -4,9 +4,9 @@
 
 ASTRA is an early-stage Digital Risk Protection platform for reviewing suspected fake profiles, impersonation, scam accounts, lookalike websites, and suspicious mobile apps. It provides a web console, FastAPI service, tenant-scoped records, deterministic analysis, campaign linking, and response-draft workflows.
 
-> **Enterprise Architecture:** ASTRA is an advanced Digital Risk Protection (DRP) and Brand Defense platform. It combines automated multi-channel telemetry ingestion, Brand DNA verification, campaign graph clustering, deterministic & AI-assisted threat scoring, automated takedown response workflows, and continuous background monitoring.
+> **Readiness:** ASTRA is not yet ready for production customer data. Some on-demand provider reads are implemented (YouTube search, Telegram bot updates, Google Play reviews for apps the account can access, and VirusTotal enrichment of analyst-submitted URLs). There is no scheduled monitoring, broad Meta/Instagram account discovery, public Play Store search, or automated takedown submission. Connector findings are not yet correlated into the campaign graph. Detection is primarily heuristic, and production identity, evidence storage, and deployment still require validation.
 
-For the detailed architectural specification and engineering overview, see [docs/architecture.md](docs/architecture.md) and [docs/phase-status.md](docs/phase-status.md).
+For the authoritative architectural specification and engineering roadmap, see [ASTRA Enterprise Platform Implementation Plan](ASTRA%20Enterprise%20Platform%20Implementation%20Plan.md).
 
 ## Current project status
 
@@ -38,29 +38,6 @@ Open:
 The first start builds the containers, waits for PostgreSQL, applies Alembic migrations, and starts the web console and API. Local demo access is enabled only by the Compose development configuration. Do not expose this setup to the public internet.
 
 Stop the stack with Ctrl+C. Local development credentials in `compose.yaml` are for a local-only environment and must not be reused for a public deployment.
-
-## ⚡ Quick Evaluator Walkthrough (2-Minute Test Drive)
-
-For rapid evaluation without configuring external API keys (VirusTotal, Telegram bot, etc.), ASTRA comes pre-configured with a comprehensive realistic multi-channel threat scenario:
-
-1. **Seed Demo Scenario**: In the web console, click **"Reset Demo Data"** on the Dashboard or execute:
-   ```bash
-   curl -X POST http://localhost:8000/api/v1/demo/reset
-   ```
-2. **Explore Brand DNA & Verification (`/brands`)**:
-   - Inspect enrolled enterprise brands (e.g., `ACME Corporation`).
-   - Open the **Verification Modal** to test the multi-proof validation engine (DNS TXT challenge `_astra.<domain>`, HTML `<meta>` tag, and `.well-known` HTTP token probes).
-3. **Interactive Campaign Graph (`/campaigns`)**:
-   - Open a campaign to view the interactive network graph (`@xyflow/react`).
-   - Observe how isolated phishing domains, rogue Android APKs, and Telegram channels are clustered together based on shared nameservers, registrar IDs, and payment handles.
-4. **Mobile App Radar (`/apps`)**:
-   - Audit rogue mobile packages targeting the brand. Review official vs. fraudulent developer signing certificate SHA-256 fingerprints.
-5. **One-Click Takedown & Evidence Dossier (`/responses`)**:
-   - View automated legal DMCA takedown notice generation and targeted abuse desk contact routing (Cloudflare, AWS Abuse, Namecheap, Google Play Protect).
-   - Export forensic evidence packets backed by cryptographic SHA-256 hash chains.
-6. **Continuous Monitoring & Connectors (`/connectors`)**:
-   - Review live connectors (Composio, VirusTotal, crt.sh Certificate Transparency, Telegram, YouTube).
-   - Background telemetry poller (`apps/api/app/scheduler.py`) continuously queries active sources with PostgreSQL session-scoped advisory locks.
 
 ## What ASTRA is designed to do
 
@@ -156,4 +133,4 @@ Keep API contracts, fixture schema, and database models aligned. Generate the fr
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+No license has been declared for this repository. Until a `LICENSE` file is added, reuse and redistribution permissions are unspecified.

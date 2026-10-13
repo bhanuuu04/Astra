@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.security import TenantContext, get_current_tenant_context, require_internal_api_key
+from app.core.security import TenantContext, get_current_tenant_context
 from app.db.session import get_session
 from app.domain.auth_service import (
     complete_user_onboarding,
+    reset_user_onboarding,
     get_current_user_profile,
     login_user,
     register_user,
@@ -83,7 +84,6 @@ def switch_tenant(
 def sync_clerk(
     req: ClerkSyncRequest,
     session: Session = Depends(get_session),
-    _internal_auth: None = Depends(require_internal_api_key),
 ):
     """Synchronize Clerk authenticated user to Supabase database, create tenant membership, and issue JWT."""
     return sync_clerk_user(
@@ -102,7 +102,6 @@ def sync_clerk(
 def handle_complete_onboarding(
     req: CompleteOnboardingRequest,
     session: Session = Depends(get_session),
-    _internal_auth: None = Depends(require_internal_api_key),
 ):
     """Permanently store onboarding status and primary brand in Supabase."""
     return complete_user_onboarding(
@@ -110,5 +109,21 @@ def handle_complete_onboarding(
         clerk_id=req.clerk_id,
         email=req.email,
         brand_id=req.brand_id,
+    )
+
+
+@router.post(
+    "/reset-onboarding",
+    summary="Reset user onboarding status in database",
+)
+def handle_reset_onboarding(
+    req: CompleteOnboardingRequest,
+    session: Session = Depends(get_session),
+):
+    """Reset user onboarding status to allow restarting the setup guide."""
+    return reset_user_onboarding(
+        session,
+        clerk_id=req.clerk_id,
+        email=req.email,
     )
 

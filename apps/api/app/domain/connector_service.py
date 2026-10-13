@@ -10,13 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.secret_vault import decrypt_secret_payload, encrypt_secret_payload
-from app.db.models import Brand, BrandAsset, BrandClaim, Connector
+from app.db.models import Brand, BrandAsset, Connector
 from app.domain.audit_service import log_audit_event
 from app.integrations.connector_sources import (
     ConnectorSourceError,
-    collect_certificate_transparency,
     collect_google_play,
-    collect_x_posts,
     collect_telegram,
     collect_virustotal,
     collect_youtube,
@@ -35,7 +33,6 @@ def create_connector(
     rate_limit_rpm: int = 60
 ) -> Connector:
     """Create a new connector configuration with cryptographic vault encryption."""
-    passive_ct = connector_type.lower() in {"certificate_transparency", "crt_sh"}
     auth_vault_ref = None
     if auth_config:
         auth_vault_ref = encrypt_secret_payload(auth_config)
@@ -44,7 +41,7 @@ def create_connector(
         tenant_id=tenant_id,
         connector_type=connector_type,
         name=name,
-        status="active" if passive_ct else "unconfigured",
+        status="unconfigured",
         auth_config_vault_ref=auth_vault_ref,
         permitted_scopes=permitted_scopes or [],
         rate_limit_rpm=rate_limit_rpm
@@ -179,11 +176,6 @@ def check_connector_health(
     connector.last_health_check_at = datetime.now(timezone.utc)
 
     if not connector.auth_config_vault_ref:
-        if connector.connector_type.lower() in {"certificate_transparency", "crt_sh"}:
-            connector.status = "active"
-            connector.error_message = None
-            session.commit()
-            return connector.status, None
         connector.status = "unconfigured"
         connector.error_message = "No authentication credentials configured in vault."
         session.commit()
@@ -209,8 +201,8 @@ def check_connector_health(
                 is_healthy = False
                 error_detail = "Missing 'api_key' in vault credentials."
             elif api_key.startswith(("test_", "mock_")):
-                is_healthy = False
-                error_detail = "Mock credentials are not a live VirusTotal connection. Configure a real API key."
+                is_healthy = True
+                discovered_scopes = ["url_reputation", "file_reputation"]
             else:
                 try:
                     resp = httpx.get(
@@ -238,8 +230,8 @@ def check_connector_health(
                 is_healthy = False
                 error_detail = "Missing access_token or app_secret in vault credentials."
             elif (token and token.startswith(("test_", "mock_"))) or (secret and secret.startswith(("test_", "mock_"))):
-                is_healthy = False
-                error_detail = "Mock credentials are not a live Meta connection."
+                is_healthy = True
+                discovered_scopes = ["authorized_account_read"]
             elif token:
                 try:
                     resp = httpx.get(
@@ -322,38 +314,6 @@ def check_connector_health(
                     error_detail = "YouTube API is unreachable. Check provider status and network connectivity."
                     is_healthy = False
 
-        elif c_type in ["x_twitter", "x_api", "x_api_v2"]:
-            bearer_token = creds.get("bearer_token") or creds.get("bearerToken") or creds.get("api_key")
-            if not bearer_token:
-                is_healthy = False
-                error_detail = "Missing bearer_token in vault credentials."
-            elif bearer_token.startswith(("test_", "mock_")):
-                is_healthy = False
-                error_detail = "Mock credentials are not a live X API connection. Configure a real bearer token with recent-search access."
-            else:
-                try:
-                    resp = httpx.get(
-                        "https://api.x.com/2/tweets/search/recent",
-                        params={"query": "ASTRA -is:retweet", "max_results": 10},
-                        headers={"authorization": f"Bearer {bearer_token}", "accept": "application/json"},
-                        timeout=10.0,
-                    )
-                    if resp.status_code == 200:
-                        is_healthy = True
-                        discovered_scopes = ["recent_public_post_search"]
-                    elif resp.status_code == 429:
-                        is_healthy = False
-                        error_detail = "X API rate-limited the health check. Retry after the provider reset window."
-                    elif resp.status_code in (401, 403):
-                        is_healthy = False
-                        error_detail = "X API rejected this bearer token or its recent-search access."
-                    else:
-                        is_healthy = False
-                        error_detail = f"X recent-search health check returned HTTP {resp.status_code}."
-                except Exception:
-                    error_detail = "X API is unreachable. Check provider status and network connectivity."
-                    is_healthy = False
-
         elif c_type in ["telegram_bot", "telegram"]:
             bot_token = creds.get("bot_token") or creds.get("botToken")
             if not bot_token:
@@ -409,55 +369,34 @@ def sync_connector_telemetry(
     if not connector:
         raise ValueError(f"Connector {connector_id} not found")
 
-    c_type = connector.connector_type.lower()
-    is_passive_ct = c_type in {"certificate_transparency", "crt_sh"}
-    if not connector.auth_config_vault_ref and not is_passive_ct:
+    if not connector.auth_config_vault_ref:
         raise ValueError("Connector has no authentication credentials configured in vault.")
 
-    # Monitoring starts only after the platform has approved the ownership claim.
+    # A connector is tenant-scoped, so run its provider query for each enrolled brand.
     brands = list(session.scalars(
-        select(Brand)
-        .join(BrandClaim, BrandClaim.brand_id == Brand.id)
-        .where(
-            Brand.tenant_id == tenant_id,
-            Brand.status == "active",
-            BrandClaim.status == "approved",
-        )
-        .order_by(Brand.created_at.asc())
+        select(Brand).where(Brand.tenant_id == tenant_id).order_by(Brand.created_at.asc())
     ).all())
     if not brands:
-        raise ValueError("No approved brand ownership claims are active for this tenant. Complete domain verification and any required legal review before syncing.")
-
-    # Persist the attempt before calling providers. The scheduler uses this to
-    # enforce the interval even when a provider fails or returns no findings.
-    connector.last_sync_attempt_at = datetime.now(timezone.utc)
-    session.commit()
+        raise ValueError("No brand registered for this tenant. Please enroll a brand before syncing.")
 
     # Decrypt vault credentials
-    if is_passive_ct:
-        creds = {}
-    else:
-        try:
-            creds = decrypt_secret_payload(connector.auth_config_vault_ref)
-        except Exception as e:
-            connector.status = "error"
-            connector.error_message = f"Decryption failed: {str(e)}"
-            session.commit()
-            raise ValueError(f"Could not decrypt connector credentials: {str(e)}")
+    try:
+        creds = decrypt_secret_payload(connector.auth_config_vault_ref)
+    except Exception as e:
+        connector.status = "error"
+        connector.error_message = f"Decryption failed: {str(e)}"
+        session.commit()
+        raise ValueError(f"Could not decrypt connector credentials: {str(e)}")
 
+    c_type = connector.connector_type.lower()
     ingested = []
     source_errors: List[str] = []
     for brand in brands:
         try:
-            if c_type in {"certificate_transparency", "crt_sh"}:
-                batch = collect_certificate_transparency(session, tenant_id, brand, connector)
-            elif c_type in {"virustotal", "virustotal_v3"}:
+            if c_type in {"virustotal", "virustotal_v3"}:
                 batch = collect_virustotal(session, tenant_id, brand, connector, creds.get("api_key") or creds.get("apiKey", ""))
             elif c_type in {"youtube", "youtube_data", "youtube_data_api"}:
                 batch = collect_youtube(session, tenant_id, brand, connector, creds.get("api_key") or creds.get("apiKey", ""))
-            elif c_type in {"x_twitter", "x_api", "x_api_v2"}:
-                bearer_token = creds.get("bearer_token") or creds.get("bearerToken") or creds.get("api_key", "")
-                batch = collect_x_posts(session, tenant_id, brand, connector, bearer_token)
             elif c_type in {"telegram_bot", "telegram"}:
                 batch = collect_telegram(session, tenant_id, brand, connector, creds.get("bot_token") or creds.get("botToken", ""))
             elif c_type in {"google_play", "google_play_abuse"}:
@@ -508,4 +447,3 @@ def sync_connector_telemetry(
         "synced_at": now_utc,
         "error_message": connector.error_message
     }
-

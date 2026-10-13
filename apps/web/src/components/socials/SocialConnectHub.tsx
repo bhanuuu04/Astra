@@ -14,7 +14,8 @@ import {
   Layers,
   ArrowRight,
   AlertCircle,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
@@ -177,6 +178,93 @@ export function SocialConnectHub() {
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
+  // Handle customization & fetch state
+  const [editingPlatform, setEditingPlatform] = useState<SocialAppItem | null>(null);
+  const [customHandleInput, setCustomHandleInput] = useState('');
+  const [isFetchingHandle, setIsFetchingHandle] = useState(false);
+  const [fetchNotice, setFetchNotice] = useState<{ message: string; isError?: boolean } | null>(null);
+  const [platformCustomHandles, setPlatformCustomHandles] = useState<Record<string, string>>({});
+
+  // Derive smart candidate handles from brand identity & domain
+  const getAppCandidates = (app: SocialAppItem) => {
+    const slug = brandDisplayName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const domPrefix = brandDomain.split('.')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || slug;
+    const current = platformCustomHandles[app.id] || connectedPlatforms[app.id]?.handle || app.defaultHandle;
+
+    const list = [
+      current,
+      `@${slug}official`,
+      `@${slug}.official`,
+      `@${slug}_official`,
+      `@${slug}`,
+      `@${domPrefix}`,
+      `@${domPrefix}official`,
+      `@${slug}hq`,
+      `@get${slug}`,
+    ];
+    return Array.from(new Set(list));
+  };
+
+  const handleSelectOrFetchHandle = async (app: SocialAppItem, newHandle: string) => {
+    setPlatformCustomHandles((prev) => ({ ...prev, [app.id]: newHandle }));
+
+    // If channel is already actively connected, sync updated handle to Supabase BrandAsset
+    if (connectedPlatforms[app.id]?.assetId && activeBrand?.id) {
+      try {
+        await deleteBrandAsset(activeBrand.id, connectedPlatforms[app.id].assetId);
+        await addBrandAsset(activeBrand.id, 'social_handle', newHandle, {
+          platform: app.id,
+          label: `Official ${app.name} Handle`,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['brands'] });
+      } catch (e) {
+        console.warn('Update brand asset notice:', e);
+      }
+    }
+  };
+
+  const handleFetchCustomHandle = async (app: SocialAppItem) => {
+    const raw = customHandleInput.trim();
+    if (!raw) {
+      setFetchNotice({ message: 'Please enter a username to fetch.', isError: true });
+      return;
+    }
+
+    setIsFetchingHandle(true);
+    setFetchNotice(null);
+
+    try {
+      const res = await fetch('/api/brand/fetch-handle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: app.id,
+          handle: raw,
+          domain: brandDomain,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to verify username.');
+      }
+
+      const canonical = data.canonicalHandle;
+      await handleSelectOrFetchHandle(app, canonical);
+
+      setFetchNotice({ message: `Verified & selected: ${canonical}`, isError: false });
+      setTimeout(() => {
+        setEditingPlatform(null);
+        setFetchNotice(null);
+        setCustomHandleInput('');
+      }, 1000);
+    } catch (err: any) {
+      setFetchNotice({ message: err.message || 'Could not verify username.', isError: true });
+    } finally {
+      setIsFetchingHandle(false);
+    }
+  };
+
   // Close dropdown on click outside
   React.useEffect(() => {
     const handleGlobalClick = () => setActiveDropdown(null);
@@ -267,6 +355,10 @@ export function SocialConnectHub() {
 
   const handleConnect = async (app: SocialAppItem) => {
     setConnectingPlatform(app.id);
+    const selectedHandle =
+      platformCustomHandles[app.id] ||
+      connectedPlatforms[app.id]?.handle ||
+      app.defaultHandle;
 
     try {
       // 1. Request official OAuth link from Composio using user-scoped ID
@@ -284,7 +376,7 @@ export function SocialConnectHub() {
 
       if (!data.redirect_url) {
         // Direct integration or fallback
-        connectMutation.mutate({ platformId: app.id, handle: app.defaultHandle });
+        connectMutation.mutate({ platformId: app.id, handle: selectedHandle });
         return;
       }
 
@@ -302,7 +394,7 @@ export function SocialConnectHub() {
         if (event.data?.type === 'COMPOSIO_OAUTH_SUCCESS') {
           isResolved = true;
           window.removeEventListener('message', onMessage);
-          connectMutation.mutate({ platformId: app.id, handle: app.defaultHandle });
+          connectMutation.mutate({ platformId: app.id, handle: selectedHandle });
         }
       };
       window.addEventListener('message', onMessage);
@@ -322,7 +414,7 @@ export function SocialConnectHub() {
               isResolved = true;
               clearInterval(pollTimer);
               window.removeEventListener('message', onMessage);
-              connectMutation.mutate({ platformId: app.id, handle: app.defaultHandle });
+              connectMutation.mutate({ platformId: app.id, handle: selectedHandle });
               if (popup && !popup.closed) popup.close();
               return;
             }
@@ -341,7 +433,7 @@ export function SocialConnectHub() {
               const finalRes = await fetch(`/api/connect/composio/status?connectedAccountId=${data.connected_account_id}`);
               const finalData = await finalRes.json();
               if (finalData.active) {
-                connectMutation.mutate({ platformId: app.id, handle: app.defaultHandle });
+                connectMutation.mutate({ platformId: app.id, handle: selectedHandle });
                 return;
               }
             } catch {}
@@ -456,8 +548,26 @@ export function SocialConnectHub() {
                   <h3 className="truncate text-xs font-bold text-[#37352f] group-hover:text-[#0f7b6c] transition">
                     {app.name}
                   </h3>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[#9b9a97]">
-                    <span className="font-mono text-[10px] text-[#787774]">
+                  <div className="mt-0.5 flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingPlatform(app);
+                        setCustomHandleInput('');
+                        setFetchNotice(null);
+                      }}
+                      className="group/btn inline-flex items-center gap-1 text-[11px] font-mono text-[#787774] hover:text-[#0f7b6c] transition text-left cursor-pointer"
+                      title="Choose or fetch your authentic username"
+                    >
+                      <span className="truncate border-b border-dashed border-[#787774]/40 group-hover/btn:border-[#0f7b6c]">
+                        {platformCustomHandles[app.id] || connectedPlatforms[app.id]?.handle || app.defaultHandle}
+                      </span>
+                      <span className="text-[9px] font-sans font-medium text-[#0f7b6c] bg-[#0f7b6c]/10 px-1 py-0.2 rounded shrink-0">
+                        Edit
+                      </span>
+                    </button>
+                    <span className="text-[10px] text-[#9b9a97]">
                       {app.toolCount} security tools
                     </span>
                   </div>
@@ -581,6 +691,175 @@ export function SocialConnectHub() {
           queryClient.invalidateQueries({ queryKey: ['candidates'] });
         }}
       />
+
+      {/* Modal to choose username or enter custom one and fetch in SocialConnectHub */}
+      {editingPlatform && (() => {
+        const app = editingPlatform;
+        const currentHandle =
+          platformCustomHandles[app.id] ||
+          connectedPlatforms[app.id]?.handle ||
+          app.defaultHandle;
+        const candidates = getAppCandidates(app);
+        const Icon = app.icon;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={() => {
+              setEditingPlatform(null);
+              setFetchNotice(null);
+            }}
+          >
+            <div
+              className="w-full max-w-lg bg-white rounded-[12px] border border-[#e3e2e0] p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0">
+                    <Icon className="h-9 w-9" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-[#37352f]">
+                      Choose Official {app.name} Username
+                    </h3>
+                    <p className="text-xs text-[#787774]">
+                      Brand: <span className="font-semibold text-[#37352f]">{brandDisplayName}</span> ({brandDomain})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPlatform(null);
+                    setFetchNotice(null);
+                  }}
+                  className="text-[#9b9a97] hover:text-[#37352f] text-sm p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-[#787774] leading-relaxed">
+                Multiple brands may share similar names. Choose your authentic username from the discovered list, or enter your exact handle under <strong>Other</strong> and click <strong>Fetch &amp; Select</strong>.
+              </p>
+
+              {/* Prefetched Usernames */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-[#37352f] block">
+                  Discovered &amp; Suggested Usernames:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {candidates.map((cand) => {
+                    const isSelected = currentHandle.toLowerCase() === cand.toLowerCase();
+                    return (
+                      <button
+                        key={cand}
+                        type="button"
+                        onClick={async () => {
+                          await handleSelectOrFetchHandle(app, cand);
+                          setEditingPlatform(null);
+                          setSuccessBanner(`Updated ${app.name} official username to ${cand}`);
+                          setTimeout(() => setSuccessBanner(null), 3000);
+                        }}
+                        className={`flex items-center justify-between p-2.5 rounded-[6px] border text-xs font-mono text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'border-[#0f7b6c] bg-[#0f7b6c]/10 text-[#0f7b6c] font-semibold ring-1 ring-[#0f7b6c]/30'
+                            : 'border-[#e3e2e0] bg-[#f7f6f3] text-[#37352f] hover:border-[#0f7b6c]/50 hover:bg-white'
+                        }`}
+                      >
+                        <span className="truncate">{cand}</span>
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-[#0f7b6c] shrink-0 ml-1.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom "Other" Input & Fetch */}
+              <div className="pt-3 border-t border-[#e3e2e0] space-y-2.5">
+                <label className="text-xs font-semibold text-[#37352f] flex items-center justify-between">
+                  <span>Or Enter Other Username:</span>
+                  <span className="text-[11px] text-[#9b9a97] font-normal">Real account on {app.name}</span>
+                </label>
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-xs font-mono text-[#9b9a97]">
+                      @
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="e.g. astraofficial or profile link"
+                      value={customHandleInput}
+                      onChange={(e) => {
+                        setCustomHandleInput(e.target.value);
+                        if (fetchNotice) setFetchNotice(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleFetchCustomHandle(app);
+                        }
+                      }}
+                      className="w-full pl-7 pr-3 py-2 bg-white border border-[#e3e2e0] rounded-[6px] text-xs font-mono text-[#37352f] focus:outline-none focus:border-[#0f7b6c]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isFetchingHandle || !customHandleInput.trim()}
+                    onClick={() => handleFetchCustomHandle(app)}
+                    className="px-4 py-2 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0c6357] text-white text-xs font-semibold transition disabled:opacity-50 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
+                  >
+                    {isFetchingHandle ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Fetching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Fetch &amp; Select</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {fetchNotice && (
+                  <div
+                    className={`p-2.5 rounded-[6px] text-xs flex items-center gap-2 ${
+                      fetchNotice.isError
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    }`}
+                  >
+                    {fetchNotice.isError ? (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    )}
+                    <span>{fetchNotice.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPlatform(null);
+                    setFetchNotice(null);
+                  }}
+                  className="px-4 py-2 text-xs font-medium text-[#787774] hover:text-[#37352f] rounded-[6px] transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -15,12 +15,11 @@ import {
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listCampaigns, runAnalysisJob } from '@/lib/api';
-import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 export function CampaignListView() {
   const queryClient = useQueryClient();
 
-  const { data: campaigns = [], isLoading, isError, error, refetch } = useQuery({
+  const { data: campaigns = [], isLoading, isError, error } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => listCampaigns(),
   });
@@ -33,7 +32,7 @@ export function CampaignListView() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#e3e2e0]">
         <div>
@@ -67,7 +66,9 @@ export function CampaignListView() {
         {isLoading ? (
           <div className="py-12 text-center text-[#9b9a97] text-xs">Loading campaigns...</div>
         ) : isError ? (
-          <QueryErrorState title="Campaigns could not be loaded" message={error instanceof Error ? error.message : undefined} onRetry={() => refetch()} />
+          <div role="alert" className="rounded-[6px] border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">
+            Could not load campaigns. {error instanceof Error ? error.message : 'Check the API connection and try again.'}
+          </div>
         ) : campaigns.length === 0 ? (
           <div className="py-12 text-center bg-white rounded-[8px] border border-[#e3e2e0] shadow-2xs">
             <ShieldAlert className="w-7 h-7 text-[#9b9a97] mx-auto mb-2" />

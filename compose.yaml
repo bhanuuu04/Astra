@@ -22,11 +22,10 @@ services:
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://astra:astra_dev@db:5432/astra
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
-      ASTRA_INTERNAL_API_KEY: ${ASTRA_INTERNAL_API_KEY:-}
+      CORS_ORIGINS: http://localhost:3000
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
-      - "8001:8000"
+      - "8000:8000"
     volumes:
       - ./apps/api:/app
     depends_on:
@@ -38,30 +37,15 @@ services:
       timeout: 3s
       retries: 20
 
-  scheduler:
-    build:
-      context: ./apps/api
-    environment:
-      APP_ENV: development
-      DATABASE_URL: postgresql+psycopg://astra:astra_dev@db:5432/astra
-      CONNECTOR_AUTO_SYNC_ENABLED: "true"
-      CONNECTOR_AUTO_SYNC_INTERVAL_SECONDS: "3600"
-      CONNECTOR_SCHEDULER_POLL_SECONDS: "30"
-    command: ["python", "-m", "app.scheduler"]
-    volumes:
-      - ./apps/api:/app
-    depends_on:
-      api:
-        condition: service_healthy
-
   web:
     build:
       context: ./apps/web
     environment:
       API_BASE_URL: http://api:8000
-      ASTRA_INTERNAL_API_KEY: ${ASTRA_INTERNAL_API_KEY:-}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZGVzdGluZWQtc2VhaG9yc2UtOTU4NC5jbGVyay5hY2NvdW50cy5kZXYk
+      CLERK_SECRET_KEY: sk_test_x8T8ns8IbpGXvzZuekr6m7uDQrrfJk3VgVOGLDfBYn
     ports:
-      - "3001:3000"
+      - "3000:3000"
     depends_on:
       api:
         condition: service_healthy

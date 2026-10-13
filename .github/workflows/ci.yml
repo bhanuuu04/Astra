@@ -65,4 +65,5 @@ jobs:
       - name: Production Build
         run: npm run build
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZGVzdGluZWQtc2VhaG9yc2UtOTU4NC5jbGVyay5hY2NvdW50cy5kZXYk
+          CLERK_SECRET_KEY: sk_test_x8T8ns8IbpGXvzZuekr6m7uDQrrfJk3VgVOGLDfBYn

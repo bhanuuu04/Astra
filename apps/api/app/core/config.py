@@ -37,7 +37,6 @@ class Settings(BaseSettings):
 
     # Security & Tenant Isolation
     admin_api_key: str = "astra_admin_dev_secret"
-    astra_internal_api_key: str = ""
     api_secret_key: str = ""
     jwt_secret: str = "astra_enterprise_jwt_signing_secret_dev"
     jwt_algorithm: str = "HS256"
@@ -47,11 +46,6 @@ class Settings(BaseSettings):
 
     # Storage for raw evidence objects
     evidence_storage_path: str = "storage/evidence"
-
-    # Connector polling runs in its own scheduler process.
-    connector_auto_sync_enabled: bool = True
-    connector_auto_sync_interval_seconds: int = 3600
-    connector_scheduler_poll_seconds: int = 30
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -67,8 +61,6 @@ class Settings(BaseSettings):
             problems.append("JWT_SECRET must be a unique secret with at least 32 characters")
         if len(self.admin_api_key) < 32 or self.admin_api_key == "astra_admin_dev_secret":
             problems.append("ADMIN_API_KEY must be a unique secret with at least 32 characters")
-        if len(self.astra_internal_api_key) < 32 or self.astra_internal_api_key.startswith("replace-this"):
-            problems.append("ASTRA_INTERNAL_API_KEY must be a unique secret with at least 32 characters")
         if self.allow_anonymous_dev:
             problems.append("ALLOW_ANONYMOUS_DEV must be false")
         if any("*" in origin for origin in self.allowed_origins):

@@ -21,7 +21,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { listBrands, createBrand, Brand } from '@/lib/api';
-import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 const brandEnrollmentSchema = z.object({
   name: z.string().min(2, 'Brand name must be at least 2 characters'),
@@ -44,7 +43,7 @@ export function BrandRegistryView() {
   const queryClient = useQueryClient();
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
 
-  const { data: brands = [], isLoading, isError, error, refetch } = useQuery({
+  const { data: brands = [], isLoading, isError, error } = useQuery({
     queryKey: ['brands'],
     queryFn: () => listBrands(),
   });
@@ -107,7 +106,7 @@ export function BrandRegistryView() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#e3e2e0]">
         <div>
@@ -142,7 +141,9 @@ export function BrandRegistryView() {
             Loading enrolled brands...
           </div>
         ) : isError ? (
-          <div className="col-span-full"><QueryErrorState title="Brand records could not be loaded" message={error instanceof Error ? error.message : undefined} onRetry={() => refetch()} /></div>
+          <div role="alert" className="col-span-full rounded-[6px] border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700">
+            Could not load brand records. {error instanceof Error ? error.message : 'Check the API connection and try again.'}
+          </div>
         ) : brands.length === 0 ? (
           <div className="col-span-full py-12 text-center bg-white rounded-[8px] border border-[#e3e2e0] shadow-2xs">
             <p className="text-xs font-semibold text-[#37352f] mb-1">No brand DNA enrolled yet.</p>

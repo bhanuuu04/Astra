@@ -27,21 +27,23 @@ This file records capabilities present in the repository. It is updated transpar
 - **Provider Health Checks:** Real credential checks are implemented for VirusTotal, Meta Graph, YouTube, Telegram, and Google Play Android Publisher access. Mock tokens and generic connector types are not reported as healthy.
 - **On-Demand Ingestion:** YouTube uses public `search.list`; Telegram reads only updates delivered to the authorized bot; Google Play reads recent reviews for enrolled apps the developer account can access; VirusTotal enriches analyst-submitted URLs. These are source-limited reads, not broad continuous monitoring.
 - **Evidence Vault:** Provider responses ingested as findings are stored with SHA-256 evidence digests. Live sync does not fabricate findings; unsupported providers return an explicit error.
-### 5. Automated Periodic Sync Scheduler & Advisory Locking
-- **Background Connector Poller (`apps/api/app/scheduler.py`):** Multi-replica safe periodic synchronization using session-scoped PostgreSQL advisory locks (`SCHEDULER_LOCK_ID = 781_204_219`).
-- **Telemetry Ingestion:** Scheduled pull capability for VirusTotal, YouTube Data, Telegram, crt.sh Certificate Transparency logs, and Google Play connectors with configurable polling intervals.
+- **Console Connectors Manager:** Interactive configure modal, credential vaulting, health checks, and analyst-triggered sync. There is no background poller.
 
-### 6. Enterprise Brand Governance & Multi-Proof Adjudication
-- **Multi-Factor Verification (`apps/api/app/domain/brand_governance_service.py`):** Real-time verification via DNS TXT records (`_astra.<domain>`), HTML `<meta>` tag detection, HTTP `.well-known/astra-challenge.txt` token validation, and manual signed legal documentation uploads.
-- **Brand Verification Modal (`apps/web/src/components/brand/BrandVerificationModal.tsx`):** Step-by-step interactive workflow in the frontend console for instant brand asset verification.
+---
 
-### 7. Modern Identity Federation & Error Isolation
-- **Hybrid Authentication (`Clerk` + JWT Tenant Scoping):** Self-service sign-in/sign-up powered by Clerk with graceful fallback for offline evaluation/demo sandboxes.
-- **Fail-Safe UI Boundaries:** `ClerkErrorBoundary` and `QueryErrorState` ensure zero unhandled UI crashes if external auth or API connectivity drops.
+## Still required before enterprise production scale
+
+- Integrate enterprise SSO (SAML 2.0 / OIDC) and hardware MFA (WebAuthn/FIDO2) for enterprise IAM federation.
+- Automated continuous cron/daemon scheduler for periodic connector polling without manual triggers.
+- Authorized Meta/Instagram webhook ingestion scoped to the configured tenant, and public-catalog app discovery beyond developer-owned Play apps.
+- Link connector `Finding` records into the campaign graph and support evidence-based cross-surface correlation.
+- Cloud object store provider bindings (AWS S3 / GCS buckets) for multi-terabyte evidence archiving alongside the local durable storage vault.
+- Automated submission and bilateral tracking APIs with platform trust & safety portals (Meta IP Reporting API, Google Play Protect notices).
 
 ---
 
 ## Verification status
-- Next.js 16.4 production build: **Passed with 0 errors** across all 28 static and dynamic application routes (`npm run build`).
-- TypeScript compiler (`tsc`): **0 type errors**.
-- Database migrations: Alembic versions 0001 through 0008 verified.
+
+- The prior baseline recorded 43 backend tests and a clean TypeScript check before the current live-connector and response-workflow changes.
+- The current working-tree changes have not been run through the test suite or frontend type check.
+- CI configuration exists, but a successful run for these changes is not recorded here.

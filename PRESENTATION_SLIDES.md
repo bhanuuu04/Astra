@@ -1,112 +1,96 @@
-# ASTRA — Digital Risk Protection (Social & App Monitoring)
-## 5-Slide Pitch Deck Content (HacXLerate 2026 / Kampus.VC)
+# ASTRA — Digital Risk Protection Platform
+## Executive 5-Slide Pitch Deck Specification
 
 ---
 
-### SLIDE 1: Title & The Problem Landscape
-* **Slide Title:** ASTRA — Autonomous Brand Defense & Digital Risk Protection
-* **Subtitle:** Protecting Enterprises from Social Media Impersonation & Counterfeit App Stores
-* **Challenge:** Digital Risk Protection – Social & App Monitoring (Kampus.VC Track)
-* **Team:** [Your Team Name / Members]
+### Slide 1: Problem Landscape & Market Need
+* **Slide Header:** ASTRA — Autonomous Brand Defense & Digital Risk Protection
+* **Subtitle:** Protecting Enterprise Brands from Social Media Impersonation & Counterfeit Mobile Applications
+* **Challenge Track:** Digital Risk Protection – Social & App Monitoring (Kampus.VC)
 
-#### Key Bullet Points (On-Slide):
-* **The Brand Abuse Crisis:** Threat actors launch spoofed support handles, fraudulent executive profiles, and trojanized mobile applications targeting customers.
-* **The Fatal Flaw of Existing Tools:**
-  * **High False Positive Rate:** Flag legitimate enterprise accounts (e.g. `@novapay` or `com.novapay.official`) because detectors trigger on the brand name itself.
-  * **Fabricated / Unmeasured Evidence:** Tools invent fake mismatch labels or pollute empty environments with synthetic records.
-  * **Brittle Detection:** Unrelated accounts (e.g. `otherbrand_support`) get flagged as threats without true brand relevance.
-* **Astra's Value Proposition:** Ground truth via verified **Brand DNA**, deterministic lookalike & forensic detectors, and **zero false positives on official assets**.
-
-> **🎤 Speaker Notes / Bolne ke Points:**  
-> *"Good morning judges. Today, enterprise brands face massive trust erosion from lookalike social profiles and fake mobile apps stealing OTPs and customer credentials. Current DRP tools fail because they flag the company's own official accounts as threats, or flood analysts with false positives like 'otherbrand_support'. ASTRA changes this by establishing cryptographically verified Brand DNA ground truth before scoring any threats."*
+#### Content:
+* **The Brand Abuse Surge:** Threat actors exploit external ecosystems by creating spoofed support accounts, executive impersonators, and fraudulent mobile applications that deceive customers and steal credentials.
+* **Limitations of Existing DRP Platforms:**
+  * **High False Positive Rates:** Naive string matching flags an organization's own official accounts and legitimate apps.
+  * **Unverified Evidence Claims:** Dashboards manufacture unmeasured mismatch flags or insert synthetic demo records into production views.
+  * **Brittle Detection Rules:** Keyword matchers trigger on unrelated brand names (e.g., flagging `otherbrand_support` as a threat to NovaPay).
+* **The Astra Solution:** Ground truth established via verified Brand DNA, deterministic lookalike & forensic detectors, and a mathematical guarantee of zero false positives on legitimate assets.
 
 ---
 
-### SLIDE 2: Brand DNA & Zero-False-Positive Official Exclusion
-* **Slide Title:** Establishing Ground Truth: Brand DNA & Immune Architecture
-* **Tagline:** You cannot detect an impersonator until you define the legitimate identity.
+### Slide 2: Brand DNA & Official Asset Exclusion
+* **Slide Header:** Establishing Ground Truth: Brand DNA & Immune Architecture
+* **Tagline:** Ground-truth identity verification before threat scoring.
 
-#### Key Bullet Points (On-Slide):
+#### Content:
 * **Multi-Asset Brand Baseline:**
-  * Canonical Domains (`domain`)
-  * Official Social Media Handles (`social_handle`)
-  * Official Mobile Package IDs (`mobile_app_pkg`)
+  * Canonical Web Domains (`domain`)
+  * Official Social Media Accounts (`social_handle`)
+  * Official Mobile Application Package IDs (`mobile_app_pkg`)
   * Developer Signing Certificate SHA-256 Fingerprints (`cert_fingerprint`)
-* **Multi-Proof Verification Engine:**
-  * Cryptographic DNS TXT challenges (`_astra.<domain>`)
+* **Multi-Proof Verification Pipeline:**
+  * Cryptographic DNS TXT validation (`_astra.<domain>`)
   * HTTP `<meta>` tag and `.well-known` token probes
   * Analyst manual attestation with immutable evidence logging
-* **The "Zero False Positive" Guarantee:**
-  * Platform-aware exact identity matching runs **first**.
-  * Matches emit an auditable `official_asset_match` signal with **priority score 0.0**.
-  * Official apps (`com.novapay.official`) and handles (`@novapay`) are permanently protected from false alerts.
-
-> **🎤 Speaker Notes / Bolne ke Points:**  
-> *"Our core breakthrough is the Brand DNA engine. Organizations register their official domains, social handles, mobile packages, and signing certificates. Before any detection algorithm runs, Astra performs platform-aware exact matching. If a candidate matches verified brand assets, it is instantly marked as an official asset with score 0.0. This guarantees zero false alarms on legitimate enterprise properties."*
+* **Zero False Positive Guarantee:**
+  * Platform-aware exact identity matching executes prior to impersonation scoring.
+  * Matches emit an auditable `official_asset_match` signal with priority score `0.0`.
+  * Verified brand assets (e.g., `com.novapay.official`, `@novapay`) are permanently protected from false alarms.
 
 ---
 
-### SLIDE 3: Specialized Detection: Social & Mobile App Monitoring
-* **Slide Title:** Forensic Detection Engine: Social Lookalikes & Rogue App Radar
+### Slide 3: Specialized Detection: Social & Mobile App Monitoring
+* **Slide Header:** Forensic Detection Engine: Social Lookalikes & Rogue App Radar
 * **Tagline:** Calibrated algorithms replacing naive keyword search.
 
-#### Key Bullet Points (On-Slide):
+#### Content:
 * **Social Media Monitoring & Look-alike Detection (+10 Bonus Points):**
-  * **Character Swaps:** Damerau-Levenshtein transposition detection (e.g., `novapya`).
-  * **Deceptive Suffixes:** Added risk keywords (`novapay_support`, `novapay_security`).
-  * **Spacing & Delimiters:** Normalizes dots, underscores, hyphens, and zero-width spaces.
-  * **Contextual Precision Guard:** Unrelated accounts like `otherbrand_support` are safely excluded from NovaPay alerts.
-  * **Rate-Limit Resilience:** Differentiates HTTP `429` as coverage limits, never false alarms.
+  * **Character Swaps:** Damerau-Levenshtein transposition distance (e.g., `novapya`).
+  * **Deceptive Suffixes:** Suffix and prefix risk vocabulary flags (e.g., `novapay_support`, `novapay_security`).
+  * **Delimiter Normalization:** Strips hyphens, underscores, dots, and zero-width spaces.
+  * **Contextual Precision Guard:** Unrelated brand accounts (e.g., `otherbrand_support`) are safely excluded from NovaPay alerts.
+  * **Provider Resilience:** Categorizes HTTP 429/403 responses as coverage gaps rather than threat observations.
 * **App Store Monitoring & Mobile Radar:**
   * **App Listing Adapter Contract:** Structured comparison of store, package ID, developer name, description, and icon reference.
-  * **Measured Publisher Mismatch:** Identifies unauthorized third-party developers without inventing publisher labels.
-  * **Resembling Description Parsing:** Detects fraudulent OTP / fast-loan / customer care lures.
+  * **Publisher Mismatch Analysis:** Identifies unauthorized third-party developers without inventing publisher labels.
+  * **Resembling Description Analysis:** Identifies fraudulent OTP, loan, and customer-care lures.
   * **Signing Certificate Forensics:** Audits APK SHA-256 signatures against official developer certificates (`official_cert_match`).
 
-> **🎤 Speaker Notes / Bolne ke Points:**  
-> *"On Slide 3, here is our core detection engine. For social channels, we catch character swaps, spacing changes, and deceptive suffixes. Crucially, we enforce brand relevance first so that 'otherbrand_support' is never flagged as a NovaPay threat. For mobile app stores, our App Radar measures real developer mismatches, description resemblance, and audits APK SHA-256 signing certificates against official enrolled developer keys."*
-
 ---
 
-### SLIDE 4: Truthful UX & Cross-Channel Campaign Intelligence
-* **Slide Title:** Analyst Experience: Interactive Threat Graph & Takedown Dossiers
-* **Tagline:** Turning disconnected sightings into actionable legal takedowns.
+### Slide 4: Analyst Experience & Campaign Intelligence
+* **Slide Header:** Analyst Console: Interactive Threat Graph & Takedown Dossiers
+* **Tagline:** Converting isolated sightings into actionable legal takedowns.
 
-#### Key Bullet Points (On-Slide):
-* **Truthful UI Design:**
+#### Content:
+* **Evidence Truthfulness:**
   * Measured badges: `(Verified)`, `(Mismatch)`, `(Unverified)`.
-  * Honest empty states: Clean workspaces show zero threats with import actions—no synthetic data hallucination.
+  * Clean empty states: Zero synthetic data hallucination in clean environments.
   * Canonical read model: Unified risk scores across Queue, Radar, and Campaign views.
 * **Interactive Campaign Correlation Graph (`@xyflow/react`):**
-  * Clusters isolated phishing domains, rogue APKs, and Telegram fraud channels.
+  * Clusters rogue APK downloads, phishing domains, and Telegram channels.
   * Correlates threats by shared infrastructure invariants (nameservers, registrar IDs, payment rails).
 * **Automated Legal Takedown Dossier (`/responses`):**
-  * One-click generation of formatted DMCA & registrar abuse notices.
-  * Pre-configured abuse routing: Cloudflare, AWS Abuse, Namecheap, Google Play Protect.
-  * Evidence secured with SHA-256 cryptographic hash chains.
-
-> **🎤 Speaker Notes / Bolne ke Points:**  
-> *"Rather than presenting threat scores as a mysterious black box, Astra shows honest, measured badges. Our interactive campaign graph links isolated sightings—showing how a Telegram scam channel, a phishing site, and a rogue Android APK share the exact same nameserver or registrar ID. With one click, analysts generate legally binding DMCA takedown dossiers with cryptographic SHA-256 hash chains routed to registrar abuse desks."*
+  * One-click generation of formatted DMCA and registrar abuse notices.
+  * Targeted abuse desk routing: Cloudflare, AWS Abuse, Namecheap, Google Play Protect.
+  * Forensic evidence chain secured with SHA-256 cryptographic digests.
 
 ---
 
-### SLIDE 5: Engineering Depth, Live Status & Future Roadmap
-* **Slide Title:** Production Engineering, Scalability & Roadmap
-* **Tagline:** Enterprise-grade reliability built for national scale.
+### Slide 5: Production Engineering, Scalability & Roadmap
+* **Slide Header:** Production Architecture, Reliability & Future Roadmap
+* **Tagline:** Enterprise-grade security built for national scale.
 
-#### Key Bullet Points (On-Slide):
-* **Technical Depth & Security Invariants:**
+#### Content:
+* **Architectural Robustness:**
   * **Multi-Tenant Isolation:** Session-level cryptographic isolation; cross-tenant access returns 404.
-  * **SSRF Defense:** Per-hop DNS resolution blocking loopbacks, private RFC 1918 subnets, and cloud metadata IPs.
+  * **SSRF Protection:** Per-hop DNS resolution blocking loopbacks, private RFC 1918 subnets, and cloud metadata IPs.
   * **Concurrency Protection:** PostgreSQL 17 advisory locks prevent race conditions during scheduled telemetry polling.
-  * **100% Automated Test Pass:** 55/55 Pytest test suite covering all challenge criteria.
+  * **Comprehensive Test Suite:** 55/55 automated tests passing across tenant isolation, brand verification, and detectors.
 * **Deployment Readiness:**
-  * Containerized via Docker Compose & ready for byteXL Nimbus.
-  * Live Swagger OpenAPI documentation at `/docs`.
-* **Future Roadmap (Round 2 & Grand Finale):**
-  * Autonomous takedown API dispatch via registrar webhooks.
-  * Multi-lingual LLM bio & post semantic intent clustering.
-  * Dynamic sandboxing integration for live APK payload detonation.
-
-> **🎤 Speaker Notes / Bolne ke Points:**  
-> *"Under the hood, Astra is built for production: PostgreSQL 17 with pgvector, advisory locking, per-hop SSRF protection, and 55 out of 55 passing automated tests. The prototype is containerized, fully operational, and ready for deployment on byteXL Nimbus. Moving into Round 2, we will expand from takedown drafting to automated registrar API dispatch. Thank you, and we welcome your questions!"*
+  * Fully containerized via Docker Compose; compatible with byteXL Nimbus.
+  * Interactive OpenAPI Swagger documentation available at `/docs`.
+* **Future Roadmap:**
+  * Autonomous registrar abuse API dispatch via webhooks.
+  * Multi-lingual semantic intent clustering for social bios and posts.
+  * Dynamic sandboxing integration for automated APK payload detonation.

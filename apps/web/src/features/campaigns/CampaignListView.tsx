@@ -14,7 +14,7 @@ import {
   Play
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listCampaigns, runAnalysisJob } from '@/lib/api';
+import { listCampaigns, listBrands, runAnalysisJob, type Brand } from '@/lib/api';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
 import { useDemoSafe } from '@/providers/DemoProvider';
 
@@ -23,9 +23,16 @@ export function CampaignListView() {
   const demo = useDemoSafe();
   const isDemoMode = demo?.isDemoMode ?? false;
 
+  const { data: realBrands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => listBrands(),
+    enabled: !isDemoMode,
+  });
+  const currentBrandId = realBrands[0]?.id;
+
   const { data: realCampaigns = [], isLoading: realLoading, isError: realError, error, refetch } = useQuery({
-    queryKey: ['campaigns'],
-    queryFn: () => listCampaigns(),
+    queryKey: ['campaigns', currentBrandId],
+    queryFn: () => listCampaigns(currentBrandId),
     enabled: !isDemoMode,
   });
 
@@ -39,7 +46,7 @@ export function CampaignListView() {
         demo?.addSimulatedAction('run_clustering');
         return Promise.resolve({} as any);
       }
-      return runAnalysisJob();
+      return runAnalysisJob(currentBrandId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });

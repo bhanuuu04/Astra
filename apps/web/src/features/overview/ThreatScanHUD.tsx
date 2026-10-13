@@ -87,6 +87,7 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
       queryClient.invalidateQueries({ queryKey: ['overview'] });
       queryClient.invalidateQueries({ queryKey: ['sightings'] });
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile_apps_radar'] });
     }
   }, [scanState?.status, scanState?.is_scanning, queryClient]);
 

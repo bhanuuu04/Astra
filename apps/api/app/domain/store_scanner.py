@@ -489,8 +489,12 @@ def analyze_single_store_url_or_pkg(
                 pkg_id = m.group(1)
 
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        with httpx.Client(timeout=8.0) as client:
-            app_data = fetch_google_play_app_detail(client, pkg_id, headers)
+        try:
+            with httpx.Client(timeout=8.0) as client:
+                app_data = fetch_google_play_app_detail(client, pkg_id, headers)
+        except Exception as e:
+            logger.warning(f"Error fetching Google Play detail for '{pkg_id}': {e}")
+            app_data = None
 
     if not app_data:
         # Fallback heuristic representation

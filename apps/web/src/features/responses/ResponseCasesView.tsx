@@ -18,6 +18,8 @@ import {
   resolveResponseCase, 
   createResponseDraft,
   listFindings,
+  listBrands,
+  type Brand,
   type Finding,
   type ResponseCase 
 } from '@/lib/api';
@@ -38,6 +40,13 @@ export function ResponseCasesView() {
   const demo = useDemoSafe();
   const isDemoMode = demo?.isDemoMode ?? false;
 
+  const { data: realBrands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => listBrands(),
+    enabled: !isDemoMode,
+  });
+  const currentBrandId = realBrands[0]?.id;
+
   const { data, isLoading: apiLoading, error: casesError, refetch: refetchCases } = useQuery({
     queryKey: ['response_cases'],
     queryFn: () => listResponseCases(),
@@ -45,8 +54,8 @@ export function ResponseCasesView() {
   });
 
   const { data: findingsData, isLoading: findingsLoading, isError: findingsError, refetch: refetchFindings } = useQuery({
-    queryKey: ['response_draft_findings'],
-    queryFn: () => listFindings({ limit: 50, offset: 0 }),
+    queryKey: ['response_draft_findings', currentBrandId],
+    queryFn: () => listFindings({ brand_id: currentBrandId, limit: 50, offset: 0 }),
     enabled: !isDemoMode,
   });
 

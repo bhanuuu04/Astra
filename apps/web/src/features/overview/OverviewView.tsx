@@ -306,6 +306,7 @@ export function OverviewView() {
         queryClient.invalidateQueries({ queryKey: ['overview'] }),
         queryClient.invalidateQueries({ queryKey: ['sightings'] }),
         queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+        queryClient.invalidateQueries({ queryKey: ['mobile_apps_radar'] }),
       ]);
       router.push('/guide?reset=true');
     } catch (err: any) {

@@ -24,6 +24,7 @@ import {
 import { ResponseCaseTimeline } from '@/components/responses/ResponseCaseTimeline';
 import { ResponseCaseActions } from '@/components/responses/ResponseCaseActions';
 import { Button } from '@/components/ui/button';
+import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 export function ResponseCasesView() {
   const queryClient = useQueryClient();
@@ -33,12 +34,12 @@ export function ResponseCasesView() {
   const [selectedFindingId, setSelectedFindingId] = useState<string>('');
   const [targetProvider, setTargetProvider] = useState('cloudflare_abuse');
 
-  const { data, isLoading, error: casesError } = useQuery({
+  const { data, isLoading, error: casesError, refetch: refetchCases } = useQuery({
     queryKey: ['response_cases'],
     queryFn: () => listResponseCases(),
   });
 
-  const { data: findingsData } = useQuery({
+  const { data: findingsData, isLoading: findingsLoading, isError: findingsError, refetch: refetchFindings } = useQuery({
     queryKey: ['response_draft_findings'],
     queryFn: () => listFindings({ limit: 50, offset: 0 }),
   });
@@ -153,7 +154,7 @@ export function ResponseCasesView() {
             Active Response Cases ({displayCases.length})
           </p>
 
-          {casesError && <p className="rounded-[6px] border border-[#eb5757]/30 bg-[#eb5757]/10 p-3 text-xs text-[#eb5757] font-medium">Could not load response cases. Check the API connection and retry.</p>}
+          {casesError && <QueryErrorState compact title="Response cases are unavailable" message="Retry to reload the case queue." onRetry={() => { void refetchCases(); }} />}
           {isLoading ? (
             <p className="rounded-[6px] border border-[#e3e2e0] bg-white p-4 text-xs text-[#787774] shadow-[0_1px_3px_rgba(0,0,0,0.02)]">Loading response cases…</p>
           ) : displayCases.length === 0 && !casesError && (
@@ -213,7 +214,11 @@ export function ResponseCasesView() {
           <div className="rounded-[8px] border border-[#e3e2e0] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
             <h3 className="text-sm font-semibold text-[#37352f]">Create Response Draft from Finding Evidence</h3>
             <p className="mt-1 text-xs leading-relaxed text-[#787774]">Only analyst-confirmed findings with persisted evidence can be used. Draft notices require explicit approval before dispatch.</p>
-            {eligibleFindings.length > 0 ? (
+            {findingsError ? (
+              <div className="mt-3"><QueryErrorState compact title="Eligible findings could not be loaded" message="Draft creation is paused until evidence-backed findings are available." onRetry={() => { void refetchFindings(); }} /></div>
+            ) : findingsLoading ? (
+              <p className="mt-3 text-xs text-[#787774]" role="status">Loading evidence-backed findings…</p>
+            ) : eligibleFindings.length > 0 ? (
               <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
                 <select value={selectedFinding?.id || ''} onChange={(event) => setSelectedFindingId(event.target.value)} className="min-w-0 flex-1 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-3 py-2 text-xs text-[#37352f] font-medium focus:bg-white focus:border-[#0f7b6c] focus:outline-none">
                   {eligibleFindings.map((finding) => <option key={finding.id} value={finding.id}>{finding.surface}: {finding.target_identifier}</option>)}

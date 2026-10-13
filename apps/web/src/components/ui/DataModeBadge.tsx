@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-export type DataMode = 'live' | 'synthetic_demo' | 'manual_upload';
+export type DataMode = 'live' | 'synthetic_demo' | 'manual_upload' | 'unknown';
 
 interface DataModeBadgeProps {
   mode: DataMode;
@@ -13,17 +13,17 @@ interface DataModeBadgeProps {
 
 const MODE_CONFIG = {
   live: {
-    label: 'LIVE',
+    label: 'Provider data',
     bg: 'bg-[#0f7b6c]/10',
     border: 'border-[#0f7b6c]/30',
     text: 'text-[#0f7b6c] font-semibold',
-    pulse: true,
+    pulse: false,
   },
   synthetic_demo: {
-    label: 'INGESTED',
-    bg: 'bg-[#f7f6f3]',
-    border: 'border-[#e3e2e0]',
-    text: 'text-[#787774] font-medium',
+    label: 'Demo data',
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    text: 'text-amber-800 font-medium',
     pulse: false,
   },
   manual_upload: {
@@ -31,6 +31,13 @@ const MODE_CONFIG = {
     bg: 'bg-[#f7f6f3]',
     border: 'border-[#e3e2e0]',
     text: 'text-[#787774] font-medium',
+    pulse: false,
+  },
+  unknown: {
+    label: 'Source mode unknown',
+    bg: 'bg-slate-50',
+    border: 'border-slate-200',
+    text: 'text-slate-600 font-medium',
     pulse: false,
   },
 };
@@ -50,7 +57,8 @@ export function DataModeBadge({
   };
 
   return (
-    <div
+    <span
+      role="status"
       className={`inline-flex items-center gap-1.5 rounded-[4px] border font-medium uppercase tracking-wider ${config.bg} ${config.border} ${config.text} ${sizeClasses[size]} ${className}`}
     >
       {config.pulse && (
@@ -65,6 +73,6 @@ export function DataModeBadge({
         {mode === 'manual_upload' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />}
       </svg>
       {showLabel && <span>{config.label}</span>}
-    </div>
+    </span>
   );
 }

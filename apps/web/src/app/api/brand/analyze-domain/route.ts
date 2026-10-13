@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { resolveServerIdentity } from '@/lib/server-auth';
 
 const NVIDIA_NIM_BASE_URL = process.env.NVIDIA_NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-const NVIDIA_NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY || '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';
+const NVIDIA_NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
 const NVIDIA_NIM_MODEL = process.env.NVIDIA_NIM_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b';
 
 interface DomainMetadata {
@@ -110,6 +111,9 @@ async function scrapeHomepage(domain: string): Promise<DomainMetadata> {
 
 export async function POST(request: Request) {
   try {
+    if (!await resolveServerIdentity(request)) {
+      return NextResponse.json({ error: 'Sign in before requesting domain analysis.' }, { status: 401 });
+    }
     const body = await request.json();
     const rawDomain = body.domain;
 
@@ -121,37 +125,29 @@ export async function POST(request: Request) {
     if (!domain || !domain.includes('.')) {
       return NextResponse.json({ error: 'Please provide a full domain (e.g. acme.com or stripe.com).' }, { status: 400 });
     }
+    if (!NVIDIA_NIM_API_KEY) {
+      return NextResponse.json({ error: 'AI-assisted domain research is not configured. Add the provider key or enter brand details manually.' }, { status: 503 });
+    }
 
     const fallbackBrandName = inferBrandNameFromDomain(domain);
-    const googleFavicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-
     // 1. Scrape live homepage metadata
     const scraped = await scrapeHomepage(domain);
 
     // 2. Query NVIDIA NIM for deep brand synthesis
-    const prompt = `You are ASTRA's Autonomous Brand Intelligence Engine.
-Analyze the commercial domain: "${domain}".
+    const prompt = `Review submitted domain identifiers and fetched public page metadata for possible brand-risk research: "${domain}".
 Available Scraped Signals:
 - Page Title: "${scraped.title || 'N/A'}"
 - Meta Description: "${scraped.description || 'N/A'}"
 
 Instructions:
-1. Identify the real company / brand name (e.g. for stripe.com -> "Stripe", for nilapay.com -> "Nilapay", for apple.com -> "Apple", for github.com -> "GitHub").
-2. Identify the specific Industry Sector (e.g. "Fintech & Digital Payments", "Enterprise SaaS & Cloud", "E-Commerce & Retail", "Cybersecurity & Identity", "Consumer Technology").
-3. Write an authentic 1-sentence brand summary.
-4. Provide suggested real or canonical social handles for Instagram, X (Twitter), LinkedIn, and Facebook.
-5. Provide 3 high-risk typosquat / lookalike domain permutations.
-6. Provide 5 sensitive threat keywords (e.g. login, verify, payment, support, kyc).
-
-IMPORTANT: Return actual real content tailored to "${domain}". Do NOT return placeholder words like "string" or "Example".
+Use only the supplied metadata. Do not claim that the domain is owned by the user, that a brand is authentic, that social accounts are official, or that infrastructure was checked. Separate suggestions from observed metadata.
 
 Respond in raw JSON:
 {
-  "brandName": "Actual Brand Name",
-  "legalName": "Actual Legal Name Inc.",
+  "brandNameSuggestion": "string",
   "industry": "Industry Sector",
-  "summary": "Authentic company summary sentence",
-  "detectedSocials": {
+  "summary": "string",
+  "suggestedSocials": {
     "instagram": "@handle",
     "x_twitter": "@handle",
     "linkedin": "company-slug",
@@ -159,8 +155,7 @@ Respond in raw JSON:
     "youtube": "@channel"
   },
   "threatKeywords": ["term1", "term2", "term3", "term4", "term5"],
-  "highRiskTyposquats": ["typo1.com", "typo2.net", "typo3.org"],
-  "confidenceScore": 98
+  "potentialLookalikes": ["domain1", "domain2", "domain3"]
 }`;
 
     let aiData: any = null;
@@ -177,7 +172,7 @@ Respond in raw JSON:
           messages: [
             {
               role: 'system',
-              content: 'You are ASTRA Brand Sentinel AI. Always output valid JSON with real domain intelligence, never placeholders.',
+              content: 'Provide cautious suggestions based only on the supplied domain and page metadata. Never claim verification, ownership, or confirmed official profiles. Output valid JSON only.',
             },
             {
               role: 'user',
@@ -205,62 +200,40 @@ Respond in raw JSON:
       console.warn('NVIDIA NIM brand analysis notice:', nimErr);
     }
 
-    // Cleaned slug
-    const candidateName = aiData?.brandName || (scraped.title ? scraped.title.split(/[|\-–—]/)[0].trim() : fallbackBrandName);
-    const finalBrandName = (candidateName && candidateName.toLowerCase() !== 'string') ? candidateName : fallbackBrandName;
-    const brandSlug = finalBrandName.toLowerCase().replace(/[^a-z0-9]/g, '') || fallbackBrandName.toLowerCase();
+    if (!aiData) {
+      return NextResponse.json({ error: 'The AI provider did not return a usable domain analysis.' }, { status: 502 });
+    }
 
-    // Combine scraped, AI, and fallback data
-    const finalIndustry = (aiData?.industry && aiData.industry.toLowerCase() !== 'string') 
-      ? aiData.industry 
-      : (domain.includes('pay') || domain.includes('fin') || domain.includes('bank') ? 'Fintech & Digital Payments' : 'Technology & Enterprise Cloud');
+    // Cleaned slug
+    const candidateName = aiData?.brandNameSuggestion || (scraped.title ? scraped.title.split(/[|\-–—]/)[0].trim() : fallbackBrandName);
+    const finalBrandName = (candidateName && candidateName.toLowerCase() !== 'string') ? candidateName : fallbackBrandName;
+    const finalIndustry = (aiData?.industry && aiData.industry.toLowerCase() !== 'string')
+      ? aiData.industry
+      : 'Industry not identified';
       
     const finalSummary = (aiData?.summary && aiData.summary.toLowerCase() !== 'string') 
       ? aiData.summary 
-      : (scraped.description || `${finalBrandName} is a verified commercial web property operating on ${domain}.`);
+      : (scraped.description || 'No page description was available for research.');
       
-    const finalLogo = scraped.favicon || googleFavicon;
-
-    const detectedSocials = {
-      instagram: scraped.socials?.instagram || aiData?.detectedSocials?.instagram || `@${brandSlug}.official`,
-      x_twitter: scraped.socials?.x_twitter || aiData?.detectedSocials?.x_twitter || `@${brandSlug}_official`,
-      linkedin: scraped.socials?.linkedin || aiData?.detectedSocials?.linkedin || `${brandSlug}-official`,
-      facebook: scraped.socials?.facebook || aiData?.detectedSocials?.facebook || `${finalBrandName}Official`,
-      youtube: aiData?.detectedSocials?.youtube || `@${brandSlug}`,
-    };
-
-    const highRiskTyposquats = aiData?.highRiskTyposquats || [
-      `${domain.split('.')[0]}-support.com`,
-      `verify-${domain}`,
-      `${domain.split('.')[0]}-portal.net`,
-    ];
-
-    const threatKeywords = aiData?.threatKeywords || [
-      'login',
-      'verify',
-      'support',
-      'billing',
-      'kyc',
-    ];
+    const finalLogo = scraped.favicon || null;
+    const detectedSocials = scraped.socials || {};
+    const suggestedSocials = aiData?.suggestedSocials || {};
+    const potentialLookalikes = Array.isArray(aiData?.potentialLookalikes) ? aiData.potentialLookalikes : [];
+    const threatKeywords = Array.isArray(aiData?.threatKeywords) ? aiData.threatKeywords : [];
 
     return NextResponse.json({
       success: true,
       domain,
       brandName: finalBrandName,
-      legalName: aiData?.legalName || `${finalBrandName} Inc.`,
       industry: finalIndustry,
       summary: finalSummary,
       logoUrl: finalLogo,
       detectedSocials,
+      suggestedSocials,
       threatKeywords,
-      highRiskTyposquats,
-      confidenceScore: aiData?.confidenceScore || 97,
-      securityBaseline: {
-        sslEnforced: true,
-        dnsResolvable: true,
-        perimeterStatus: 'Active Sentinel Defense Baseline',
-        monitoredChannelsAvailable: 6
-      }
+      potentialLookalikes,
+      ownershipVerification: 'not_performed',
+      analysisMode: 'AI suggestions plus fetched page metadata',
     });
 
   } catch (err: any) {

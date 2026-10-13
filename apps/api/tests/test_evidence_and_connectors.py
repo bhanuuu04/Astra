@@ -97,6 +97,16 @@ def test_customer_offboarding_purge():
     assert load_evidence_content(key2) is None
 
 
+def test_evidence_object_keys_cannot_escape_storage_boundary():
+    """Evidence keys must never write, read, or delete outside the vault."""
+    with pytest.raises(ValueError):
+        save_evidence_content("../outside.txt", b"secret")
+    with pytest.raises(ValueError):
+        load_evidence_content("../../outside.txt")
+    with pytest.raises(ValueError):
+        delete_evidence_object("/absolute/outside.txt")
+
+
 def test_webhook_fail_closed_verification():
     """Verify that webhook signatures strictly fail closed across all invalid states."""
     import hmac

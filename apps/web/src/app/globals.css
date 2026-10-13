@@ -3,21 +3,21 @@
 :root {
   color-scheme: light;
   --bg: #ffffff;
-  --surface: #f7f6f3;
-  --border: #e3e2e0;
-  --accent: #0f7b6c;
-  --text-primary: #37352f;
-  --text-muted: #9b9a97;
-  --radius-sm: 3px;
-  --radius-md: 6px;
-  --astra-bg: #f7f6f3;
-  --astra-sidebar: #ffffff;
+  --surface: #f8fafc;
+  --border: #e2e8f0;
+  --accent: #0f766e;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --astra-bg: #f4f7fb;
+  --astra-sidebar: #111c2e;
   --astra-panel: #ffffff;
-  --astra-line: #e3e2e0;
-  --astra-muted: #787774;
-  --astra-accent: #0f7b6c;
+  --astra-line: #e2e8f0;
+  --astra-muted: #64748b;
+  --astra-accent: #0f766e;
   --background: var(--astra-bg);
-  --foreground: #37352f;
+  --foreground: #0f172a;
 }
 
 * { box-sizing: border-box; }
@@ -33,24 +33,24 @@ body {
 
 body { font-family: var(--font-sans); }
 
-::selection { background: #0f7b6c25; color: #0f7b6c; }
+::selection { background: #0f766e25; color: #0f766e; }
 
 .astra-shell {
-  background: #f7f6f3;
+  background: #f4f7fb;
 }
 
-.astra-sidebar { 
-  background: #ffffff; 
+.astra-sidebar {
+  background: #111c2e;
 }
 
 .astra-topbar { 
-  background: rgba(255, 255, 255, 0.95); 
-  backdrop-filter: blur(16px); 
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
 }
 
 .astra-main { scrollbar-gutter: stable; }
 .metric-card { 
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02); 
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.025);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -58,7 +58,7 @@ body { font-family: var(--font-sans); }
 ::-webkit-scrollbar-thumb { background: #e3e2e0; border: 1px solid transparent; border-radius: 99px; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: #9b9a97; }
 
-:focus-visible { outline: 2px solid var(--astra-accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--astra-accent); outline-offset: 3px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { isClerkAuthConfigured } from '@/lib/auth-config';
 
 const API_BASE_URL = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const NVIDIA_NIM_BASE_URL = process.env.NVIDIA_NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-const NVIDIA_NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY || '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';
+const NVIDIA_NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
 const NVIDIA_NIM_MODEL = process.env.NVIDIA_NIM_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b';
+const INTERNAL_API_KEY = process.env.ASTRA_INTERNAL_API_KEY;
 
 interface ConnectedApp {
   id: string;
@@ -13,10 +16,69 @@ interface ConnectedApp {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { brandName, domain, connectedApps = [] } = body;
+    if (!INTERNAL_API_KEY) {
+      return NextResponse.json({ error: 'Workspace synchronization is not configured on the server.' }, { status: 503 });
+    }
 
-    if (!brandName || !domain) {
+    let email: string;
+    let fullName: string;
+    let clerkId: string | null = null;
+    let token: string;
+    if (isClerkAuthConfigured()) {
+      const { userId } = await auth();
+      if (!userId) {
+        return NextResponse.json({ error: 'Sign in before creating a brand workspace.' }, { status: 401 });
+      }
+      const clerkUser = await currentUser();
+      const primaryEmail = clerkUser?.primaryEmailAddress?.emailAddress?.toLowerCase();
+      if (!clerkUser || clerkUser.id !== userId || !primaryEmail) {
+        return NextResponse.json({ error: 'A primary email is required to create a brand workspace.' }, { status: 400 });
+      }
+      email = primaryEmail;
+      fullName = clerkUser.fullName || clerkUser.firstName || email.split('@')[0];
+      clerkId = userId;
+
+      const syncRes = await fetch(`${API_BASE_URL}/api/v1/auth/sync-clerk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Astra-Internal-Api-Key': INTERNAL_API_KEY },
+        body: JSON.stringify({ email, full_name: fullName, clerk_id: clerkId, composio_entity_id: `astra_${userId}` }),
+      });
+      if (!syncRes.ok) {
+        const error = await syncRes.json().catch(() => ({}));
+        return NextResponse.json({ error: error.detail || 'Could not initialize the authenticated workspace.' }, { status: syncRes.status });
+      }
+      const syncData = await syncRes.json();
+      token = syncData.access_token;
+    } else {
+      const bearer = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+      if (!bearer) {
+        return NextResponse.json({ error: 'Sign in before creating a brand workspace.' }, { status: 401 });
+      }
+      const profileRes = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+        headers: { Authorization: `Bearer ${bearer}` },
+        cache: 'no-store',
+      });
+      if (!profileRes.ok) {
+        return NextResponse.json({ error: 'Your workspace session is invalid or expired. Sign in again.' }, { status: 401 });
+      }
+      const profile = await profileRes.json();
+      email = profile.user?.email;
+      fullName = profile.user?.full_name || email?.split('@')[0] || '';
+      clerkId = profile.user?.clerk_id || null;
+      token = bearer;
+      if (!email) {
+        return NextResponse.json({ error: 'The authenticated account has no email address.' }, { status: 400 });
+      }
+    }
+    if (!token) {
+      return NextResponse.json({ error: 'The workspace service did not issue an access session.' }, { status: 502 });
+    }
+
+    const body = await request.json();
+    const { brandName, domain } = body;
+    const connectedApps: ConnectedApp[] = Array.isArray(body.connectedApps) ? body.connectedApps : [];
+
+    if (typeof brandName !== 'string' || !brandName.trim() || typeof domain !== 'string' || !domain.trim()) {
       return NextResponse.json(
         { error: 'Brand name and domain are required' },
         { status: 400 }
@@ -24,111 +86,65 @@ export async function POST(request: Request) {
     }
 
     const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim().toLowerCase();
-    const brandSlug = brandName.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    // 1. Resolve authentic user JWT access token to ensure brand is strictly created in user's tenant
-    let token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    if (!token && body.email) {
-      try {
-        const syncRes = await fetch(`${API_BASE_URL}/api/v1/auth/sync-clerk`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: body.email,
-            full_name: body.brandName || body.email.split('@')[0],
-            clerk_id: body.clerkId || null,
-          }),
-        });
-        if (syncRes.ok) {
-          const syncData = await syncRes.json();
-          token = syncData.access_token;
-        }
-      } catch (syncErr) {
-        console.warn('Sync user token during onboarding notice:', syncErr);
-      }
+    if (!cleanDomain || !cleanDomain.includes('.')) {
+      return NextResponse.json({ error: 'Enter a valid domain name.' }, { status: 400 });
     }
 
-    // 2. Create or retrieve Brand in Supabase under user's isolated tenant
-    let brandId: string | null = null;
-    try {
-      const brandPayload = {
-        name: brandName,
-        assets: [
-          { asset_type: 'domain', canonical_value: cleanDomain },
-          ...connectedApps.map((app: ConnectedApp) => ({
-            asset_type: 'social_handle',
-            canonical_value: app.handle,
-            metadata: { platform: app.id, label: `Official ${app.name} Handle` }
-          }))
-        ]
-      };
-
-      const brandHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        brandHeaders['Authorization'] = `Bearer ${token}`;
-      }
-
-      const brandRes = await fetch(`${API_BASE_URL}/api/v1/brands`, {
-        method: 'POST',
-        headers: brandHeaders,
-        body: JSON.stringify(brandPayload)
-      });
-
-      if (brandRes.ok) {
-        const brandData = await brandRes.json();
-        brandId = brandData.id;
-      }
-    } catch (err) {
-      console.warn('Brand creation notice:', err);
+    // Use the verified Clerk session as the source of account identity.
+    const brandPayload = {
+      name: brandName.trim(),
+      assets: [
+        { asset_type: 'domain', canonical_value: cleanDomain },
+        ...connectedApps.filter((app) => app && typeof app.handle === 'string' && app.handle.trim()).map((app) => ({
+          asset_type: 'social_handle',
+          canonical_value: app.handle.trim(),
+          metadata: { platform: app.id, label: `Official ${app.name} Handle` },
+        })),
+      ],
+    };
+    const brandRes = await fetch(`${API_BASE_URL}/api/v1/brands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(brandPayload),
+    });
+    if (!brandRes.ok) {
+      const error = await brandRes.json().catch(() => ({}));
+      return NextResponse.json({ error: error.detail || 'Could not create the brand in this workspace.' }, { status: brandRes.status });
+    }
+    const brandData = await brandRes.json();
+    const brandId = brandData.id as string | undefined;
+    if (!brandId) {
+      return NextResponse.json({ error: 'The workspace service did not return a brand identifier.' }, { status: 502 });
     }
 
-    // 3. Mark user onboarding as completed in Supabase PostgreSQL
-    if (brandId) {
-      try {
-        const completeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) {
-          completeHeaders['Authorization'] = `Bearer ${token}`;
-        }
-
-        await fetch(`${API_BASE_URL}/api/v1/auth/complete-onboarding`, {
-          method: 'POST',
-          headers: completeHeaders,
-          body: JSON.stringify({
-            clerk_id: body.clerkId,
-            email: body.email,
-            brand_id: brandId,
-          }),
-        });
-      } catch (completeErr) {
-        console.warn('Complete onboarding API notice:', completeErr);
-      }
+    // Mark onboarding complete through the same trusted server-side boundary.
+    const completeRes = await fetch(`${API_BASE_URL}/api/v1/auth/complete-onboarding`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Astra-Internal-Api-Key': INTERNAL_API_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ clerk_id: clerkId, email, brand_id: brandId }),
+    });
+    if (!completeRes.ok) {
+      const error = await completeRes.json().catch(() => ({}));
+      return NextResponse.json({ error: error.detail || 'Brand created, but workspace onboarding could not be completed.' }, { status: completeRes.status });
     }
 
-    // 3. Invoke NVIDIA NIM Nemotron-3.5 Model to verify brand and generate canonical baseline
-    let aiVerification = null;
-    try {
+    // Optional AI enrichment; it does not establish domain ownership or brand authenticity.
+    let aiAnalysis = null;
+    if (NVIDIA_NIM_API_KEY) try {
       const handlesList = connectedApps.map((a: ConnectedApp) => a.handle).join(', ');
-      const prompt = `You are ASTRA's Autonomous Brand Sentinel.
-Your task is to analyze and verify if "${brandName}" (Domain: ${cleanDomain}, Handles: ${handlesList || 'none registered'}) represents a legitimate commercial brand identity and establish its canonical threat invariants.
-
-Analyze:
-1. Brand Legitimacy Assessment (Score 0-100)
-2. Is it safe to establish canonical protection? (true/false)
-3. Known high-risk typosquats and lookalike permutations for this brand
-4. Department spoofing vectors (support, billing, verify)
-5. Executive impersonation risk profile
+      const prompt = `Review these user-provided brand identifiers for potential impersonation patterns: "${brandName}" (Domain: ${cleanDomain}, Handles: ${handlesList || 'none provided'}).
+Treat all identifiers as unverified. Do not infer domain ownership, brand legitimacy, or provider activity. Return cautious research context and recommended human validation steps.
 
 Respond strictly in valid JSON matching this schema:
 {
-  "verified": true,
-  "confidenceScore": 98,
   "brandSummary": "string",
-  "legitimateEntity": "string",
-  "threatInvariants": ["string"],
-  "highRiskTyposquats": ["string"],
-  "protectedKeywords": ["string"],
-  "initialScanTargets": ["string"],
-  "verificationProof": "string"
+  "potentialImpersonationPatterns": ["string"],
+  "recommendedValidationSteps": ["string"],
+  "limitations": "string"
 }`;
 
       const nimResponse = await fetch(`${NVIDIA_NIM_BASE_URL}/chat/completions`, {
@@ -142,7 +158,7 @@ Respond strictly in valid JSON matching this schema:
           messages: [
             {
               role: 'system',
-              content: 'You are ASTRA Autonomous Threat Analysis AI. Output ONLY raw JSON without markdown codeblocks or explanation.',
+              content: 'Provide cautious research context from supplied identifiers only. Never claim a brand or domain is verified. Output only valid JSON.',
             },
             {
               role: 'user',
@@ -159,25 +175,11 @@ Respond strictly in valid JSON matching this schema:
         const rawContent = nimData.choices?.[0]?.message?.content || '{}';
         const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          aiVerification = JSON.parse(jsonMatch[0]);
+          aiAnalysis = JSON.parse(jsonMatch[0]);
         }
       }
     } catch (nimErr) {
       console.warn('NVIDIA NIM call notice:', nimErr);
-    }
-
-    if (!aiVerification) {
-      aiVerification = {
-        verified: true,
-        confidenceScore: 97,
-        brandSummary: `${brandName} (${cleanDomain}) verified as active commercial entity. Autonomous threat defense perimeter initialized.`,
-        legitimateEntity: `${brandName} Technologies`,
-        threatInvariants: [`@${brandSlug}_official`, cleanDomain],
-        highRiskTyposquats: [`${cleanDomain}-support.xyz`, `@${brandSlug}_care`, `${cleanDomain}-login.com`],
-        protectedKeywords: ['support', 'verify', 'kyc', 'claims', 'billing'],
-        initialScanTargets: ['Instagram Lookalikes', 'Phishing Domains', 'Telegram Extortion Channels'],
-        verificationProof: 'NVIDIA Nemotron 3.5 Lightning Verified Cryptographic Baseline'
-      };
     }
 
     return NextResponse.json({
@@ -186,7 +188,8 @@ Respond strictly in valid JSON matching this schema:
       brandName,
       domain: cleanDomain,
       connectedAppsCount: connectedApps.length,
-      aiVerification,
+      aiAnalysis,
+      aiAnalysisStatus: NVIDIA_NIM_API_KEY ? (aiAnalysis ? 'available' : 'unavailable') : 'not_configured',
       messagesIngested: 0
     });
   } catch (err: any) {

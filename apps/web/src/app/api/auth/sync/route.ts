@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { isClerkAuthConfigured } from '@/lib/auth-config';
 
 const API_BASE_URL = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY || 'ak_OCJyi-IhtbMULLyu4vpq';
+const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY;
+const INTERNAL_API_KEY = process.env.ASTRA_INTERNAL_API_KEY;
 
 async function ensureComposioEntity(entityId: string) {
+  if (!COMPOSIO_API_KEY) {
+    return { entityId, status: 'not_configured' };
+  }
+
   try {
     // Check if entity already exists
     const checkRes = await fetch(`https://backend.composio.dev/api/v1/client/auth/user/entity/${entityId}`, {
@@ -22,16 +29,26 @@ async function ensureComposioEntity(entityId: string) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
-    const body = await request.json();
-    const { email, fullName, clerkId, composioEntityId } = body;
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    if (!isClerkAuthConfigured()) {
+      return NextResponse.json({ error: 'Clerk sign-in is not configured on this server.' }, { status: 503 });
+    }
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Sign in before synchronizing your workspace.' }, { status: 401 });
+    }
+    if (!INTERNAL_API_KEY) {
+      return NextResponse.json({ error: 'Workspace synchronization is not configured on the server.' }, { status: 503 });
     }
 
-    const entityId = composioEntityId || (clerkId ? `astra_${clerkId}` : null);
+    const clerkUser = await currentUser();
+    const email = clerkUser?.primaryEmailAddress?.emailAddress?.toLowerCase();
+    if (!clerkUser || clerkUser.id !== userId || !email) {
+      return NextResponse.json({ error: 'A primary email is required for workspace synchronization.' }, { status: 400 });
+    }
+
+    const entityId = `astra_${userId}`;
 
     // 1. Ensure Composio entity exists for this user
     let composioInfo = null;
@@ -42,11 +59,11 @@ export async function POST(request: Request) {
     // 2. Sync user to Supabase via FastAPI backend
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/sync-clerk`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Astra-Internal-Api-Key': INTERNAL_API_KEY },
       body: JSON.stringify({
         email,
-        full_name: fullName || email.split('@')[0],
-        clerk_id: clerkId || null,
+        full_name: clerkUser.fullName || clerkUser.firstName || email.split('@')[0],
+        clerk_id: userId,
         composio_entity_id: entityId || null,
       }),
     });

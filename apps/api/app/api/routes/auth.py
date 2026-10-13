@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.security import TenantContext, get_current_tenant_context
+from app.core.security import TenantContext, get_current_tenant_context, require_internal_api_key
 from app.db.session import get_session
 from app.domain.auth_service import (
     complete_user_onboarding,
@@ -83,6 +83,7 @@ def switch_tenant(
 def sync_clerk(
     req: ClerkSyncRequest,
     session: Session = Depends(get_session),
+    _internal_auth: None = Depends(require_internal_api_key),
 ):
     """Synchronize Clerk authenticated user to Supabase database, create tenant membership, and issue JWT."""
     return sync_clerk_user(
@@ -101,6 +102,7 @@ def sync_clerk(
 def handle_complete_onboarding(
     req: CompleteOnboardingRequest,
     session: Session = Depends(get_session),
+    _internal_auth: None = Depends(require_internal_api_key),
 ):
     """Permanently store onboarding status and primary brand in Supabase."""
     return complete_user_onboarding(

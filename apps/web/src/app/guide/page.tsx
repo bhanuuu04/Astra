@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import { getAuthToken } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield,
@@ -37,26 +38,20 @@ interface ChannelApp {
   category: string;
   toolsCount: number;
   iconBg: string;
-  defaultHandleSuffix: string;
 }
 
 interface AnalyzedBrand {
   domain: string;
   brandName: string;
-  legalName?: string;
   industry: string;
   summary: string;
   logoUrl?: string;
   detectedSocials: Record<string, string>;
+  suggestedSocials: Record<string, string>;
   threatKeywords: string[];
-  highRiskTyposquats: string[];
-  confidenceScore: number;
-  securityBaseline: {
-    sslEnforced: boolean;
-    dnsResolvable: boolean;
-    perimeterStatus: string;
-    monitoredChannelsAvailable: number;
-  };
+  potentialLookalikes: string[];
+  ownershipVerification: 'not_performed';
+  analysisMode: string;
 }
 
 const SUPPORTED_APPS: ChannelApp[] = [
@@ -66,7 +61,6 @@ const SUPPORTED_APPS: ChannelApp[] = [
     category: 'Meta Ecosystem',
     toolsCount: 42,
     iconBg: 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white',
-    defaultHandleSuffix: '.official',
   },
   {
     id: 'x_twitter',
@@ -74,7 +68,6 @@ const SUPPORTED_APPS: ChannelApp[] = [
     category: 'Microblogging & DMs',
     toolsCount: 38,
     iconBg: 'bg-black text-white',
-    defaultHandleSuffix: '_official',
   },
   {
     id: 'facebook',
@@ -82,7 +75,6 @@ const SUPPORTED_APPS: ChannelApp[] = [
     category: 'Meta Business Suite',
     toolsCount: 35,
     iconBg: 'bg-blue-600 text-white',
-    defaultHandleSuffix: 'Official',
   },
   {
     id: 'linkedin',
@@ -90,7 +82,6 @@ const SUPPORTED_APPS: ChannelApp[] = [
     category: 'Professional Network',
     toolsCount: 28,
     iconBg: 'bg-sky-700 text-white',
-    defaultHandleSuffix: '-official',
   },
   {
     id: 'google',
@@ -98,7 +89,6 @@ const SUPPORTED_APPS: ChannelApp[] = [
     category: 'App Ecosystem',
     toolsCount: 54,
     iconBg: 'bg-emerald-600 text-white',
-    defaultHandleSuffix: '_apps',
   },
   {
     id: 'youtube',
@@ -106,7 +96,6 @@ const SUPPORTED_APPS: ChannelApp[] = [
     category: 'Video & Streaming',
     toolsCount: 31,
     iconBg: 'bg-red-600 text-white',
-    defaultHandleSuffix: 'Global',
   },
 ];
 
@@ -148,7 +137,6 @@ export default function GuideOnboardingPage() {
 
   // Derived Brand Values
   const effectiveBrandName = customBrandName || analysisData?.brandName || 'Brand';
-  const cleanBrandSlug = effectiveBrandName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'brand';
   const cleanDomain = (analysisData?.domain || domainInput).replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
 
   // Permanent Remember User Guard: If user has already completed setup, route immediately to /overview
@@ -205,16 +193,16 @@ export default function GuideOnboardingPage() {
 
     setValidationError(null);
     setIsAnalyzing(true);
-    setAnalysisProgress('Resolving DNS and checking SSL certificates...');
+    setAnalysisProgress('Fetching public website metadata...');
 
-    // Progress step updates
-    const t1 = setTimeout(() => setAnalysisProgress('Inspecting website metadata & OpenGraph identity...'), 800);
-    const t2 = setTimeout(() => setAnalysisProgress('NVIDIA Nemotron 3.5 synthesizing Brand DNA & threat baseline...'), 1800);
+    const t1 = setTimeout(() => setAnalysisProgress('Reading page title, description, and linked profiles...'), 800);
+    const t2 = setTimeout(() => setAnalysisProgress('Generating unverified AI research suggestions...'), 1800);
 
     try {
+      const authToken = getAuthToken();
       const res = await fetch('/api/brand/analyze-domain', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify({ domain: cleaned }),
       });
 
@@ -227,50 +215,19 @@ export default function GuideOnboardingPage() {
       setCustomBrandName(data.brandName);
       setCustomIndustry(data.industry);
 
-      // Pre-seed connected app handles from detected socials
+      // Seed editable handle fields with observed or suggested values; these are not connections.
       const seededApps: Record<string, { connected: boolean; handle: string }> = {};
       SUPPORTED_APPS.forEach((app) => {
-        const detected = data.detectedSocials?.[app.id];
-        const defaultHandle = `@${data.brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}${app.defaultHandleSuffix}`;
         seededApps[app.id] = {
           connected: false,
-          handle: detected || defaultHandle,
+          handle: data.detectedSocials?.[app.id] || data.suggestedSocials?.[app.id] || '',
         };
       });
       setConnectedApps(seededApps);
 
     } catch (err: any) {
       console.warn('Analysis error:', err);
-      // Fallback auto-synthesis so user is never blocked
-      const fallbackName = cleaned.split('.')[0];
-      const capitalized = fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
-      const fallbackBrand: AnalyzedBrand = {
-        domain: cleaned,
-        brandName: capitalized,
-        industry: cleaned.includes('pay') || cleaned.includes('bank') ? 'Fintech & Digital Payments' : 'Enterprise SaaS & Cloud',
-        summary: `${capitalized} official commercial web property operating on ${cleaned}.`,
-        logoUrl: `https://www.google.com/s2/favicons?domain=${cleaned}&sz=128`,
-        detectedSocials: {
-          instagram: `@${fallbackName}.official`,
-          x_twitter: `@${fallbackName}_official`,
-          linkedin: `${fallbackName}-official`,
-          facebook: `${capitalized}Official`,
-          youtube: `@${fallbackName}`,
-        },
-        threatKeywords: ['login', 'verify', 'support', 'billing', 'kyc'],
-        highRiskTyposquats: [`${fallbackName}-support.com`, `verify-${cleaned}`, `${fallbackName}-portal.net`],
-        confidenceScore: 96,
-        securityBaseline: {
-          sslEnforced: true,
-          dnsResolvable: true,
-          perimeterStatus: 'Active Sentinel Defense Baseline',
-          monitoredChannelsAvailable: 6,
-        },
-      };
-
-      setAnalysisData(fallbackBrand);
-      setCustomBrandName(fallbackBrand.brandName);
-      setCustomIndustry(fallbackBrand.industry);
+      setValidationError(err.message || 'Domain research is unavailable. Check provider configuration and retry.');
     } finally {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -283,33 +240,20 @@ export default function GuideOnboardingPage() {
   const handleConnectApp = async (app: ChannelApp) => {
     setConnectingId(app.id);
     setConnectionNotice(null);
-    const suggestedHandle =
-      connectedApps[app.id]?.handle ||
-      analysisData?.detectedSocials?.[app.id] ||
-      `@${cleanBrandSlug}${app.defaultHandleSuffix}`;
-    const composioUserId = clerkUser?.id ? `astra_${clerkUser.id}` : `user_${cleanBrandSlug}`;
+    const suggestedHandle = connectedApps[app.id]?.handle || analysisData?.detectedSocials?.[app.id] || analysisData?.suggestedSocials?.[app.id] || '';
+    const authToken = getAuthToken();
 
     try {
       const res = await fetch('/api/connect/composio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify({
           platform: app.id,
-          userId: composioUserId,
         }),
       });
 
       const data = await res.json();
-
-      if (!data.redirect_url) {
-        // Direct integration or simulated connector
-        setConnectedApps((prev) => ({
-          ...prev,
-          [app.id]: { connected: true, handle: suggestedHandle },
-        }));
-        setConnectingId(null);
-        return;
-      }
+      if (!res.ok || !data.redirect_url) throw new Error(data.error || 'Provider authorization is unavailable.');
 
       // Open OAuth popup window
       const popup = window.open(
@@ -322,7 +266,7 @@ export default function GuideOnboardingPage() {
 
       // 1. Listen for postMessage from the callback page
       const onMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'COMPOSIO_OAUTH_SUCCESS') {
+        if (event.origin === window.location.origin && event.source === popup && event.data?.type === 'COMPOSIO_OAUTH_SUCCESS') {
           isResolved = true;
           window.removeEventListener('message', onMessage);
           setConnectedApps((prev) => ({
@@ -345,7 +289,9 @@ export default function GuideOnboardingPage() {
 
         if (data.connected_account_id) {
           try {
-            const checkRes = await fetch(`/api/connect/composio/status?connectedAccountId=${data.connected_account_id}`);
+            const checkRes = await fetch(`/api/connect/composio/status?connectedAccountId=${data.connected_account_id}`, {
+              headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+            });
             const checkData = await checkRes.json();
             if (checkData.active) {
               isResolved = true;
@@ -374,7 +320,9 @@ export default function GuideOnboardingPage() {
           // Give a final check
           if (data.connected_account_id) {
             try {
-              const finalRes = await fetch(`/api/connect/composio/status?connectedAccountId=${data.connected_account_id}`);
+              const finalRes = await fetch(`/api/connect/composio/status?connectedAccountId=${data.connected_account_id}`, {
+                headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+              });
               const finalData = await finalRes.json();
               if (finalData.active) {
                 setConnectedApps((prev) => ({
@@ -411,10 +359,11 @@ export default function GuideOnboardingPage() {
     }
   };
 
-  // Handle Step 2 -> 3 (Trigger NVIDIA NIM processing & database setup)
+  // Handle Step 2 -> 3 (create the workspace and save the brand profile)
   const handleLaunchVerification = async () => {
     setStep(3);
     setProcessingStage(1);
+    setProcessingError(null);
 
     try {
       const activeAppsList = Object.entries(connectedApps)
@@ -440,8 +389,6 @@ export default function GuideOnboardingPage() {
           brandName: effectiveBrandName,
           domain: cleanDomain,
           connectedApps: activeAppsList,
-          clerkId: clerkUser?.id,
-          email,
         }),
       });
 
@@ -450,7 +397,8 @@ export default function GuideOnboardingPage() {
       setProcessingStage(4);
 
       const result = await response.json();
-      setAiResult(result.aiVerification);
+      if (!response.ok) throw new Error(result.error || 'Could not create the brand workspace.');
+      setAiResult(result.aiAnalysis);
 
       if (typeof window !== 'undefined') {
         localStorage.setItem('astra_onboarding_completed', 'true');
@@ -463,7 +411,7 @@ export default function GuideOnboardingPage() {
               domain: cleanDomain,
               industry: customIndustry || analysisData?.industry,
               logoUrl: analysisData?.logoUrl,
-              verification: result.aiVerification,
+              analysis: result.aiAnalysis,
               connectedCount: activeAppsList.length,
             })
           );
@@ -475,7 +423,7 @@ export default function GuideOnboardingPage() {
             domain: cleanDomain,
             industry: customIndustry || analysisData?.industry,
             logoUrl: analysisData?.logoUrl,
-            verification: result.aiVerification,
+            analysis: result.aiAnalysis,
             connectedCount: activeAppsList.length,
           })
         );
@@ -489,10 +437,7 @@ export default function GuideOnboardingPage() {
       }, 1600);
     } catch (err: any) {
       console.error('Onboarding error:', err);
-      setProcessingError(err.message || 'Verification pipeline encountered a temporary timeout.');
-      setTimeout(() => {
-        router.push('/overview');
-      }, 2000);
+      setProcessingError(err.message || 'Workspace setup could not be completed.');
     }
   };
 
@@ -554,7 +499,7 @@ export default function GuideOnboardingPage() {
               <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
                 step === 3 ? 'bg-[#0f7b6c] text-white' : 'bg-[#e3e2e0] text-[#787774]'
               }`}>3</span>
-              <span className="hidden sm:inline">AI Verification</span>
+              <span className="hidden sm:inline">Workspace setup</span>
             </div>
           </div>
         </div>
@@ -634,7 +579,7 @@ export default function GuideOnboardingPage() {
 
                 {/* Quick Presets */}
                 <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-[#787774]">
-                  <span className="text-[11px] text-[#9b9a97]">Quick test:</span>
+                  <span className="text-[11px] text-[#9b9a97]">Examples:</span>
                   {PRESET_DOMAINS.map((preset) => (
                     <button
                       key={preset}
@@ -704,7 +649,7 @@ export default function GuideOnboardingPage() {
                               {effectiveBrandName}
                             </h2>
                             <span className="inline-flex items-center gap-1 rounded-[4px] bg-[#0f7b6c]/10 border border-[#0f7b6c]/20 text-[#0f7b6c] text-[11px] font-semibold px-2 py-0.5">
-                              <CheckCircle2 className="w-3 h-3" /> Verified Domain
+                              <Globe className="w-3 h-3" /> Domain submitted
                             </span>
                           </div>
 
@@ -720,12 +665,7 @@ export default function GuideOnboardingPage() {
                         </div>
                       </div>
 
-                      <div className="flex sm:flex-col items-center sm:items-end gap-1.5 shrink-0">
-                        <span className="text-[10px] text-[#9b9a97] uppercase font-semibold">AI Confidence</span>
-                        <span className="text-sm font-bold font-mono text-[#0f7b6c] bg-[#0f7b6c]/10 px-2 py-0.5 rounded-[4px]">
-                          {analysisData.confidenceScore}%
-                        </span>
-                      </div>
+                      <span className="shrink-0 rounded-[4px] border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900">Suggestions · Unverified</span>
                     </div>
                   </div>
 
@@ -735,9 +675,9 @@ export default function GuideOnboardingPage() {
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-semibold text-[#37352f] flex items-center gap-1.5 uppercase tracking-wider">
-                          <Share2 className="w-3.5 h-3.5 text-[#0f7b6c]" /> Discovered Brand Social Footprint
+                          <Share2 className="w-3.5 h-3.5 text-[#0f7b6c]" /> Links found in page metadata
                         </span>
-                        <span className="text-[11px] text-[#787774]">Auto-resolved from perimeter</span>
+                        <span className="text-[11px] text-[#787774]">These links are not ownership-verified</span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -760,6 +700,9 @@ export default function GuideOnboardingPage() {
                             </div>
                           );
                         })}
+                        {Object.keys(analysisData.detectedSocials).length === 0 && (
+                          <p className="col-span-full rounded-[6px] border border-dashed border-[#e3e2e0] p-3 text-xs text-[#787774]">No social profile links were found in the fetched page metadata.</p>
+                        )}
                       </div>
                     </div>
 
@@ -767,10 +710,10 @@ export default function GuideOnboardingPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#e3e2e0]">
                       <div className="space-y-2">
                         <span className="text-xs font-semibold text-[#37352f] flex items-center gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 text-[#d97706]" /> High-Risk Lookalike Typosquats
+                          <AlertTriangle className="w-3.5 h-3.5 text-[#d97706]" /> Potential lookalikes · AI suggestions
                         </span>
                         <div className="flex flex-wrap gap-1.5">
-                          {analysisData.highRiskTyposquats.map((typo, idx) => (
+                          {analysisData.potentialLookalikes.map((typo, idx) => (
                             <span
                               key={idx}
                               className="px-2 py-1 rounded-[4px] bg-[#f7f6f3] border border-[#e3e2e0] text-[11px] font-mono text-[#787774]"
@@ -783,7 +726,7 @@ export default function GuideOnboardingPage() {
 
                       <div className="space-y-2">
                         <span className="text-xs font-semibold text-[#37352f] flex items-center gap-1.5">
-                          <Lock className="w-3.5 h-3.5 text-[#0f7b6c]" /> Protected Invariant Keywords
+                          <Lock className="w-3.5 h-3.5 text-[#0f7b6c]" /> Suggested search terms
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {analysisData.threatKeywords.map((kw, idx) => (
@@ -908,7 +851,8 @@ export default function GuideOnboardingPage() {
                   const handleVal =
                     connectedApps[app.id]?.handle ||
                     analysisData?.detectedSocials?.[app.id] ||
-                    `@${cleanBrandSlug}${app.defaultHandleSuffix}`;
+                    analysisData?.suggestedSocials?.[app.id] ||
+                    '';
 
                   return (
                     <div
@@ -1040,13 +984,13 @@ export default function GuideOnboardingPage() {
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0c6357] text-white font-medium text-xs shadow-xs transition cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-white" />
-                  <span>Launch AI Brand Defense →</span>
+                  <span>Create brand workspace →</span>
                 </button>
               </div>
             </motion.div>
           )}
 
-          {/* STEP 3: REAL-TIME VERIFICATION & NVIDIA NIM AI PROCESSING (SEAMLESS BLENDED UI) */}
+          {/* STEP 3: WORKSPACE SETUP */}
           {step === 3 && (
             <motion.div
               key="step-3"
@@ -1222,27 +1166,27 @@ export default function GuideOnboardingPage() {
                     </div>
                     <div className="pt-0.5 min-w-0">
                       <p className={`text-xs font-medium ${processingStage >= 5 ? 'text-[#0f7b6c] font-semibold' : 'text-[#9b9a97]'}`}>
-                        Protection perimeter active · Entering Command Center...
+                        Workspace setup complete · Opening overview...
                       </p>
-                      <p className="text-[11px] text-[#9b9a97] mt-0.5">Calibrating Sentinel telemetry feeds</p>
+                      <p className="text-[11px] text-[#9b9a97] mt-0.5">Configured sources appear in the workspace after setup.</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Seamless Live Telemetry Badges */}
+              {/* Setup status */}
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-[11px] font-mono text-[#787774]">
                 <span className="px-2.5 py-1 rounded-full bg-white/80 border border-[#e3e2e0] shadow-2xs">
-                  ⚡ DNS: 1.8ms
+                  Domain ownership · Pending
                 </span>
                 <span className="px-2.5 py-1 rounded-full bg-white/80 border border-[#e3e2e0] shadow-2xs">
-                  🔐 Vault: Active
+                  Evidence storage · Workspace configured
                 </span>
                 <span className="px-2.5 py-1 rounded-full bg-white/80 border border-[#e3e2e0] shadow-2xs text-[#0f7b6c]">
-                  🤖 NIM: Nemotron-3.5
+                  AI enrichment · Optional
                 </span>
                 <span className="px-2.5 py-1 rounded-full bg-white/80 border border-[#e3e2e0] shadow-2xs">
-                  🛡️ Channels: 6 Monitored
+                  Providers · Connect after setup
                 </span>
               </div>
 
@@ -1256,21 +1200,20 @@ export default function GuideOnboardingPage() {
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-[#0f7b6c] flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4 text-[#0f7b6c]" />
-                      NVIDIA NIM Verdict: Verified Authenticity
-                    </span>
-                    <span className="font-mono font-semibold text-[#0f7b6c] bg-[#0f7b6c]/10 px-2 py-0.5 rounded-[4px]">
-                      Score: {aiResult.confidenceScore || 98}%
+                      AI research summary · Not a verification
                     </span>
                   </div>
                   <p className="text-[#37352f] leading-relaxed">
-                    {aiResult.brandSummary || `${effectiveBrandName} verified as legitimate entity.`}
+                    {aiResult.brandSummary || 'AI-generated context is available for analyst review.'}
                   </p>
+                  <p className="text-[#787774] leading-relaxed">This analysis does not verify brand authenticity or domain ownership.</p>
                 </motion.div>
               )}
 
               {processingError && (
                 <div className="text-xs text-[#d97706] bg-[#d97706]/10 border border-[#d97706]/20 rounded-[6px] p-3 max-w-md mx-auto">
-                  {processingError} Proceeding to dashboard...
+                  <p role="alert">{processingError}</p>
+                  <button type="button" onClick={handleLaunchVerification} className="mt-2 font-semibold underline underline-offset-2">Retry workspace setup</button>
                 </div>
               )}
             </motion.div>

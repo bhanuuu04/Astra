@@ -26,6 +26,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryErrorState } from '@/components/ui/QueryErrorState';
 import { 
   getBrand, 
   addBrandAsset, 
@@ -65,7 +66,7 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
   const [isManualVerifying, setIsManualVerifying] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
 
-  const { data: brand, isLoading } = useQuery({
+  const { data: brand, isLoading, isError, refetch } = useQuery({
     queryKey: ['brand', brandId],
     queryFn: () => getBrand(brandId),
   });
@@ -167,10 +168,14 @@ export function BrandDetailView({ brandId }: BrandDetailViewProps) {
     return <div className="p-8 text-center text-slate-400 text-sm">Loading Brand DNA details...</div>;
   }
 
+  if (isError) {
+    return <div className="mx-auto max-w-3xl p-6"><QueryErrorState title="Brand details could not be loaded" message="The brand service did not return this record. Retry to check the workspace connection." onRetry={() => { void refetch(); }} /></div>;
+  }
+
   if (!brand) {
     return (
       <div className="p-8 text-center space-y-4">
-        <p className="text-slate-400 text-sm">Brand not found or tenant session expired.</p>
+        <p className="text-slate-600 text-sm">Brand not found in this workspace.</p>
         <Link href="/brands" className="text-cyan-400 text-xs font-semibold hover:underline">
           &larr; Back to Brand Registry
         </Link>

@@ -1,108 +1,62 @@
 import { NextResponse } from 'next/server';
+import { resolveServerIdentity } from '@/lib/server-auth';
 
 const NVIDIA_NIM_BASE_URL = process.env.NVIDIA_NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-const NVIDIA_NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY || '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';
+const NVIDIA_NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
 const NVIDIA_NIM_MODEL = process.env.NVIDIA_NIM_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b';
 
 export async function POST(request: Request) {
+  if (!await resolveServerIdentity(request)) {
+    return NextResponse.json({ error: 'Sign in before requesting brand analysis.' }, { status: 401 });
+  }
+  if (!NVIDIA_NIM_API_KEY) {
+    return NextResponse.json({ error: 'AI brand analysis is not configured. Ownership can still be established with a DNS challenge.' }, { status: 503 });
+  }
+
   try {
     const body = await request.json();
-    const { brandName, domain, handles = [] } = body;
+    const brandName = typeof body.brandName === 'string' ? body.brandName.trim() : '';
+    const domain = typeof body.domain === 'string' ? body.domain.trim() : '';
+    const handles = Array.isArray(body.handles)
+      ? body.handles.filter((value: unknown): value is string => typeof value === 'string').slice(0, 20)
+      : [];
 
-    const prompt = `You are ASTRA's Autonomous Brand Sentinel.
-Your task is to analyze and verify if "${brandName}" (Domain: ${domain || 'unspecified'}, Handles: ${handles.join(', ')}) represents a legitimate commercial brand identity and establish its canonical threat invariants.
+    if (!brandName || brandName.length > 120) {
+      return NextResponse.json({ error: 'Provide a brand name under 120 characters.' }, { status: 400 });
+    }
 
-Analyze:
-1. Brand Legitimacy Assessment (Score 0-100)
-2. Is it safe to establish canonical protection? (true/false)
-3. Known high-risk typosquats and lookalike permutations for this brand
-4. Department spoofing vectors (support, billing, verify)
-5. Executive impersonation risk profile
+    const prompt = `Review these user-provided identifiers for possible impersonation patterns: ${JSON.stringify({ brandName, domain, handles })}.
+Treat every identifier as unverified. Do not claim that the organization is authentic, that anyone owns the domain, or that external sources were checked. Return research hypotheses and human validation steps as JSON with this schema:
+{"summary":"string","potentialImpersonationPatterns":["string"],"recommendedValidationSteps":["string"],"limitations":"string"}`;
 
-Respond strictly in valid JSON matching this schema:
-{
-  "verified": true,
-  "confidenceScore": 98,
-  "brandSummary": "string",
-  "legitimateEntity": "string",
-  "threatInvariants": ["string"],
-  "highRiskTyposquats": ["string"],
-  "protectedKeywords": ["string"],
-  "initialScanTargets": ["string"],
-  "verificationProof": "string"
-}`;
-
-    const nimResponse = await fetch(`${NVIDIA_NIM_BASE_URL}/chat/completions`, {
+    const response = await fetch(`${NVIDIA_NIM_BASE_URL}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NVIDIA_NIM_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${NVIDIA_NIM_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: NVIDIA_NIM_MODEL,
         messages: [
-          {
-            role: 'system',
-            content: 'You are ASTRA Autonomous Threat Analysis AI. Output ONLY raw JSON without markdown codeblocks or explanation.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'system', content: 'Provide cautious research hypotheses from the supplied identifiers only. Never claim authenticity or ownership. Output valid JSON only.' },
+          { role: 'user', content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 1024,
+        max_tokens: 700,
       }),
     });
 
-    const data = await nimResponse.json();
-    const rawContent = data.choices?.[0]?.message?.content || '{}';
-
-    let parsedResult;
-    try {
-      // Robustly extract JSON block even if Nemotron-3.5 includes reasoning prose
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResult = JSON.parse(jsonMatch[0]);
-      } else {
-        const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
-        parsedResult = JSON.parse(cleaned);
-      }
-    } catch {
-      parsedResult = {
-        verified: true,
-        confidenceScore: 96,
-        brandSummary: `${brandName} is an active commercial entity. Established canonical identity baseline.`,
-        legitimateEntity: `${brandName} Technologies Inc.`,
-        threatInvariants: [`@${brandName.toLowerCase()}_official`, `${brandName.toLowerCase()}.com`],
-        highRiskTyposquats: [`${brandName.toLowerCase()}-support.xyz`, `@${brandName.toLowerCase()}_care`],
-        protectedKeywords: ['support', 'helpdesk', 'claim', 'kyc'],
-        initialScanTargets: ['Instagram Lookalikes', 'Telegram Rogue APKs', 'Phishing Domains'],
-        verificationProof: 'NVIDIA Nemotron 3.5 Lightning Verified Cryptographic Baseline'
-      };
+    if (!response.ok) {
+      return NextResponse.json({ error: 'The configured AI provider could not complete this analysis.' }, { status: 502 });
     }
 
-    return NextResponse.json({
-      success: true,
-      brandName,
-      modelUsed: NVIDIA_NIM_MODEL,
-      verification: parsedResult,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    console.error('NVIDIA NIM verification error:', error);
-    return NextResponse.json(
-      {
-        success: true,
-        fallback: true,
-        verification: {
-          verified: true,
-          confidenceScore: 94,
-          brandSummary: 'Established automated brand protection invariants.',
-          threatInvariants: ['official_handle', 'verified_domain']
-        }
-      },
-      { status: 200 }
-    );
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return NextResponse.json({ error: 'The AI provider returned an unreadable analysis.' }, { status: 502 });
+    }
+
+    return NextResponse.json({ success: true, analysis: JSON.parse(jsonMatch[0]), status: 'unverified' });
+  } catch (error) {
+    console.error('Brand signal analysis failed:', error);
+    return NextResponse.json({ error: 'Brand analysis could not be completed.' }, { status: 502 });
   }
 }

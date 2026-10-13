@@ -219,6 +219,29 @@ def handle_initiate_dns_challenge(
     )
 
 
+def _ensure_passive_ct_monitor(session: Session, tenant_id: uuid.UUID, actor_id: uuid.UUID) -> None:
+    """Provision one tenant-level passive CT monitor after domain verification."""
+    from app.db.models import Connector
+    existing = session.scalar(
+        select(Connector).where(
+            Connector.tenant_id == tenant_id,
+            Connector.connector_type == "certificate_transparency",
+        ).limit(1)
+    )
+    if existing:
+        return
+    connector = Connector(
+        tenant_id=tenant_id,
+        connector_type="certificate_transparency",
+        name="Passive Certificate Transparency Monitor",
+        status="active",
+        auth_config_vault_ref=None,
+        permitted_scopes=["public_ct_logs", "verified_brand_domains"],
+    )
+    session.add(connector)
+    session.commit()
+
+
 @router.post(
     "/{brand_id}/assets/{asset_id}/verify-dns",
     response_model=BrandAssetResponse,
@@ -244,6 +267,7 @@ def handle_verify_dns(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=error_msg or "DNS verification failed. TXT record not found or token mismatched.",
         )
+    _ensure_passive_ct_monitor(session, context.tenant_id, actor_id)
     return BrandAssetResponse.model_validate(asset)
 
 

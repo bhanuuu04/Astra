@@ -1,20 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShieldCheck, 
-  Sparkles, 
-  Clock, 
-  CheckCircle2, 
-  Loader2, 
-  AlertTriangle,
-  ArrowRight,
-  Radar,
-  Zap,
-  Globe,
-  Fingerprint
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { getAuthToken } from '@/lib/api';
 
 interface VerificationModalProps {
   isOpen: boolean;
@@ -24,202 +13,135 @@ interface VerificationModalProps {
   onComplete: (data: any) => void;
 }
 
-const VERIFICATION_STAGES = [
-  { step: 1, text: "Ingesting verified social handles and domain baseline...", duration: 3000 },
-  { step: 2, text: "Executing NVIDIA NIM Nemotron-3.5 identity verification...", duration: 5000 },
-  { step: 3, text: "Analyzing DNS history, brand registrar & commercial records...", duration: 4000 },
-  { step: 4, text: "Establishing Brand DNA baseline & canonical invariants...", duration: 3000 },
-  { step: 5, text: "Arming autonomous threat hunter for lookalikes and fake DMs...", duration: 2000 }
-];
-
 export function BrandVerificationModal({
   isOpen,
   brandName,
   domain,
   handles = [],
-  onComplete
+  onComplete,
 }: VerificationModalProps) {
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
-  const [secondsRemaining, setSecondsRemaining] = useState(18);
-  const [verificationResult, setVerificationResult] = useState<any>(null);
-  const [isDone, setIsDone] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const handlesSignature = handles.join('\u0000');
 
   useEffect(() => {
     if (!isOpen) return;
 
-    // Reset state
-    setCurrentStageIndex(0);
-    setSecondsRemaining(18);
-    setIsDone(false);
-
-    // 1. Trigger NVIDIA NIM Model Verification via backend API
-    fetch('/api/brand/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brandName, domain, handles })
-    })
-      .then(res => res.json())
-      .then(data => {
-        setVerificationResult(data.verification);
-      })
-      .catch(err => {
-        console.error('NIM verification notice:', err);
-      });
-
-    // 2. Countdown timer
-    const timerInterval = setInterval(() => {
-      setSecondsRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(timerInterval);
-          setIsDone(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    // 3. Stage Progression
-    const stage1 = setTimeout(() => setCurrentStageIndex(1), 3000);
-    const stage2 = setTimeout(() => setCurrentStageIndex(2), 7000);
-    const stage3 = setTimeout(() => setCurrentStageIndex(3), 11000);
-    const stage4 = setTimeout(() => setCurrentStageIndex(4), 14000);
-    const stageDone = setTimeout(() => {
-      setIsDone(true);
-    }, 17000);
-
-    return () => {
-      clearInterval(timerInterval);
-      clearTimeout(stage1);
-      clearTimeout(stage2);
-      clearTimeout(stage3);
-      clearTimeout(stage4);
-      clearTimeout(stageDone);
+    let cancelled = false;
+    const runAnalysis = async () => {
+      setIsLoading(true);
+      setAnalysis(null);
+      setError(null);
+      try {
+        const token = getAuthToken();
+        const response = await fetch('/api/brand/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ brandName, domain, handles: handlesSignature ? handlesSignature.split('\u0000') : [] }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not analyze these brand signals.');
+        if (!cancelled) setAnalysis(data.analysis);
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Could not analyze these brand signals.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     };
-  }, [isOpen, brandName, domain]);
+
+    void runAnalysis();
+    return () => { cancelled = true; };
+  }, [isOpen, brandName, domain, handlesSignature, attempt]);
+
+  const patternItems: string[] = Array.isArray(analysis?.potentialImpersonationPatterns)
+    ? (analysis.potentialImpersonationPatterns as unknown[]).filter((item: unknown): item is string => typeof item === 'string')
+    : [];
+  const validationSteps: string[] = Array.isArray(analysis?.recommendedValidationSteps)
+    ? (analysis.recommendedValidationSteps as unknown[]).filter((item: unknown): item is string => typeof item === 'string')
+    : [];
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 will-change-opacity"
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          role="presentation"
         >
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl will-change-transform"
+          <motion.section
+            initial={{ opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-7"
+            role="dialog" aria-modal="true" aria-labelledby="brand-analysis-title"
           >
-            {/* Header Icon */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${
-              isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'
-            }`}>
-              {isDone ? <ShieldCheck className="h-6 w-6" /> : <Radar className="h-6 w-6 animate-spin" />}
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                {isDone ? 'Brand Identity Verified' : 'Verifying Your Brand Identity'}
-              </h3>
-              <p className="text-xs text-slate-500">
-                Powered by NVIDIA NIM Nemotron-3.5
-              </p>
-            </div>
-          </div>
-
-          {/* Time Remaining Pill */}
-          {!isDone && (
-            <div className="flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-mono font-bold text-sky-800">
-              <Clock className="h-3.5 w-3.5 text-sky-600 animate-pulse" />
-              <span>~{secondsRemaining}s left</span>
-            </div>
-          )}
-        </div>
-
-        {/* Dynamic Verification Progress Bar */}
-        <div className="mt-5">
-          <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1.5">
-            <span>Authenticity &amp; Invariant Analysis</span>
-            <span className="font-mono text-sky-700">{Math.round(((18 - secondsRemaining) / 18) * 100)}%</span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div 
-              className="h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 transition-all duration-700"
-              style={{ width: `${Math.round(((18 - secondsRemaining) / 18) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Live Stage List */}
-        <div className="mt-6 space-y-3">
-          {VERIFICATION_STAGES.map((stage, idx) => {
-            const isCompleted = idx < currentStageIndex || isDone;
-            const isCurrent = idx === currentStageIndex && !isDone;
-
-            return (
-              <div 
-                key={stage.step}
-                className={`flex items-start gap-3 rounded-xl p-2.5 text-xs transition ${
-                  isCurrent 
-                    ? 'border border-sky-200 bg-sky-50/70 font-semibold text-sky-900 shadow-xs' 
-                    : isCompleted
-                    ? 'text-slate-700'
-                    : 'text-slate-400 opacity-60'
-                }`}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {isCompleted ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  ) : isCurrent ? (
-                    <Loader2 className="h-4 w-4 text-sky-600 animate-spin" />
-                  ) : (
-                    <div className="h-4 w-4 rounded-full border border-slate-300" />
-                  )}
+            <header className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-800">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 id="brand-analysis-title" className="text-base font-semibold text-slate-900">Brand signal review</h2>
+                  <p className="mt-1 text-sm text-slate-600">{brandName}{domain ? ` · ${domain}` : ''}</p>
                 </div>
-                <span className="leading-snug">{stage.text}</span>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Verification Summary Card when Done */}
-        {isDone && (
-          <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 animate-fadeIn">
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-              <Sparkles className="h-4 w-4 text-emerald-700" />
-              <span>NVIDIA NIM Verification Proof: 100% Authentic Brand</span>
-            </div>
-            <p className="mt-1 text-xs text-emerald-800 leading-relaxed">
-              <strong>{brandName}</strong> has been confirmed as a legitimate entity. Brand DNA established. ASTRA is now actively cross-referencing lookalike accounts, scam links, and phishing DMs.
-            </p>
-          </div>
-        )}
-
-          {/* Action Button */}
-          <div className="mt-6 pt-2">
-            {isDone ? (
-              <button
-                type="button"
-                onClick={() => onComplete(verificationResult)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 text-xs font-bold shadow-md transition cursor-pointer"
-              >
-                <span>Enter Security Dashboard &amp; Activate Radar</span>
-                <ArrowRight className="h-4 w-4" />
+              <button type="button" onClick={() => onComplete(analysis)} aria-label="Close analysis" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+                <X className="h-4 w-4" />
               </button>
-            ) : (
-              <div className="text-center text-[11px] text-slate-400 font-medium">
-                Verifying brand authenticity to prevent unauthorized account squatting...
+            </header>
+
+            {isLoading ? (
+              <div className="flex min-h-48 flex-col items-center justify-center gap-3 py-8 text-center" role="status">
+                <Loader2 className="h-7 w-7 animate-spin text-teal-700" />
+                <p className="text-sm font-medium text-slate-800">Reviewing the identifiers you provided…</p>
+                <p className="max-w-sm text-xs leading-5 text-slate-500">This analysis can suggest patterns. It does not verify ownership or authenticity.</p>
               </div>
-            )}
-          </div>
+            ) : error ? (
+              <div className="my-5 rounded-xl border border-amber-200 bg-amber-50 p-4" role="alert">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-amber-950">Analysis unavailable</p>
+                    <p className="mt-1 text-sm leading-5 text-amber-900">{error}</p>
+                    <button type="button" onClick={() => setAttempt((current) => current + 1)} className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100">Retry analysis</button>
+                  </div>
+                </div>
+              </div>
+            ) : analysis ? (
+              <div className="space-y-5 py-5">
+                <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-teal-950"><CheckCircle2 className="h-4 w-4" />Research summary</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{analysis.summary || 'Review the suggestions below with source evidence.'}</p>
+                </div>
+                {patternItems.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Potential patterns to review</h3>
+                    <ul className="mt-2 space-y-2">
+                      {patternItems.map((item: string, index: number) => <li key={`${index}-${item}`} className="flex gap-2 text-sm text-slate-700"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />{item}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {validationSteps.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended validation steps</h3>
+                    <ul className="mt-2 list-inside list-disc space-y-1.5 text-sm text-slate-700">{validationSteps.map((item: string, index: number) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+                  </div>
+                )}
+                <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{analysis.limitations || 'AI-generated research is unverified. Confirm domain ownership with a DNS challenge and review source evidence before acting.'}</p>
+              </div>
+            ) : null}
+
+            <footer className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => onComplete(analysis)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800">
+                Done <ArrowRight className="h-4 w-4" />
+              </button>
+            </footer>
+          </motion.section>
         </motion.div>
-      </motion.div>
-    )}
+      )}
     </AnimatePresence>
   );
 }

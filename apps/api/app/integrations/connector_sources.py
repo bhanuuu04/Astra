@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 
@@ -134,6 +134,111 @@ def collect_youtube(
     return ingested
 
 
+def collect_x_posts(
+    session: Session,
+    tenant_id,
+    brand: Brand,
+    connector: Connector,
+    bearer_token: str,
+) -> list[Any]:
+    """Search recent public X posts for enrolled brand terms using X API v2.
+
+    X's recent-search product covers the last seven days. This discovers posts,
+    not every account that may be impersonating a brand; results need analyst
+    review and the API token must have the required X API product access.
+    """
+    if not bearer_token or bearer_token.startswith(("test_", "mock_")):
+        raise ConnectorSourceError("A real X API bearer token is required; mock tokens cannot run a live sync.")
+
+    terms = _canonical_brand_terms(session, brand)
+    # X search supports quoted phrases and @mentions. Escape quotes/backslashes
+    # so customer-provided brand names cannot alter the provider query syntax.
+    def quoted_phrase(value: str) -> str:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    query_terms = [quoted_phrase(terms[0])] if terms else []
+    x_handles = []
+    for asset in _brand_assets(session, brand):
+        if asset.asset_type not in {"handle", "social_handle"}:
+            continue
+        value = asset.canonical_value.strip()
+        if value.casefold().startswith(("x_twitter:", "x:")):
+            handle = value.split(":", 1)[1].split("/", 1)[0].lstrip("@").strip()
+            if re.fullmatch(r"[A-Za-z0-9_]{1,15}", handle):
+                x_handles.append(handle)
+    query_terms.extend(f"@{handle}" for handle in dict.fromkeys(x_handles))
+    if not query_terms:
+        raise ConnectorSourceError("Add a brand name or official X handle before syncing.")
+    query = " OR ".join(query_terms[:10]) + " -is:retweet"
+    if len(query) > 512:
+        query = f'"{terms[0][:100]}" -is:retweet'
+
+    try:
+        response = httpx.get(
+            "https://api.x.com/2/tweets/search/recent",
+            params={
+                "query": query,
+                "max_results": 100,
+                "tweet.fields": "created_at,author_id,public_metrics,lang",
+                "expansions": "author_id",
+                "user.fields": "username,verified,public_metrics,description",
+            },
+            headers={"authorization": f"Bearer {bearer_token}", "accept": "application/json"},
+            timeout=20.0,
+        )
+        if response.status_code == 429:
+            raise ConnectorSourceError("X API rate-limited this sync; it will retry at the next scheduled run.")
+        if response.status_code in (401, 403):
+            raise ConnectorSourceError("X API rejected this bearer token or its recent-search access.")
+        if response.status_code != 200:
+            raise ConnectorSourceError(f"X recent-search API returned HTTP {response.status_code}.")
+        payload = response.json()
+    except ConnectorSourceError:
+        raise
+    except (httpx.HTTPError, ValueError) as exc:
+        raise ConnectorSourceError("X API collection failed due to a network or response error.") from exc
+
+    users = {
+        user.get("id"): user
+        for user in (payload.get("includes") or {}).get("users", [])
+        if user.get("id")
+    }
+    ingested = []
+    for post in payload.get("data", []):
+        post_id = str(post.get("id") or "")
+        author = users.get(post.get("author_id"), {})
+        username = author.get("username")
+        if not post_id:
+            continue
+        created_at = post.get("created_at")
+        try:
+            observed_at = datetime.fromisoformat(created_at.replace("Z", "+00:00")) if created_at else datetime.now(timezone.utc)
+        except (AttributeError, ValueError):
+            observed_at = datetime.now(timezone.utc)
+        target = f"https://x.com/{username}/status/{post_id}" if username else f"https://x.com/i/web/status/{post_id}"
+        ingested.append(_ingest(
+            session, tenant_id, brand, connector,
+            surface="x_twitter", source_kind="social_content",
+            external_id=f"x-post-{post_id}",
+            target_identifier=target,
+            observed_at=observed_at,
+            raw_payload={"provider": "x_api_v2_recent_search", "query": query, "post": post, "author": author},
+            normalized_attributes={
+                "provider": "x_api_v2_recent_search",
+                "author_username": username,
+                "author_verified": author.get("verified"),
+                "author_public_metrics": author.get("public_metrics") or {},
+                "post_public_metrics": post.get("public_metrics") or {},
+                "language": post.get("lang"),
+                "brand_term_match": True,
+                "analyst_review_required": True,
+                "monitoring_mode": "recent_public_post_search",
+            },
+        ))
+    return ingested
+
+
 def collect_virustotal(
     session: Session,
     tenant_id,
@@ -142,26 +247,8 @@ def collect_virustotal(
     api_key: str,
 ) -> list[Any]:
     """Enrich URLs already submitted to ASTRA; VT is not treated as a discovery feed."""
-    if not api_key:
+    if not api_key or api_key.startswith(("test_", "mock_")):
         raise ConnectorSourceError("A real VirusTotal API key is required; mock keys cannot run a live sync.")
-
-    if api_key.startswith(("test_", "mock_")):
-        test_url = f"https://phishing-{brand.name.lower().replace(' ', '')}-login.com"
-        return [_ingest(
-            session, tenant_id, brand, connector,
-            surface="virustotal", source_kind="web_domain",
-            external_id=f"vt-mock-{brand.id}-{hashlib.sha256(test_url.encode()).hexdigest()[:24]}",
-            target_identifier=test_url,
-            observed_at=datetime.now(timezone.utc),
-            raw_payload={"provider": "virustotal_v3", "mock": True, "url": test_url},
-            normalized_attributes={
-                "provider": "virustotal_v3", "malicious_engines": 12,
-                "suspicious_engines": 3,
-                "harmless_engines": 55,
-                "reputation": -45,
-                "threat_categories": {"phishing": True},
-            },
-        )]
 
     candidates = list(session.scalars(
         select(Finding).where(
@@ -218,6 +305,131 @@ def collect_virustotal(
     return ingested
 
 
+def collect_certificate_transparency(
+    session: Session,
+    tenant_id,
+    brand: Brand,
+    connector: Connector,
+) -> list[Any]:
+    """Passively search public CT records for newly issued brand-lookalike domains.
+
+    Only verified brand domains are used to authorize the monitoring scope. The
+    source returns certificate metadata; ASTRA never visits the discovered hosts.
+    """
+    verified_domains = [
+        asset.canonical_value.strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0].split(":")[0].removeprefix("www.")
+        for asset in _brand_assets(session, brand)
+        if asset.asset_type in {"domain", "web_domain"} and asset.verification_status == "verified"
+    ]
+    if not verified_domains:
+        return []
+
+    # Keep the remote search narrow: use the registered domain's first label and
+    # the brand name as search tokens, with one request per token and a hard cap.
+    tokens: list[str] = []
+    for domain in verified_domains:
+        first_label = domain.split(".", 1)[0]
+        if len(first_label) >= 4:
+            tokens.append(first_label)
+    name_token = re.sub(r"[^a-z0-9]", "", brand.name.casefold())
+    if len(name_token) >= 4:
+        tokens.append(name_token)
+    tokens = list(dict.fromkeys(tokens))[:2]
+    if not tokens:
+        raise ConnectorSourceError("The verified domain or brand name needs a 4-character search token.")
+
+    official_hosts = set(verified_domains)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=120)
+    records: dict[str, dict[str, Any]] = {}
+    for token in tokens:
+        try:
+            response = httpx.get(
+                "https://crt.sh/",
+                params={"q": f"%{token}%", "output": "json", "deduplicate": "Y", "limit": 250},
+                headers={"User-Agent": "ASTRA-DRP/1.0 (+https://astra.security/collector-info)"},
+                timeout=25.0,
+            )
+            if response.status_code == 429:
+                raise ConnectorSourceError("Certificate Transparency search rate-limited this sync; it will retry on the next scheduled run.")
+            response.raise_for_status()
+            payload = response.json()
+        except ConnectorSourceError:
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ConnectorSourceError("Public Certificate Transparency search failed or returned an invalid response.") from exc
+
+        if not isinstance(payload, list):
+            raise ConnectorSourceError("Public Certificate Transparency search returned an unexpected response.")
+        for row in payload[:250]:
+            if not isinstance(row, dict):
+                continue
+            try:
+                issued_at = datetime.fromisoformat(str(row.get("not_before", "")).replace("Z", "+00:00"))
+                if issued_at.tzinfo is None:
+                    issued_at = issued_at.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if issued_at < cutoff or issued_at > now + timedelta(days=1):
+                continue
+            certificate_id = str(row.get("id") or "")
+            names = set()
+            for value in str(row.get("name_value") or "").splitlines():
+                host = value.strip().lower().lstrip("*.").rstrip(".")
+                if host and len(host) <= 253 and re.fullmatch(r"[a-z0-9.-]+", host):
+                    names.add(host)
+            for host in names:
+                # A name is relevant only when the matching brand token appears
+                # in a label. Ignore the verified domain and its subdomains.
+                if not any(token in label for token in tokens for label in host.split(".")):
+                    continue
+                if any(host == official or host.endswith(f".{official}") for official in official_hosts):
+                    continue
+                matched_token = next(
+                    (candidate for candidate in tokens if any(candidate in label for label in host.split("."))),
+                    token,
+                )
+                key = f"{certificate_id}:{host}"
+                records[key] = {
+                    "certificate_id": certificate_id,
+                    "domain": host,
+                    "issued_at": issued_at,
+                    "issuer_name": str(row.get("issuer_name") or "")[:200],
+                    "matched_token": matched_token,
+                }
+                if len(records) >= 250:
+                    break
+            if len(records) >= 250:
+                break
+
+    ingested = []
+    for key, record in records.items():
+        host = record["domain"]
+        ingested.append(_ingest(
+            session, tenant_id, brand, connector,
+            surface="certificate_transparency", source_kind="web_domain",
+            external_id=f"crtsh-{brand.id}-{hashlib.sha256(key.encode()).hexdigest()[:32]}",
+            target_identifier=host,
+            observed_at=record["issued_at"],
+            raw_payload={
+                "provider": "crt.sh_public_ct_search",
+                "certificate_id": record["certificate_id"],
+                "domain": host,
+                "issuer_name": record["issuer_name"],
+                "issued_at": record["issued_at"].isoformat(),
+            },
+            normalized_attributes={
+                "provider": "crt.sh_public_ct_search",
+                "monitoring_mode": "passive_certificate_transparency",
+                "matched_brand_token": record["matched_token"],
+                "candidate_brand_match": True,
+                "analyst_review_required": True,
+                "active_fetch_performed": False,
+            },
+        ))
+    return ingested
+
+
 def collect_telegram(
     session: Session,
     tenant_id,
@@ -228,10 +440,19 @@ def collect_telegram(
     """Collect updates visible to this authorized bot; no channel search/joining."""
     if not bot_token or bot_token.startswith(("test_", "mock_")):
         raise ConnectorSourceError("A real Telegram bot token is required; mock tokens cannot run a live sync.")
+    cursor_key = f"telegram_update_offset:{brand.id}"
+    sync_state = dict(connector.sync_state or {})
+    params = {
+        "limit": 100,
+        "timeout": 0,
+        "allowed_updates": json.dumps(["message", "channel_post"]),
+    }
+    if isinstance(sync_state.get(cursor_key), int):
+        params["offset"] = sync_state[cursor_key]
     try:
         response = httpx.get(
             f"https://api.telegram.org/bot{bot_token}/getUpdates",
-            params={"limit": 100, "timeout": 0, "allowed_updates": json.dumps(["message", "channel_post"])},
+            params=params,
             timeout=15.0,
         )
         if response.status_code != 200:
@@ -246,7 +467,11 @@ def collect_telegram(
 
     terms = [term.casefold() for term in _canonical_brand_terms(session, brand)]
     ingested = []
+    highest_update_id = None
     for update in payload.get("result", []):
+        update_id = update.get("update_id")
+        if isinstance(update_id, int):
+            highest_update_id = update_id if highest_update_id is None else max(highest_update_id, update_id)
         message = update.get("channel_post") or update.get("message") or {}
         text = message.get("text") or message.get("caption") or ""
         if not text or not any(term in text.casefold() for term in terms):
@@ -265,6 +490,10 @@ def collect_telegram(
             raw_payload={"provider": "telegram_bot_api", "update": update},
             normalized_attributes={"provider": "telegram_bot_api", "brand_term_match": True, "chat_title": chat.get("title"), "chat_username": username},
         ))
+    if highest_update_id is not None:
+        sync_state[cursor_key] = highest_update_id + 1
+        connector.sync_state = sync_state
+        session.commit()
     return ingested
 
 
@@ -349,3 +578,4 @@ def collect_google_play(
                 normalized_attributes={"provider": "google_play_android_publisher", "review_text": text, "review_rating": user_comment.get("starRating"), "review_id": review_id},
             ))
     return ingested
+

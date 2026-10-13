@@ -19,10 +19,22 @@ def get_storage_base_dir() -> Path:
     return base_dir
 
 
+def _safe_object_path(object_key: str) -> Path:
+    """Resolve an evidence key without allowing traversal or symlink escapes."""
+    if not object_key or "\x00" in object_key:
+        raise ValueError("Evidence object key is invalid")
+    base_dir = get_storage_base_dir().resolve()
+    candidate = (base_dir / object_key).resolve()
+    try:
+        candidate.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError("Evidence object key escapes the storage boundary") from exc
+    return candidate
+
+
 def save_evidence_content(object_key: str, content_bytes: bytes) -> Tuple[Path, str]:
     """Persist raw evidence bytes to durable storage vault and return (file_path, sha256_hash)."""
-    base_dir = get_storage_base_dir()
-    file_path = base_dir / object_key
+    file_path = _safe_object_path(object_key)
 
     # Ensure parent directory exists
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -40,8 +52,7 @@ def save_evidence_content(object_key: str, content_bytes: bytes) -> Tuple[Path, 
 
 def load_evidence_content(object_key: str) -> Optional[bytes]:
     """Retrieve raw evidence bytes from storage vault."""
-    base_dir = get_storage_base_dir()
-    file_path = base_dir / object_key
+    file_path = _safe_object_path(object_key)
     if not file_path.exists() or not file_path.is_file():
         return None
     return file_path.read_bytes()
@@ -88,8 +99,7 @@ def verify_signed_evidence_token(object_key: str, token: str) -> bool:
 
 def delete_evidence_object(object_key: str) -> bool:
     """Retention / Deletion Workflow: permanently delete an evidence object from storage."""
-    base_dir = get_storage_base_dir()
-    file_path = base_dir / object_key
+    file_path = _safe_object_path(object_key)
     if file_path.exists() and file_path.is_file():
         file_path.unlink()
         logger.info(f"Permanently purged evidence object {object_key}")

@@ -237,7 +237,6 @@ export async function getOverview(): Promise<Overview | null> {
   const tenantId = getActiveTenant()?.id || 'anon';
   return getOrSetCache(`overview_${tenantId}`, async () => {
     const response = await astraFetch(`${apiBaseUrl}/api/v1/overview`, { cache: "no-store" });
-    if (!response.ok) return null;
     return (await response.json()) as Overview;
   }, 10);
 }
@@ -245,25 +244,18 @@ export async function getOverview(): Promise<Overview | null> {
 export async function listBrands(): Promise<Brand[]> {
   const tenantId = getActiveTenant()?.id || 'anon';
   return getOrSetCache(`brands_${tenantId}`, async () => {
-    try {
-      const res = await astraFetch(`${apiBaseUrl}/api/v1/brands`, { cache: "no-store" });
-      if (!res.ok) return [];
-      return await res.json();
-    } catch (error) {
-      console.warn("listBrands API notice:", error);
-      return [];
-    }
+    const res = await astraFetch(`${apiBaseUrl}/api/v1/brands`, { cache: "no-store" });
+    return (await res.json()) as Brand[];
   }, 15);
 }
 
 export async function getBrand(brandId: string): Promise<Brand | null> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/brands/${brandId}`, { cache: "no-store" });
-    if (!res.ok) return null;
     return await res.json();
   } catch (error) {
-    console.warn("getBrand API notice:", error);
-    return null;
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 
@@ -383,16 +375,11 @@ export async function listSightings(brandId?: string, surface?: string): Promise
   const tenantId = getActiveTenant()?.id || 'anon';
   const cacheKey = `sightings_${tenantId}_${brandId || 'all'}_${surface || 'all'}`;
   return getOrSetCache(cacheKey, async () => {
-    try {
-      const url = new URL(`${apiBaseUrl}/api/v1/sightings`);
-      if (brandId) url.searchParams.set("brand_id", brandId);
-      if (surface) url.searchParams.set("surface", surface);
-      const res = await astraFetch(url.toString(), { cache: "no-store" });
-      if (!res.ok) return [];
-      return await res.json();
-    } catch (error) {
-      throw error;
-    }
+    const url = new URL(`${apiBaseUrl}/api/v1/sightings`);
+    if (brandId) url.searchParams.set("brand_id", brandId);
+    if (surface) url.searchParams.set("surface", surface);
+    const res = await astraFetch(url.toString(), { cache: "no-store" });
+    return (await res.json()) as Sighting[];
   }, 10);
 }
 
@@ -498,33 +485,21 @@ export type ThreatScanStatus = {
   live_threats?: Array<{ domain: string; ips: string[]; whois: string }> | null;
 };
 
-export async function startThreatScan(brandId?: string): Promise<ThreatScanStatus | null> {
-  try {
-    const res = await astraFetch(`${apiBaseUrl}/api/v1/analysis-jobs/start-scan`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brand_id: brandId }),
-    });
-    if (!res.ok) return null;
-    appCache.clear();
-    return await res.json();
-  } catch (error) {
-    console.warn("startThreatScan error:", error);
-    return null;
-  }
+export async function startThreatScan(brandId?: string): Promise<ThreatScanStatus> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/analysis-jobs/start-scan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ brand_id: brandId }),
+  });
+  appCache.clear();
+  return await res.json();
 }
 
-export async function getThreatScanStatus(brandId?: string): Promise<ThreatScanStatus | null> {
-  try {
-    const url = new URL(`${apiBaseUrl}/api/v1/analysis-jobs/scan-status`);
-    if (brandId) url.searchParams.set("brand_id", brandId);
-    const res = await astraFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    console.warn("getThreatScanStatus error:", error);
-    return null;
-  }
+export async function getThreatScanStatus(brandId?: string): Promise<ThreatScanStatus> {
+  const url = new URL(`${apiBaseUrl}/api/v1/analysis-jobs/scan-status`);
+  if (brandId) url.searchParams.set("brand_id", brandId);
+  const res = await astraFetch(url.toString(), { cache: "no-store" });
+  return await res.json();
 }
 
 
@@ -532,25 +507,20 @@ export async function listCampaigns(brandId?: string, status?: string): Promise<
   const tenantId = getActiveTenant()?.id || 'anon';
   const cacheKey = `campaigns_${tenantId}_${brandId || 'all'}_${status || 'all'}`;
   return getOrSetCache(cacheKey, async () => {
-    try {
-      const url = new URL(`${apiBaseUrl}/api/v1/campaigns`);
-      if (brandId) url.searchParams.set("brand_id", brandId);
-      if (status) url.searchParams.set("status", status);
-      const res = await astraFetch(url.toString(), { cache: "no-store" });
-      if (!res.ok) return [];
-      return await res.json();
-    } catch (error) {
-      throw error;
-    }
+    const url = new URL(`${apiBaseUrl}/api/v1/campaigns`);
+    if (brandId) url.searchParams.set("brand_id", brandId);
+    if (status) url.searchParams.set("status", status);
+    const res = await astraFetch(url.toString(), { cache: "no-store" });
+    return (await res.json()) as Campaign[];
   }, 10);
 }
 
 export async function getCampaign(campaignId: string): Promise<CampaignDetail | null> {
   try {
     const res = await astraFetch(`${apiBaseUrl}/api/v1/campaigns/${campaignId}`, { cache: "no-store" });
-    if (!res.ok) return null;
     return await res.json();
   } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
 }
@@ -660,24 +630,19 @@ export async function getIntegrationsStatus(): Promise<any> {
 }
 
 export async function checkVirusTotal(url?: string, fileHash?: string): Promise<any> {
-  try {
-    const payload: Record<string, string> = {};
-    if (url && url.trim()) payload.url = url.trim();
-    if (fileHash && fileHash.trim()) payload.file_hash = fileHash.trim();
-    if (!payload.url && !payload.file_hash) {
-      return { positives: 0, total: 70, status: 'simulated_clean' };
-    }
-    const res = await astraFetch(`${apiBaseUrl}/api/v1/integrations/virustotal/check`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    console.warn("VirusTotal check notice:", error);
-    return { positives: 2, total: 72, status: 'offline_heuristic' };
+  const payload: Record<string, string> = {};
+  if (url && url.trim()) payload.url = url.trim();
+  if (fileHash && fileHash.trim()) payload.file_hash = fileHash.trim();
+  if (!payload.url && !payload.file_hash) {
+    throw new Error('A URL or file hash is required for a VirusTotal lookup.');
   }
+
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/integrations/virustotal/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return await res.json();
 }
 
 export async function scanYouTube(brandId: string): Promise<any> {
@@ -748,7 +713,6 @@ export async function listFindings(params?: {
       });
     }
     const res = await astraFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return { findings: [], total: 0, limit: 50, offset: 0 };
     return await res.json();
   } catch (error) {
     throw error;
@@ -1050,13 +1014,8 @@ export type ConnectorSyncResponse = {
 };
 
 export async function listConnectors(): Promise<{ connectors: Connector[]; total: number }> {
-  try {
-    const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors`, { cache: "no-store" });
-    if (!res.ok) return { connectors: [], total: 0 };
-    return await res.json();
-  } catch (error) {
-    throw error;
-  }
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/connectors`, { cache: "no-store" });
+  return await res.json();
 }
 
 export async function createConnector(payload: {
@@ -1165,8 +1124,9 @@ export async function getMe(): Promise<MeResponse | null> {
     setActiveUser(data.user);
     setActiveTenant(data.tenant);
     return data;
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
   }
 }
 
@@ -1174,6 +1134,46 @@ export async function switchTenant(tenantId: string): Promise<AuthResponse> {
   const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/switch-tenant`, {
     method: "POST",
     body: JSON.stringify({ tenant_id: tenantId }),
+  });
+  const data = (await res.json()) as AuthResponse;
+  setAuthToken(data.access_token);
+  setActiveUser(data.user);
+  setActiveTenant(data.tenant);
+  return data;
+}
+
+export async function registerUser(payload: {
+  email: string;
+  password: string;
+  full_name: string;
+  organization_name: string;
+}): Promise<AuthResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/register`, {
+    method: "POST",
+    body: JSON.stringify({
+      email: payload.email,
+      password: payload.password,
+      full_name: payload.full_name,
+      organization_name: payload.organization_name,
+    }),
+  });
+  const data = (await res.json()) as AuthResponse;
+  setAuthToken(data.access_token);
+  setActiveUser(data.user);
+  setActiveTenant(data.tenant);
+  return data;
+}
+
+export async function loginUser(payload: {
+  email: string;
+  password: string;
+}): Promise<AuthResponse> {
+  const res = await astraFetch(`${apiBaseUrl}/api/v1/auth/login`, {
+    method: "POST",
+    body: JSON.stringify({
+      email: payload.email,
+      password: payload.password,
+    }),
   });
   const data = (await res.json()) as AuthResponse;
   setAuthToken(data.access_token);

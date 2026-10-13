@@ -1,49 +1,40 @@
 import { NextResponse } from 'next/server';
+import { resolveServerIdentity } from '@/lib/server-auth';
 
-const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY || 'ak_OCJyi-IhtbMULLyu4vpq';
+const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY;
 
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const connectedAccountId = searchParams.get('connectedAccountId');
+  if (!COMPOSIO_API_KEY) {
+    return NextResponse.json({ error: 'Social provider connections are not configured on this server.' }, { status: 503 });
+  }
 
+  try {
+    const identity = await resolveServerIdentity(request);
+    if (!identity) {
+      return NextResponse.json({ error: 'Sign in before checking a provider connection.' }, { status: 401 });
+    }
+
+    const connectedAccountId = new URL(request.url).searchParams.get('connectedAccountId');
     if (!connectedAccountId) {
       return NextResponse.json({ error: 'connectedAccountId parameter is required' }, { status: 400 });
     }
 
-    const response = await fetch(`https://backend.composio.dev/api/v3.1/connected_accounts/${connectedAccountId}`, {
-      headers: {
-        'x-api-key': COMPOSIO_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      next: { revalidate: 0 },
+    const response = await fetch(`https://backend.composio.dev/api/v3.1/connected_accounts/${encodeURIComponent(connectedAccountId)}`, {
+      headers: { 'x-api-key': COMPOSIO_API_KEY, 'Content-Type': 'application/json' },
+      cache: 'no-store',
     });
-
     if (!response.ok) {
-      const errData = await response.json();
-      return NextResponse.json({
-        active: false,
-        status: 'UNKNOWN',
-        error: errData.message || 'Account not found or not yet registered',
-      });
+      return NextResponse.json({ error: 'The provider connection could not be found.' }, { status: response.status === 404 ? 404 : 502 });
     }
 
     const data = await response.json();
-    const isActive = data.status === 'ACTIVE';
+    if (data.user_id !== identity.providerUserId) {
+      return NextResponse.json({ error: 'The provider connection is unavailable to this account.' }, { status: 404 });
+    }
 
-    return NextResponse.json({
-      active: isActive,
-      status: data.status,
-      id: data.id,
-      toolkit: data.toolkit?.slug,
-      userId: data.user_id,
-      accountData: data,
-    });
-  } catch (err: any) {
-    console.error('Error verifying connected account status:', err);
-    return NextResponse.json(
-      { active: false, status: 'ERROR', error: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ active: data.status === 'ACTIVE', status: data.status, id: data.id, toolkit: data.toolkit?.slug });
+  } catch (error) {
+    console.error('Could not verify provider connection status:', error);
+    return NextResponse.json({ error: 'Could not verify provider connection status.' }, { status: 502 });
   }
 }

@@ -22,6 +22,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { listSightings, listCampaigns, type Sighting, type Campaign } from '@/lib/api';
+import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 type AlertLevel = 'critical' | 'high' | 'medium' | 'info';
 
@@ -193,27 +194,48 @@ export function AlertsView() {
   const [levelFilter, setLevelFilter] = useState<AlertLevel | 'all'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [livePolling, setLivePolling] = useState(true);
+  const [readAlertIds, setReadAlertIds] = useState<Set<string>>(() => new Set());
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(() => new Set());
 
-  const { data: sightings = [] } = useQuery({
+  const { data: sightings, isLoading: sightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
     queryKey: ['sightings'],
     queryFn: () => listSightings(),
     refetchInterval: livePolling ? 15000 : false,
   });
 
-  const { data: campaigns = [] } = useQuery({
+  const { data: campaigns, isLoading: campaignsLoading, isError: campaignsError, refetch: refetchCampaigns } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => listCampaigns(),
     refetchInterval: livePolling ? 30000 : false,
   });
 
   useEffect(() => {
-    const liveAlerts = buildAlertsFromData(sightings, campaigns);
-    setAlerts(liveAlerts);
-  }, [sightings, campaigns]);
+    const sightingsReady = sightings !== undefined || sightingsError;
+    const campaignsReady = campaigns !== undefined || campaignsError;
+    if (!sightingsReady || !campaignsReady) return;
+    setAlerts((previous) => {
+      const previousById = new Map(previous.map((alert) => [alert.id, alert]));
+      return buildAlertsFromData(sightings ?? [], campaigns ?? [])
+        .filter((alert) => !dismissedAlertIds.has(alert.id))
+        .map((alert) => ({
+          ...alert,
+          read: readAlertIds.has(alert.id) || previousById.get(alert.id)?.read || false,
+        }));
+    });
+  }, [sightings, campaigns, sightingsError, campaignsError, readAlertIds, dismissedAlertIds]);
 
-  const handleRead = (id: string) => setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
-  const handleDismiss = (id: string) => setAlerts((prev) => prev.filter((a) => a.id !== id));
-  const markAllRead = () => setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
+  const handleRead = (id: string) => {
+    setReadAlertIds((current) => new Set(current).add(id));
+    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
+  };
+  const handleDismiss = (id: string) => {
+    setDismissedAlertIds((current) => new Set(current).add(id));
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+  };
+  const markAllRead = () => {
+    setReadAlertIds((current) => new Set([...current, ...alerts.map((alert) => alert.id)]));
+    setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
+  };
 
   const filtered = alerts.filter((a) => {
     if (levelFilter !== 'all' && a.level !== levelFilter) return false;
@@ -233,20 +255,20 @@ export function AlertsView() {
             <BellRing className="h-3.5 w-3.5" /> Alert Feed &amp; Incident Dispatch
           </div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-[#37352f] sm:text-3xl">Real-time Risk Alerts</h1>
-            {unreadCount > 0 && (
+            <h1 className="text-2xl font-semibold tracking-tight text-[#37352f] sm:text-3xl">Risk alerts</h1>
+            {!sightingsError && !campaignsError && unreadCount > 0 && (
               <span className="rounded-[4px] border border-[#eb5757]/30 bg-[#eb5757]/10 px-2 py-0.5 text-xs font-semibold text-[#eb5757]">
                 {unreadCount} unread
               </span>
             )}
-            {criticalCount > 0 && (
+            {!sightingsError && !campaignsError && criticalCount > 0 && (
               <span className="rounded-[4px] border border-[#eb5757]/30 bg-[#eb5757]/10 px-2 py-0.5 text-xs font-semibold text-[#eb5757]">
                 {criticalCount} critical
               </span>
             )}
           </div>
           <p className="mt-2 text-sm leading-6 text-[#787774]">
-            Proactive threat signals, high-risk campaigns, and detected impersonation findings across brand telemetry.
+            Alerts derived from campaign risk scores and sightings recorded in this workspace.
           </p>
         </div>
 
@@ -260,7 +282,7 @@ export function AlertsView() {
             }`}
           >
             <Radio className={`h-3 w-3 ${livePolling ? 'text-[#0f7b6c]' : 'text-[#9b9a97]'}`} />
-            {livePolling ? 'Live ingestion polling' : 'Polling paused'}
+            {livePolling ? 'Auto-refresh on' : 'Auto-refresh off'}
           </button>
           {unreadCount > 0 && (
             <button
@@ -272,6 +294,15 @@ export function AlertsView() {
           )}
         </div>
       </header>
+
+      {(sightingsError || campaignsError) && (
+        <QueryErrorState
+          compact
+          title="Some alert sources are unavailable"
+          message="The feed may be incomplete while a source is unavailable. Retry to reload sightings and campaigns."
+          onRetry={() => { void Promise.all([refetchSightings(), refetchCampaigns()]); }}
+        />
+      )}
 
       {/* Filter strip */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e2e0] pb-4">
@@ -308,16 +339,20 @@ export function AlertsView() {
       </div>
 
       {/* Alerts list */}
-      {filtered.length === 0 ? (
+      {sightingsLoading || campaignsLoading ? (
+        <div className="space-y-3" aria-label="Loading alerts">
+          {[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-[8px] border border-[#e3e2e0] bg-white" />)}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[8px] border border-[#e3e2e0] bg-white p-8 text-center shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <ShieldCheck className="h-10 w-10 text-[#0f7b6c] mb-3" />
           <p className="text-sm font-semibold text-[#37352f]">
-            {showUnreadOnly || levelFilter !== 'all' ? 'No alerts match current filters' : 'All monitored channels secure'}
+            {showUnreadOnly || levelFilter !== 'all' ? 'No alerts match current filters' : 'No alerts in the available records'}
           </p>
           <p className="mt-1 text-xs text-[#787774] max-w-sm">
             {showUnreadOnly || levelFilter !== 'all'
               ? 'Try adjusting your filters or switching to all severities.'
-              : 'No suspicious spikes or high-risk campaigns detected. Real-time telemetry is continuously watching your brand surfaces.'}
+              : 'No alert conditions were derived from the campaign and sighting records returned for this workspace.'}
           </p>
         </div>
       ) : (
@@ -329,8 +364,8 @@ export function AlertsView() {
       )}
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e3e2e0] py-3 text-xs text-[#787774]">
-        <span>{alerts.length} total risk alerts recorded</span>
-        <span>Telemetry sources: Composio social connectors, website crawlers, mobile app stores</span>
+        <span>{sightingsError || campaignsError ? 'Alert count may be incomplete' : `${alerts.length} alerts derived from workspace records`}</span>
+        <span>Sources: sightings and campaigns</span>
       </footer>
     </div>
   );

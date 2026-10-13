@@ -26,6 +26,7 @@ import {
   type Connector 
 } from '@/lib/api';
 import { ConnectorStatusCard, type ConnectorData } from '@/components/connectors/ConnectorStatusCard';
+import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 const CONNECTOR_PRESETS: Record<string, { name: string; defaultKey: string; keyLabel: string; keyPlaceholder: string; extraField?: string }> = {
   virustotal: {
@@ -79,7 +80,7 @@ export function ConnectorsView() {
   const [secondaryCredential, setSecondaryCredential] = useState<string>('');
   const [rateLimit, setRateLimit] = useState<number>(60);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['connectors'],
     queryFn: () => listConnectors(),
     refetchInterval: 30000,
@@ -238,7 +239,7 @@ export function ConnectorsView() {
         },
       ];
 
-  const isTemplateMode = connectors.length === 0;
+  const isTemplateMode = !isLoading && !isError && connectors.length === 0;
   const activeCount = displayConnectors.filter(c => c.status === 'active').length;
   const degradedCount = displayConnectors.filter(c => c.status === 'degraded' || c.status === 'error').length;
 
@@ -296,6 +297,14 @@ export function ConnectorsView() {
         </div>
       </header>
 
+      {isError && (
+        <QueryErrorState
+          title="Connector status could not be loaded"
+          message={error instanceof Error ? error.message : undefined}
+          onRetry={() => refetch()}
+        />
+      )}
+
       {/* Unconfigured State Banner */}
       {isTemplateMode && (
         <div className="rounded-[8px] border border-[#d97706]/30 bg-[#d97706]/10 p-4 text-xs text-[#d97706]">
@@ -310,7 +319,7 @@ export function ConnectorsView() {
       )}
 
       {/* Metrics Strip */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {!isError && !isLoading && <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="p-4 rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <p className="text-xs text-[#787774] font-medium">Configured Connectors</p>
           <p className="mt-1 text-2xl font-bold font-mono text-[#37352f]">{connectors.length}</p>
@@ -329,10 +338,15 @@ export function ConnectorsView() {
             <Lock className="w-3.5 h-3.5 text-[#0f7b6c]" /> AES-Authenticated Vault
           </p>
         </div>
-      </div>
+      </div>}
 
       {/* Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {isLoading ? (
+        <div aria-label="Loading connectors" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((item) => <div key={item} className="h-52 animate-pulse rounded-xl border border-[#e3e2e0] bg-white" />)}
+        </div>
+      ) : !isError && (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
         {displayConnectors.map((connector) => (
           <ConnectorStatusCard
             key={connector.id}
@@ -346,7 +360,8 @@ export function ConnectorsView() {
             isDeleting={deletingId === connector.id}
           />
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Configuration Modal */}
       {modalOpen && (

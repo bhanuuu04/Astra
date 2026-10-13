@@ -14,12 +14,14 @@ import {
   Crosshair,
   RefreshCw,
 } from 'lucide-react';
-import { listSightings, listMobileAppRadar, scanMobileAppPackage, checkVirusTotal, type Sighting, type MobileAppFinding } from '@/lib/api';
-import { DataModeBadge } from '@/components/ui/DataModeBadge';
+import { listSightings, listMobileAppRadar, checkVirusTotal, type Sighting, type MobileAppFinding } from '@/lib/api';
+import { DataModeBadge, type DataMode } from '@/components/ui/DataModeBadge';
+import { QueryErrorState } from '@/components/ui/QueryErrorState';
 
 const panel = 'rounded-[8px] border border-[#e3e2e0] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]';
 
 type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
+type AppStatus = 'needs_review' | 'active_threat' | 'takedown_submitted' | 'resolved' | 'monitoring';
 
 interface AppEntry {
   id: string;
@@ -27,13 +29,13 @@ interface AppEntry {
   packageName: string;
   downloadUrl: string;
   sha256?: string;
-  riskScore: number;
-  status: 'active_threat' | 'takedown_submitted' | 'resolved' | 'monitoring';
+  riskScore: number | null;
+  status: AppStatus;
   sourcePlatform: string;
   discoveredAt: string;
   impersonationDetails: string;
-  dataMode: 'live' | 'manual_upload';
-  vtResult?: { positives?: number; total?: number; permalink?: string } | null;
+  dataMode: DataMode;
+  vtResult?: { positives?: number | null; total?: number | null; permalink?: string; status?: string } | null;
 }
 
 function riskMeta(score: number): { level: RiskLevel; label: string; style: string; bar: string } {
@@ -45,6 +47,7 @@ function riskMeta(score: number): { level: RiskLevel; label: string; style: stri
 
 function statusMeta(status: AppEntry['status']) {
   switch (status) {
+    case 'needs_review': return { label: 'Needs review', icon: Crosshair, style: 'text-amber-800 bg-amber-50 border-amber-200' };
     case 'active_threat': return { label: 'Active threat', icon: ShieldAlert, style: 'text-[#eb5757] bg-[#eb5757]/10 border-[#eb5757]/30' };
     case 'takedown_submitted': return { label: 'Takedown submitted', icon: ShieldX, style: 'text-[#d97706] bg-[#d97706]/10 border-[#d97706]/30' };
     case 'monitoring': return { label: 'Monitoring', icon: Crosshair, style: 'text-[#0f7b6c] bg-[#0f7b6c]/10 border-[#0f7b6c]/30' };
@@ -71,12 +74,13 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function AppCard({ app, onStatusChange, onVtCheck }: {
+function AppCard({ app, onVtCheck, isChecking, checkError }: {
   app: AppEntry;
-  onStatusChange: (id: string, status: AppEntry['status']) => void;
   onVtCheck: (id: string, hash?: string, url?: string) => void;
+  isChecking: boolean;
+  checkError?: string | null;
 }) {
-  const risk = riskMeta(app.riskScore);
+  const risk = riskMeta(app.riskScore ?? 0);
   const status = statusMeta(app.status);
   const StatusIcon = status.icon;
 
@@ -90,7 +94,7 @@ function AppCard({ app, onStatusChange, onVtCheck }: {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h3 className="truncate text-sm font-semibold text-slate-900">{app.appName}</h3>
-              <DataModeBadge mode="live" size="sm" />
+              <DataModeBadge mode={app.dataMode} size="sm" />
               <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${status.style}`}>
                 <StatusIcon className="h-3 w-3" />
                 {status.label}
@@ -100,9 +104,9 @@ function AppCard({ app, onStatusChange, onVtCheck }: {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-semibold ${risk.style}`}>{risk.label} · {app.riskScore}</span>
+              <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-semibold ${risk.style}`}>{app.riskScore === null ? 'Not scored' : `${risk.label} · ${app.riskScore}`}</span>
               <div className="mt-1.5 h-1 w-20 overflow-hidden rounded-full bg-slate-100">
-                <div className={`h-full rounded-full transition-all ${risk.bar}`} style={{ width: `${app.riskScore}%` }} />
+                {app.riskScore !== null && <div className={`h-full rounded-full transition-all ${risk.bar}`} style={{ width: `${app.riskScore}%` }} />}
               </div>
             </div>
           </div>
@@ -120,9 +124,41 @@ function AppCard({ app, onStatusChange, onVtCheck }: {
             </span>
           )}
         </div>
+
+        <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <div aria-live="polite" className="min-w-0 text-xs">
+            {checkError ? <span className="text-rose-700">{checkError}</span> : app.vtResult ? (
+              <span className="text-slate-700">
+                Reputation result: {app.vtResult.status || `${app.vtResult.positives ?? '—'} of ${app.vtResult.total ?? '—'} engines flagged`}
+                {app.vtResult.permalink && <a className="ml-2 font-semibold text-teal-800 underline underline-offset-2" href={app.vtResult.permalink} target="_blank" rel="noopener noreferrer">View provider report</a>}
+              </span>
+            ) : <span className="text-slate-500">Provider reputation checks require a URL or file hash and a configured connector.</span>}
+          </div>
+          <button
+            type="button"
+            onClick={() => onVtCheck(app.id, app.sha256, app.downloadUrl)}
+            disabled={isChecking || (!app.sha256 && !app.downloadUrl)}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isChecking ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Crosshair className="h-3.5 w-3.5" />}
+            {isChecking ? 'Checking…' : 'Check reputation'}
+          </button>
+        </div>
       </div>
     </article>
   );
+}
+
+function normalizedDataMode(value?: string | null): DataMode {
+  return value === 'live' || value === 'synthetic_demo' || value === 'manual_upload' ? value : 'unknown';
+}
+
+function normalizedAppStatus(value?: string | null): AppEntry['status'] {
+  if (value === 'confirmed_threat' || value === 'active_threat') return 'active_threat';
+  if (value === 'takedown_submitted') return 'takedown_submitted';
+  if (value === 'resolved' || value === 'false_positive') return 'resolved';
+  if (value === 'monitoring' || value === 'investigating') return 'monitoring';
+  return 'needs_review';
 }
 
 function parseSightingsToApps(sightings: Sighting[]): AppEntry[] {
@@ -139,15 +175,17 @@ function parseSightingsToApps(sightings: Sighting[]): AppEntry[] {
     return {
       id: s.id || `app-${idx}`,
       appName: rogueApp.app_name || rogueApp.name || s.raw_ref || 'Unknown Mobile App Package',
-      packageName: rogueApp.package_name || rogueApp.bundle_id || 'com.unverified.rogue',
+      packageName: rogueApp.package_name || rogueApp.bundle_id || 'Package ID unavailable',
       downloadUrl: rogueApp.download_url || s.raw_ref || '',
       sha256: rogueApp.sha256 || payload.sha256,
-      riskScore: Math.round((payload.threat_analysis?.risk_score || 0.75) * 100),
-      status: (rogueApp.status as AppEntry['status']) || 'active_threat',
+      riskScore: typeof payload.threat_analysis?.risk_score === 'number'
+        ? Math.round(payload.threat_analysis.risk_score <= 1 ? payload.threat_analysis.risk_score * 100 : payload.threat_analysis.risk_score)
+        : null,
+      status: normalizedAppStatus(rogueApp.status || payload.threat_analysis?.triage_status),
       sourcePlatform: s.surface,
       discoveredAt: s.observed_at || s.created_at,
-      impersonationDetails: rogueApp.impersonation_details || payload.threat_analysis?.summary || 'Suspected rogue mobile app package impersonating brand assets.',
-      dataMode: 'live',
+      impersonationDetails: rogueApp.impersonation_details || payload.threat_analysis?.summary || 'Evidence captured for analyst review.',
+      dataMode: normalizedDataMode(payload.data_mode || (s.source_kind === 'fixture' ? 'synthetic_demo' : s.source_kind === 'manual_upload' ? 'manual_upload' : undefined)),
     };
   });
 }
@@ -158,13 +196,14 @@ export function AppsRadarView() {
   const [statusFilter, setStatusFilter] = useState<AppEntry['status'] | 'all'>('all');
   const [apps, setApps] = useState<AppEntry[]>([]);
   const [vtLoading, setVtLoading] = useState<string | null>(null);
+  const [vtErrors, setVtErrors] = useState<Record<string, string>>({});
 
-  const { data: radarData } = useQuery({
+  const { data: radarData, isLoading: radarLoading, isError: radarError, refetch: refetchRadar } = useQuery({
     queryKey: ['mobile_apps_radar'],
     queryFn: () => listMobileAppRadar(),
   });
 
-  const { data: sightings = [] } = useQuery({
+  const { data: sightings = [], isLoading: sightingsLoading, isError: sightingsError, refetch: refetchSightings } = useQuery({
     queryKey: ['sightings'],
     queryFn: () => listSightings(),
   });
@@ -177,14 +216,16 @@ export function AppsRadarView() {
         packageName: a.package_name,
         downloadUrl: a.store_url || '',
         sha256: a.apk_sha256 || undefined,
-        riskScore: Math.round((a.triage_priority ?? a.risk_score ?? 0.8) * ((a.triage_priority ?? a.risk_score ?? 0.8) <= 1 ? 100 : 1)),
-        status: (a.triage_status as any) || 'active_threat',
+        riskScore: typeof (a.triage_priority ?? a.risk_score) === 'number'
+          ? Math.round((a.triage_priority ?? a.risk_score) <= 1 ? (a.triage_priority ?? a.risk_score) * 100 : (a.triage_priority ?? a.risk_score))
+          : null,
+        status: normalizedAppStatus(a.triage_status),
         sourcePlatform: a.store_platform || a.store_source || 'google_play',
         discoveredAt: a.observed_at || a.created_at,
         impersonationDetails: a.official_cert_match === false
           ? 'Certificate signature mismatch: Unauthorized APK signature does NOT match verified brand certificate.'
           : (a.impersonation_evidence ? JSON.stringify(a.impersonation_evidence) : `Forensic status: ${a.malware_status || 'analyzed'}, permissions risk: ${a.permissions_risk || 'medium'}`),
-        dataMode: 'live',
+        dataMode: normalizedDataMode(a.data_mode),
       }));
       setApps(liveRadarApps);
     } else if (sightings && sightings.length > 0) {
@@ -197,23 +238,16 @@ export function AppsRadarView() {
     }
   }, [radarData, sightings]);
 
-  const handleStatusChange = (id: string, status: AppEntry['status']) => {
-    setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-  };
-
   const handleVtCheck = async (id: string, hash?: string, url?: string) => {
     setVtLoading(id);
+    setVtErrors((current) => ({ ...current, [id]: '' }));
     try {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (uuidRegex.test(id)) {
-        await scanMobileAppPackage(id, 'virustotal').catch(() => null);
-      }
       const result = await checkVirusTotal(url, hash);
       if (result) {
         setApps((prev) => prev.map((a) => (a.id === id ? { ...a, vtResult: result } : a)));
       }
     } catch (err) {
-      console.warn("VirusTotal scan notice:", err);
+      setVtErrors((current) => ({ ...current, [id]: err instanceof Error ? err.message : 'Reputation lookup failed.' }));
     } finally {
       setVtLoading(null);
     }
@@ -241,7 +275,10 @@ export function AppsRadarView() {
     resolved: apps.filter((a) => a.status === 'resolved').length,
   };
 
-  const avgRisk = apps.length ? Math.round(apps.reduce((acc, a) => acc + a.riskScore, 0) / apps.length) : 0;
+  const scoredApps = apps.filter((app) => app.riskScore !== null);
+  const avgRisk = scoredApps.length ? Math.round(scoredApps.reduce((acc, app) => acc + (app.riskScore || 0), 0) / scoredApps.length) : null;
+  const anySourceError = radarError || sightingsError;
+  const bothSourcesFailed = radarError && sightingsError;
 
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -253,7 +290,7 @@ export function AppsRadarView() {
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-[#37352f] sm:text-3xl">Rogue Mobile App Radar</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#787774]">
-            Track rogue APKs, fake companion apps, and sideloaded trojans impersonating your brand across public app markets and social channels.
+            Review mobile-app findings captured by configured providers or recorded in your workspace. Store discovery is not continuous unless a supported source is configured.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -269,13 +306,22 @@ export function AppsRadarView() {
         </div>
       </header>
 
+      {anySourceError && (
+        <QueryErrorState
+          compact
+          title={bothSourcesFailed ? 'Mobile-app data is unavailable' : 'Some mobile-app data is unavailable'}
+          message="An unavailable source is not treated as an empty result. Retry the provider radar and sightings queries."
+          onRetry={() => { void Promise.all([refetchRadar(), refetchSightings()]); }}
+        />
+      )}
+
       {/* Stats strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Active threats', value: counts.active_threat, style: 'text-[#eb5757]' },
-          { label: 'Takedown pending', value: counts.takedown_submitted, style: 'text-[#d97706]' },
-          { label: 'Monitoring', value: counts.monitoring, style: 'text-[#0f7b6c]' },
-          { label: 'Avg risk score', value: avgRisk, style: avgRisk >= 70 ? 'text-[#eb5757]' : 'text-[#37352f]' },
+          { label: 'Confirmed threats', value: anySourceError ? '—' : counts.active_threat, style: 'text-[#eb5757]' },
+          { label: 'Takedown pending', value: anySourceError ? '—' : counts.takedown_submitted, style: 'text-[#d97706]' },
+          { label: 'Needs review', value: anySourceError ? '—' : apps.filter((app) => app.status === 'needs_review').length, style: 'text-amber-700' },
+          { label: 'Mean triage score', value: anySourceError ? '—' : avgRisk ?? '—', style: (avgRisk ?? 0) >= 70 ? 'text-[#eb5757]' : 'text-slate-900' },
         ].map(({ label, value, style }) => (
           <div key={label} className={`${panel} p-4`}>
             <p className="text-xs font-medium text-[#787774]">{label}</p>
@@ -315,13 +361,17 @@ export function AppsRadarView() {
       </div>
 
       {/* App list */}
-      {filtered.length === 0 ? (
+      {(radarLoading || sightingsLoading) ? (
+        <div aria-label="Loading mobile app findings" className="space-y-3">
+          {[0, 1, 2].map((item) => <div key={item} className="h-36 animate-pulse rounded-xl border border-slate-200 bg-white" />)}
+        </div>
+      ) : bothSourcesFailed ? null : filtered.length === 0 ? (
         <div className={`${panel} flex min-h-[220px] items-center justify-center p-8 text-center`}>
           <div>
-            <ShieldCheck className="mx-auto h-8 w-8 text-[#0f7b6c] mb-2" />
-            <p className="text-sm font-semibold text-[#37352f]">No rogue mobile apps detected</p>
-            <p className="mt-1 text-xs text-[#787774] max-w-md">
-              Radar continuously monitors official app listings, APK mirrors, and social DM attachments for unauthorized packages.
+            <ShieldCheck className="mx-auto mb-2 h-8 w-8 text-teal-700" />
+            <p className="text-sm font-semibold text-slate-900">No mobile-app findings in the available records</p>
+            <p className="mx-auto mt-1 max-w-md text-xs text-slate-600">
+              Configure an authorized provider or add a finding to begin reviewing app-related evidence.
             </p>
           </div>
         </div>
@@ -331,8 +381,9 @@ export function AppsRadarView() {
             <AppCard
               key={app.id}
               app={vtLoading === app.id ? { ...app, vtResult: undefined } : app}
-              onStatusChange={handleStatusChange}
               onVtCheck={handleVtCheck}
+              isChecking={vtLoading === app.id}
+              checkError={vtErrors[app.id] || null}
             />
           ))}
         </div>
@@ -340,7 +391,7 @@ export function AppsRadarView() {
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e3e2e0] py-3 text-xs text-[#787774]">
         <span>{apps.length} total mobile applications tracked</span>
-        <span>Sources: Inbound DM attachments, third-party APK mirrors, certificate registries</span>
+        <span>Findings reflect the sources configured for this workspace.</span>
       </footer>
     </div>
   );

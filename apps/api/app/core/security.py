@@ -49,6 +49,25 @@ def verify_password(plain_password: str, hashed: str) -> bool:
         return False
 
 
+def require_internal_api_key(
+    x_astra_internal_api_key: Optional[str] = Header(default=None),
+) -> None:
+    """Restrict account provisioning endpoints to trusted server-side callers."""
+    configured_key = get_settings().astra_internal_api_key
+    if not configured_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Internal service authentication is not configured",
+        )
+    if not x_astra_internal_api_key or not hmac.compare_digest(
+        x_astra_internal_api_key, configured_key
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid internal service credentials",
+        )
+
+
 DEFAULT_DEMO_TENANT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 # Enterprise RBAC Roles
@@ -75,6 +94,7 @@ class TenantContext:
     role: str
     user_id: Optional[uuid.UUID] = None
     is_admin: bool = False
+    is_platform_admin: bool = False
 
 
 def create_access_token(
@@ -328,6 +348,7 @@ def get_current_tenant_context(
         role=derived_role,
         user_id=user.id,
         is_admin=(derived_role == ROLE_ORG_ADMIN or is_super_admin),
+        is_platform_admin=is_super_admin,
     )
 
 
@@ -341,6 +362,18 @@ def require_admin(
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Administrative authorization required (Org Admin role).",
+    )
+
+
+def require_platform_admin(
+    context: TenantContext = Depends(get_current_tenant_context),
+) -> TenantContext:
+    """Restrict cross-tenant ownership adjudication to platform operators."""
+    if context.is_platform_admin:
+        return context
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Platform administrator authorization is required for ownership adjudication.",
     )
 
 

@@ -82,3 +82,29 @@ class MobileAppScanResponse(BaseModel):
     scan_queued: bool
     scan_id: Optional[str] = None
     message: str
+
+
+class AppListingDiscoveryItem(BaseModel):
+    """Adapter contract for discovered or fixture mobile app listings (Finding 2)."""
+    store: str
+    listing_id: str
+    package_name: str
+    app_title: str
+    developer_id: Optional[str] = None
+    developer_name: Optional[str] = None
+    description: Optional[str] = None
+    icon_url: Optional[str] = None
+    source_url: str
+    captured_at: datetime
+    data_mode: str = "live"
+
+
+class AppListingComparisonResult(BaseModel):
+    """Result of comparing an app listing against official brand identity (Finding 2)."""
+    is_official_match: bool
+    exclusion_reason: Optional[str] = None
+    publisher_mismatch: Optional[bool] = None
+    has_resembling_description: Optional[bool] = None
+    title_brand_match: bool = False
+    measured_risk_score: float = 0.0
+    signals: List[str] = Field(default_factory=list)

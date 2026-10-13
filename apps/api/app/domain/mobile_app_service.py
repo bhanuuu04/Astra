@@ -11,7 +11,11 @@ from app.db.models import (
     Finding,
     MobileAppFinding,
 )
-from app.schemas.mobile_app import MobileAppRadarItem
+from app.schemas.mobile_app import (
+    MobileAppRadarItem,
+    AppListingDiscoveryItem,
+    AppListingComparisonResult,
+)
 
 
 def verify_certificate_match(
@@ -344,7 +348,93 @@ def queue_apk_scan(
     if not app_finding.apk_sha256:
         return False, "APK hash not available for scanning"
     
-    # TODO: Queue async scan job with Celery/background worker
-    # For now, return success message
-    
-    return True, f"Scan queued with {scan_type} for APK hash {app_finding.apk_sha256}"
+    # Return unsupported until asynchronous worker queue is implemented
+    return False, f"Package scanning with {scan_type} is currently unsupported: asynchronous package sandboxing worker not configured"
+
+
+def compare_app_listing_against_brand(
+    session: Session,
+    brand: Brand,
+    listing: AppListingDiscoveryItem,
+) -> AppListingComparisonResult:
+    """Compare an external app listing against official brand identity (Finding 2).
+
+    1. Compares official store & package/bundle IDs first (exact exclusion).
+    2. Compares publisher / developer identity if registered.
+    3. Compares app title / name against brand tokens.
+    4. Evaluates description for resembling content or impersonation keywords.
+    5. Returns an explainable comparison result without manufacturing missing evidence.
+    """
+    # 1. Compare official package/bundle IDs registered for the brand
+    brand_assets = list(session.scalars(select(BrandAsset).where(BrandAsset.brand_id == brand.id)).all())
+    official_packages = {
+        a.canonical_value.lower()
+        for a in brand_assets
+        if a.asset_type in ("mobile_app", "mobile_app_pkg")
+    }
+
+    pkg_clean = (listing.package_name or "").lower().strip()
+    if pkg_clean and pkg_clean in official_packages:
+        return AppListingComparisonResult(
+            is_official_match=True,
+            exclusion_reason=f"Matches verified official app package '{pkg_clean}'.",
+            publisher_mismatch=False,
+            has_resembling_description=False,
+            title_brand_match=True,
+            measured_risk_score=0.0,
+            signals=["official_asset_match"],
+        )
+
+    # 2. Check title brand match
+    brand_name_lower = brand.name.lower()
+    title_lower = (listing.app_title or "").lower()
+    title_brand_match = brand_name_lower in title_lower
+
+    # 3. Check publisher identity against brand or official publisher assets
+    official_publishers = {
+        (a.asset_metadata or {}).get("publisher_name", "").lower()
+        for a in brand_assets
+        if (a.asset_metadata or {}).get("publisher_name")
+    }
+    official_publishers.add(brand_name_lower)
+
+    dev_name_clean = (listing.developer_name or "").lower().strip()
+    publisher_mismatch: Optional[bool] = None
+    if dev_name_clean:
+        if any(pub and (pub in dev_name_clean or dev_name_clean in pub) for pub in official_publishers):
+            publisher_mismatch = False
+        else:
+            publisher_mismatch = True
+
+    # 4. Check description resemblance
+    desc_clean = (listing.description or "").lower()
+    has_resembling_description: Optional[bool] = None
+    if desc_clean:
+        has_resembling_description = brand_name_lower in desc_clean or any(
+            kw in desc_clean for kw in ("official app", "customer care", "account login", "verify otp")
+        )
+
+    # 5. Calculate measured risk score based only on measured features
+    signals = []
+    score = 0.0
+    if title_brand_match:
+        signals.append("brand_title_match")
+        score += 0.35
+    if publisher_mismatch is True:
+        signals.append("publisher_mismatch")
+        score += 0.30
+    if has_resembling_description is True:
+        signals.append("resembling_description")
+        score += 0.20
+    if listing.icon_url:
+        signals.append("icon_present")
+
+    return AppListingComparisonResult(
+        is_official_match=False,
+        exclusion_reason=None,
+        publisher_mismatch=publisher_mismatch,
+        has_resembling_description=has_resembling_description,
+        title_brand_match=title_brand_match,
+        measured_risk_score=min(1.0, score),
+        signals=signals,
+    )

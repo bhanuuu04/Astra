@@ -78,18 +78,37 @@ async function scrapeHomepage(domain: string): Promise<DomainMetadata> {
   const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const url = `https://${domain}`;
-    const res = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AstraBrandSentinel/2.0',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-      next: { revalidate: 3600 }
-    });
+    let currentUrl = `https://${domain}`;
+    let res: Response | null = null;
+    let redirectCount = 0;
 
-    if (res.ok) {
+    while (redirectCount < 3) {
+      const parsedUrl = new URL(currentUrl);
+      if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') break;
+      const addresses = await dns.lookup(parsedUrl.hostname, { all: true, verbatim: true }).catch(() => []);
+      if (!addresses.length || addresses.some(({ address }) => isPrivateOrReservedAddress(address))) {
+        return result;
+      }
+
+      res = await fetch(currentUrl, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AstraBrandSentinel/2.0',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+      });
+
+      if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+        const nextLoc = new URL(res.headers.get('location')!, currentUrl);
+        currentUrl = nextLoc.toString();
+        redirectCount++;
+      } else {
+        break;
+      }
+    }
+
+    if (res && res.ok) {
       const html = await res.text();
 
       // Extract <title>

@@ -81,6 +81,8 @@ def test_production_configuration_rejects_development_defaults():
         app_env="production",
         jwt_secret="jwt-secret-that-is-unique-and-at-least-32-chars",
         admin_api_key="admin-secret-that-is-unique-and-at-least-32-chars",
+        astra_internal_api_key="internal-secret-that-is-unique-and-at-least-32-chars",
+        api_secret_key="vault-secret-that-is-unique-and-at-least-32-chars",
         allow_anonymous_dev=False,
         cors_origins="https://console.example.com",
     )

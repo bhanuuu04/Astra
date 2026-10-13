@@ -186,7 +186,7 @@ def detect_lookalike_variations(
 
     # 1. Benign Decoy Guard
     full_text = f"{candidate} {content}".lower()
-    found_benign = [w for w in BENIGN_DECOY_TRIGGERS if w in full_text]
+    found_benign = [w for w in BENIGN_DECOY_TRIGGERS if re.search(rf"\b{re.escape(w)}\b", full_text)]
     if found_benign:
         # Check if scam triggers override benign classification
         scam_present = any(trig in full_text for trig in (URGENCY_TRIGGERS + CREDENTIAL_HARVEST_TRIGGERS))
@@ -210,13 +210,31 @@ def detect_lookalike_variations(
         details.append(f"Adjacent character transposition detected (Damerau distance: {d_dist})")
 
     # 4. Added High-Risk Words
-    # Check if candidate has brand name plus an added keyword (e.g. novapay_support)
-    for word in LOOKALIKE_ADDED_WORDS:
-        pattern = rf"(^|[_\-\. ]){re.escape(word)}([_\-\. ]|$)|{re.escape(norm_brand)}[_\-\.]?{re.escape(word)}|{re.escape(word)}[_\-\.]?{re.escape(norm_brand)}"
-        if re.search(pattern, raw_cand):
-            variations.append("ADDED_WORD")
-            matched_words.append(word)
-            details.append(f"Added high-risk keyword: '{word}'")
+    # Candidate must have demonstrated brand presence before an added word contributes
+    has_brand_presence = (
+        clean_spacing_brand in clean_spacing_cand
+        or norm_brand in norm_cand
+        or (len(norm_brand) >= 4 and calculate_similarity(clean_spacing_cand, clean_spacing_brand) >= 70)
+    )
+
+    if has_brand_presence:
+        for word in LOOKALIKE_ADDED_WORDS:
+            word_regex = rf"(?:^|[_\-\. ]){re.escape(word)}(?:[_\-\. ]|$)|{re.escape(norm_brand)}[_\-\.]?{re.escape(word)}|{re.escape(word)}[_\-\.]?{re.escape(norm_brand)}"
+            if re.search(word_regex, raw_cand) or re.search(word_regex, norm_cand):
+                variations.append("ADDED_WORD")
+                matched_words.append(word)
+                details.append(f"Added high-risk keyword: '{word}'")
+    else:
+        # Check if candidate has added keyword alongside a transposed/homoglyph brand root
+        for word in LOOKALIKE_ADDED_WORDS:
+            cand_stripped = re.sub(rf"(?:^|[_\-\. ]){re.escape(word)}(?:[_\-\. ]|$)", "", raw_cand).strip()
+            if cand_stripped and cand_stripped != raw_cand:
+                norm_stripped = normalize_homoglyphs(cand_stripped)
+                sim = calculate_similarity(norm_stripped, norm_brand)
+                if sim >= 75 or (len(norm_brand) >= 4 and damerau_levenshtein_distance(norm_stripped, norm_brand) <= 2):
+                    variations.append("ADDED_WORD")
+                    matched_words.append(word)
+                    details.append(f"Added high-risk keyword '{word}' alongside brand variant '{cand_stripped}'")
 
     # 5. Homoglyph Substitution
     if norm_cand == norm_brand and raw_cand != raw_brand and "SPACING_CHANGE" not in variations:

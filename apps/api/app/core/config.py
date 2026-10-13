@@ -102,6 +102,12 @@ class Settings(BaseSettings):
         
         if any(pattern in self.admin_api_key for pattern in insecure_patterns) or len(self.admin_api_key) < 32:
             problems.append(f"ADMIN_API_KEY must be a unique secret with at least 32 characters (env: {self.app_env})")
+
+        if any(pattern in self.astra_internal_api_key for pattern in insecure_patterns) or len(self.astra_internal_api_key) < 32:
+            problems.append(f"ASTRA_INTERNAL_API_KEY must be a unique secret with at least 32 characters (env: {self.app_env})")
+
+        if any(pattern in self.api_secret_key for pattern in insecure_patterns) or len(self.api_secret_key) < 32:
+            problems.append(f"API_SECRET_KEY must be a unique secret with at least 32 characters (env: {self.app_env})")
         
         
         if self.allow_anonymous_dev:

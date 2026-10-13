@@ -7,9 +7,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models import (
     Brand,
+    BrandAsset,
     Connector,
     EvidenceObject,
     Finding,
@@ -104,6 +106,51 @@ def calculate_triage_priority(
     """
     signals: List[FindingTriageSignal] = []
     total_score = 0.0
+
+    # Official asset exclusion check: verified official assets receive score 0.0
+    brand_assets = list(session.scalars(select(BrandAsset).where(BrandAsset.brand_id == brand.id)).all())
+    official_packages = [a.canonical_value.lower() for a in brand_assets if a.asset_type in ("mobile_app", "mobile_app_pkg")]
+    official_domains = [a.canonical_value.lower() for a in brand_assets if a.asset_type in ("domain", "web_domain")]
+    official_handles = [a.canonical_value.lower().split(":")[-1].lstrip("@") for a in brand_assets if a.asset_type in ("handle", "social_handle")]
+
+    target_clean = finding.target_identifier.lower()
+    norm_pkg = (normalized_attrs.get("package_name") or "").lower()
+
+    is_official_match = False
+    match_detail = ""
+
+    # Check official packages
+    for pkg in official_packages:
+        if pkg and (target_clean == pkg or norm_pkg == pkg or f"id={pkg}" in target_clean or target_clean.endswith(f"/{pkg}")):
+            is_official_match = True
+            match_detail = f"official app package '{pkg}'"
+            break
+
+    # Check official domains
+    if not is_official_match:
+        for dom in official_domains:
+            if dom and (dom == target_clean or dom in target_clean):
+                is_official_match = True
+                match_detail = f"official domain '{dom}'"
+                break
+
+    # Check official handles
+    if not is_official_match:
+        for h in official_handles:
+            if h and (target_clean == h or f"@{h}" == target_clean or target_clean.endswith(f"/{h}")):
+                is_official_match = True
+                match_detail = f"official handle '@{h}'"
+                break
+
+    if is_official_match:
+        signals.append(FindingTriageSignal(
+            detector_key="official_asset_match",
+            detector_version="1.0.0",
+            score=0.0,
+            explanation=f"Target identifier matches verified {match_detail}. Excluded from threat priority.",
+            feature_values={"is_official_asset": True, "target": finding.target_identifier}
+        ))
+        return 0.0, signals
     
     # Signal 1: Brand token match
     brand_name_lower = brand.name.lower()
@@ -222,9 +269,18 @@ def ingest_finding(
     )
     
     if existing:
+        obs = finding_data.observed_at
+        if obs.tzinfo is None:
+            obs = obs.replace(tzinfo=timezone.utc)
+        if existing.observed_at:
+            exist_obs = existing.observed_at if existing.observed_at.tzinfo else existing.observed_at.replace(tzinfo=timezone.utc)
+            if obs > exist_obs:
+                existing.observed_at = obs
+                session.flush()
+
         # Return existing finding with current triage info
         signals = session.scalars(
-            select(Signal).where(Signal.sighting_id == existing.id)
+            select(Signal).where(Signal.finding_id == existing.id)
         ).all()
         
         signal_schemas = [
@@ -518,15 +574,11 @@ def update_finding_triage(
     elif not finding.assigned_analyst_id:
         finding.assigned_analyst_id = actor_id
     
-    # Store rationale in normalized_attributes
-    if not finding.normalized_attributes:
-        finding.normalized_attributes = {}
-    
-    if 'triage_history' not in finding.normalized_attributes:
-        finding.normalized_attributes['triage_history'] = []
-    
+    # Store rationale in normalized_attributes with deep-copied dictionary to prevent in-place mutation drop
+    attrs = dict(finding.normalized_attributes or {})
+    triage_hist = list(attrs.get('triage_history', []))
     now_utc = datetime.now(timezone.utc)
-    finding.normalized_attributes['triage_history'].append({
+    triage_hist.append({
         "timestamp": now_utc.isoformat(),
         "old_status": old_status,
         "new_status": triage_status,
@@ -534,6 +586,28 @@ def update_finding_triage(
         "actor_id": str(actor_id),
         "analyst_id": str(finding.assigned_analyst_id) if finding.assigned_analyst_id else None
     })
+    attrs['triage_history'] = triage_hist
+    finding.normalized_attributes = attrs
+    flag_modified(finding, "normalized_attributes")
+
+    # Synchronize mirrored sighting triage status so all queue/campaign/radar views match
+    mirrored_sighting = session.scalar(
+        select(Sighting).where(
+            Sighting.tenant_id == tenant_id,
+            Sighting.brand_id == finding.brand_id,
+            Sighting.raw_ref == finding.target_identifier,
+        )
+    )
+    if mirrored_sighting:
+        mirrored_sighting.triage_status = triage_status
+        if mirrored_sighting.normalized_payload:
+            s_payload = dict(mirrored_sighting.normalized_payload)
+            ta = dict(s_payload.get("threat_analysis") or {})
+            ta["triage_status"] = triage_status
+            s_payload["threat_analysis"] = ta
+            s_payload["triage_status"] = triage_status
+            mirrored_sighting.normalized_payload = s_payload
+            flag_modified(mirrored_sighting, "normalized_payload")
     
     session.flush()
     

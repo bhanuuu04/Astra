@@ -65,7 +65,7 @@ def add_brand_asset(session: Session, brand_id: uuid.UUID, asset_data: BrandAsse
 
     # Canonical normalization
     val = asset_data.canonical_value.strip()
-    if asset_data.asset_type in ("domain", "handle"):
+    if asset_data.asset_type in ("domain", "handle", "social_handle"):
         val = val.lower().lstrip("@")
 
     # Normalize mobile app pkg type

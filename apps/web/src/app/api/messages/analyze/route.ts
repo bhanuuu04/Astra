@@ -202,8 +202,13 @@ Respond strictly in valid JSON matching this schema:
     };
 
     let savedSightingId = null;
+    let persistenceErrorDetail: string | null = null;
     try {
-      const batchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      const internalApiKey = process.env.ASTRA_INTERNAL_API_KEY || 'astra_internal_local_dev_key';
+      const batchHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Astra-Internal-Api-Key': internalApiKey,
+      };
       
       if (identity.accessToken) {
         batchHeaders['Authorization'] = `Bearer ${identity.accessToken}`;
@@ -221,16 +226,25 @@ Respond strictly in valid JSON matching this schema:
       if (batchRes.ok) {
         const batchData = await batchRes.json();
         savedSightingId = batchData.sighting_ids?.[0] || null;
+      } else {
+        const errJson = await batchRes.json().catch(() => ({}));
+        persistenceErrorDetail = errJson.detail || `Backend responded with HTTP ${batchRes.status}`;
       }
-    } catch (dbErr) {
+    } catch (dbErr: any) {
       console.warn('Backend sighting persistence notice:', dbErr);
+      persistenceErrorDetail = dbErr?.message || 'Network error connecting to backend service';
     }
+
+    const persistenceStatus = savedSightingId ? 'persisted' : 'unsaved_persistence_failed';
 
     return NextResponse.json({
       success: true,
+      analysis_status: 'completed',
+      persistence_status: persistenceStatus,
       sightingId: savedSightingId,
       analysis: aiVerdict,
       persistedToBackend: Boolean(savedSightingId),
+      persistenceError: savedSightingId ? null : persistenceErrorDetail,
       externalAiEnabled: ENABLE_EXTERNAL_AI,
       timestamp: new Date().toISOString()
     });

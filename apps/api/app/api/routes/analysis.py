@@ -6,6 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.security import TenantContext, get_current_tenant_context, require_write_permission
 from app.db.models import (
@@ -117,7 +118,12 @@ def handle_run_analysis_job(
             payload = dict(sighting.normalized_payload)
             payload["computed_risk_score"] = score_val
             payload["feature_breakdown"] = features
+            ta = dict(payload.get("threat_analysis") or {})
+            ta["risk_score"] = round(score_val * 100) if score_val <= 1 else round(score_val)
+            ta["severity"] = "HIGH" if score_val >= 0.75 else ("MEDIUM" if score_val >= 0.45 else "LOW")
+            payload["threat_analysis"] = ta
             sighting.normalized_payload = payload
+            flag_modified(sighting, "normalized_payload")
 
     session.flush()
 
@@ -196,7 +202,8 @@ async def handle_start_threat_scan(
         "live_threats": [],
         "completed_at": None,
     }
-    set_scan_state(str(brand_id), initial_state)
+    scan_key = f"{tenant_id}:{brand_id}"
+    set_scan_state(scan_key, initial_state)
     set_scan_state(str(tenant_id), initial_state)
 
     # Launch asynchronous background worker
@@ -207,6 +214,15 @@ async def handle_start_threat_scan(
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).exception("Background scan worker failed")
+                failed_state = get_scan_state(f"{t_id}:{b_id}") or {}
+                failed_state.update({
+                    "is_scanning": False,
+                    "status": "failed",
+                    "stage": f"Scan failed: {str(e)}",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+                set_scan_state(f"{t_id}:{b_id}", failed_state)
+                set_scan_state(str(t_id), failed_state)
 
     asyncio.create_task(_scan_worker(brand_id, tenant_id))
     return ThreatScanStatusResponse(**initial_state)
@@ -218,10 +234,22 @@ def handle_get_scan_status(
     session: Session = Depends(get_session),
     context: TenantContext = Depends(get_current_tenant_context),
 ) -> ThreatScanStatusResponse:
-    # Check by brand_id or tenant_id
-    target_id = str(brand_id) if brand_id else str(context.tenant_id)
-    cached = get_scan_state(target_id)
-    if not cached and brand_id:
+    if brand_id:
+        brand = session.scalar(
+            select(Brand).where(
+                Brand.id == brand_id,
+                Brand.tenant_id == context.tenant_id,
+            )
+        )
+        if not brand:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Brand {brand_id} not found for authenticated tenant",
+            )
+        cached = get_scan_state(f"{context.tenant_id}:{brand_id}")
+        if not cached:
+            cached = get_scan_state(str(context.tenant_id))
+    else:
         cached = get_scan_state(str(context.tenant_id))
 
     if cached:

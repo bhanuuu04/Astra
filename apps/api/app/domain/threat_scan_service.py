@@ -182,6 +182,8 @@ async def run_osint_threat_scan(
                 if r:
                     live_discovered.append(r)
                     whois_link = f"https://who.is/whois/{r[0]}"
+                    has_brand_root = stem in r[0].lower()
+                    dom_score = 75 if has_brand_root else 50
                     threat_item = {
                         "category": "domain",
                         "title": r[0],
@@ -191,16 +193,16 @@ async def run_osint_threat_scan(
                         "target_url": f"https://{r[0]}",
                         "whois": whois_link,
                         "whois_url": whois_link,
-                        "risk_score": 88,
-                        "risk_level": "high",
-                        "details": f"Active registered lookalike domain ({r[0]}) resolved to IP(s): {', '.join(r[1])}.",
+                        "risk_score": dom_score,
+                        "risk_level": "medium" if dom_score >= 70 else "low",
+                        "details": f"Registered domain ({r[0]}) resolved to IP(s): {', '.join(r[1])}. Discovered candidate under review.",
                         "discovered_at": datetime.now(timezone.utc).isoformat(),
                     }
                     live_threats_list.append(threat_item)
                     state["live_threats"] = list(live_threats_list)
                     state["findings_found"] = len(live_threats_list)
                     state["logs"].append(
-                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [ALERT] Live registered domain detected: {r[0]} (IP: {r[1][0]})"
+                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [DISCOVERY] Live registered domain detected: {r[0]} (IP: {r[1][0]})"
                     )
             # Update progress incrementally
             pct_step = 25 + int(35 * ((batch_idx + 1) / max(total_batches, 1)))
@@ -232,7 +234,7 @@ async def run_osint_threat_scan(
     for h_idx, handle in enumerate(novel_handles):
         for surf in ["telegram", "instagram"]:
             try:
-                is_live, target_url, _ = await verify_social_profile_live(surf, handle, timeout=3.0)
+                is_live, target_url, err = await verify_social_profile_live(surf, handle, timeout=3.0)
                 if is_live:
                     live_social_threats.append((surf, handle, target_url))
                     clean_h = handle.lstrip("@")
@@ -243,16 +245,20 @@ async def run_osint_threat_scan(
                         "handle": handle,
                         "platform": surf,
                         "target_url": target_url,
-                        "risk_score": 85,
-                        "risk_level": "high",
-                        "details": f"Active verified public {surf.capitalize()} account colliding with brand perimeter.",
+                        "risk_score": 65,
+                        "risk_level": "medium",
+                        "details": f"Discovered public {surf.capitalize()} candidate account matching perimeter pattern. Awaiting analyst triage.",
                         "discovered_at": datetime.now(timezone.utc).isoformat(),
                     }
                     live_threats_list.append(threat_item)
                     state["live_threats"] = list(live_threats_list)
                     state["findings_found"] = len(live_threats_list)
                     state["logs"].append(
-                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [ALERT] Verified live public {surf.upper()} account: {handle} ({target_url})"
+                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [DISCOVERY] Discovered candidate public {surf.upper()} account: {handle} ({target_url})"
+                    )
+                elif err and ("rate_limited" in err or "unavailable" in err):
+                    state["logs"].append(
+                        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [COVERAGE] {surf.upper()} probe unavailable or rate-limited for {handle}: {err}"
                     )
             except Exception as e:
                 logger.debug(f"Handle check skipped: {e}")

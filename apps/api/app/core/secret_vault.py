@@ -22,7 +22,19 @@ VAULT_PREFIX = "vault:v1:"
 def derive_vault_key(secret_key: Optional[str] = None) -> bytes:
     """Derive a URL-safe 32-byte Fernet key from secret key using SHA-256."""
     s = get_settings()
-    raw_secret = secret_key or getattr(s, "vault_encryption_key", "") or getattr(s, "api_secret_key", "") or getattr(s, "jwt_secret", "") or "astra_vault_secret_fallback"
+    candidate_secrets = [
+        secret_key,
+        getattr(s, "vault_encryption_key", ""),
+        getattr(s, "api_secret_key", ""),
+        getattr(s, "jwt_secret", ""),
+    ]
+    raw_secret = None
+    for sec in candidate_secrets:
+        if sec and sec not in ("INSECURE_DEFAULT_CHANGE_IN_PRODUCTION", "replace-this"):
+            raw_secret = sec
+            break
+    if not raw_secret:
+        raw_secret = getattr(s, "jwt_secret", "") or getattr(s, "api_secret_key", "") or "astra_vault_secret_fallback"
     # Derive deterministic 32 bytes with vault-specific domain separation
     derived = hashlib.sha256(f"astra_vault_fernet_v1:{raw_secret}".encode("utf-8")).digest()
     return base64.urlsafe_b64encode(derived)

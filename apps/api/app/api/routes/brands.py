@@ -157,16 +157,13 @@ async def handle_add_brand_asset(
             meta = dict(asset.asset_metadata or {})
             meta["target_url"] = target_url
             meta["live_verified"] = is_live
-            if is_live:
-                asset.verification_status = "verified"
-                asset.verification_method = "live_http_probe"
-                asset.verified_at = datetime.now(timezone.utc)
-                meta["status_label"] = "Verified (Live Profile)"
-            else:
-                asset.verification_status = "unverified"
-                asset.verification_method = "live_http_probe"
-                meta["status_label"] = "Unverified / Non-Existent"
-                meta["error"] = err
+            meta["existence_status"] = "exists" if is_live else ("rate_limited" if "rate_limited" in str(err) else "not_found")
+            meta["status_label"] = "Live Profile Found (Ownership Unverified)" if is_live else "Unverified / Non-Existent"
+            if err:
+                meta["probe_error"] = err
+            # Existence probe does not establish verified ownership
+            asset.verification_status = "unverified"
+            asset.verification_method = "live_http_probe"
             asset.asset_metadata = meta
             session.commit()
             session.refresh(asset)
@@ -334,20 +331,18 @@ async def handle_verify_asset_social(
     meta = dict(asset.asset_metadata or {})
     meta["target_url"] = target_url
     meta["live_verified"] = is_live
+    meta["existence_status"] = "exists" if is_live else ("rate_limited" if "rate_limited" in str(error_detail) else "not_found")
 
     if is_live:
-        asset.verification_status = "verified"
-        asset.verification_method = "live_http_probe"
-        asset.verified_at = datetime.now(timezone.utc)
-        asset.verified_by = context.user_id
-        meta["status_label"] = "Verified (Live Profile)"
+        meta["status_label"] = "Live Profile Found (Ownership Unverified)"
         meta.pop("error", None)
     else:
-        asset.verification_status = "unverified"
-        asset.verification_method = "live_http_probe"
         meta["status_label"] = "Unverified / Non-Existent"
         meta["error"] = error_detail
 
+    # Existence probe does not establish verified ownership
+    asset.verification_status = "unverified"
+    asset.verification_method = "live_http_probe"
     asset.asset_metadata = meta
     session.commit()
     session.refresh(asset)

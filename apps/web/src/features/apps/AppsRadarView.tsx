@@ -110,14 +110,18 @@ function AppCard({ app, onVtCheck, isChecking, checkError }: {
             {/* Kampus.VC App Store Monitoring Signals */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border ${
-                app.isPublisherMismatch !== false
+                app.isPublisherMismatch === true
                   ? 'bg-amber-50 text-amber-900 border-amber-200'
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : app.isPublisherMismatch === false
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-slate-50 text-slate-700 border-slate-200'
               }`}>
                 <AlertTriangle className="h-2.5 w-2.5 text-amber-600" />
-                Publisher: {app.publisherName || 'Unauthorized Developer'} {app.isPublisherMismatch !== false ? '(Mismatch)' : '(Verified)'}
+                Publisher: {app.publisherName || 'Unknown Developer'} {
+                  app.isPublisherMismatch === true ? '(Mismatch)' : app.isPublisherMismatch === false ? '(Verified)' : '(Unverified)'
+                }
               </span>
-              {app.hasResemblingDescription && (
+              {app.hasResemblingDescription === true && (
                 <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-900 border border-rose-200">
                   Resembling Description
                 </span>
@@ -257,13 +261,15 @@ function parseSightingsToApps(sightings: Sighting[]): AppEntry[] {
       id: s.id || `app-${idx}`,
       appName: rogueApp.app_name || rogueApp.name || s.raw_ref || 'Unknown Mobile App Package',
       packageName: rogueApp.package_name || rogueApp.bundle_id || 'Package ID unavailable',
-      publisherName: rogueApp.publisher_name || 'Independent Developer',
-      isPublisherMismatch: true,
-      hasResemblingDescription: true,
-      officialCertMatch: false,
+      publisherName: rogueApp.publisher_name || (payload as any).publisher_name || undefined,
+      isPublisherMismatch: rogueApp.publisher_mismatch ?? (payload as any).publisher_mismatch ?? null,
+      hasResemblingDescription: rogueApp.has_resembling_description ?? (payload as any).has_resembling_description ?? null,
+      officialCertMatch: rogueApp.official_cert_match ?? (payload as any).official_cert_match ?? null,
       downloadUrl: rogueApp.download_url || s.raw_ref || '',
       sha256: rogueApp.sha256 || payload.sha256,
-      riskScore: typeof payload.threat_analysis?.risk_score === 'number'
+      riskScore: typeof payload.computed_risk_score === 'number'
+        ? Math.round(payload.computed_risk_score <= 1 ? payload.computed_risk_score * 100 : payload.computed_risk_score)
+        : typeof payload.threat_analysis?.risk_score === 'number'
         ? Math.round(payload.threat_analysis.risk_score <= 1 ? payload.threat_analysis.risk_score * 100 : payload.threat_analysis.risk_score)
         : null,
       status: normalizedAppStatus(rogueApp.status || payload.threat_analysis?.triage_status),
@@ -295,37 +301,36 @@ export function AppsRadarView() {
 
   React.useEffect(() => {
     if (radarData && radarData.apps && radarData.apps.length > 0) {
-      const liveRadarApps: AppEntry[] = radarData.apps.map((a: MobileAppFinding) => ({
-        id: a.finding_id || a.id,
-        appName: a.app_title,
-        packageName: a.package_name,
-        publisherName: a.publisher_name || 'Independent Publisher Ltd.',
-        isPublisherMismatch: true,
-        hasResemblingDescription: true,
-        officialCertMatch: a.official_cert_match,
-        downloadUrl: a.store_url || '',
-        sha256: a.apk_sha256 || undefined,
-        riskScore: typeof (a.triage_priority ?? a.risk_score) === 'number'
-          ? Math.round((a.triage_priority ?? a.risk_score) <= 1 ? (a.triage_priority ?? a.risk_score) * 100 : (a.triage_priority ?? a.risk_score))
-          : null,
-        status: normalizedAppStatus(a.triage_status),
-        sourcePlatform: a.store_platform || a.store_source || 'google_play',
-        discoveredAt: a.observed_at || a.created_at,
-        impersonationDetails: a.official_cert_match === false
-          ? 'Certificate signature mismatch: Unauthorized APK signature does NOT match verified brand certificate.'
-          : (a.impersonation_evidence ? JSON.stringify(a.impersonation_evidence) : `Forensic status: ${a.malware_status || 'analyzed'}, permissions risk: ${a.permissions_risk || 'medium'}`),
-        dataMode: normalizedDataMode(a.data_mode),
-      }));
+      const liveRadarApps: AppEntry[] = radarData.apps.map((a: MobileAppFinding) => {
+        const evidence = a.impersonation_evidence || {};
+        return {
+          id: a.finding_id || a.id,
+          appName: a.app_title,
+          packageName: a.package_name,
+          publisherName: a.publisher_name || undefined,
+          isPublisherMismatch: evidence.publisher_mismatch ?? null,
+          hasResemblingDescription: evidence.has_resembling_description ?? null,
+          officialCertMatch: a.official_cert_match ?? null,
+          downloadUrl: a.store_url || '',
+          sha256: a.apk_sha256 || undefined,
+          riskScore: typeof (a.triage_priority ?? a.risk_score) === 'number'
+            ? Math.round((a.triage_priority ?? a.risk_score) <= 1 ? (a.triage_priority ?? a.risk_score) * 100 : (a.triage_priority ?? a.risk_score))
+            : null,
+          status: normalizedAppStatus(a.triage_status),
+          sourcePlatform: a.store_platform || a.store_source || 'google_play',
+          discoveredAt: a.observed_at || a.created_at,
+          impersonationDetails: a.official_cert_match === false
+            ? 'Certificate signature mismatch: Unauthorized APK signature does NOT match verified brand certificate.'
+            : (a.impersonation_evidence ? JSON.stringify(a.impersonation_evidence) : `Forensic status: ${a.malware_status || 'analyzed'}, permissions risk: ${a.permissions_risk || 'medium'}`),
+          dataMode: normalizedDataMode(a.data_mode),
+        };
+      });
       setApps(liveRadarApps);
     } else if (sightings && sightings.length > 0) {
       const liveApps = parseSightingsToApps(sightings);
-      if (liveApps.length > 0) {
-        setApps(liveApps);
-      } else {
-        setApps(DEMO_ROGUE_APPS);
-      }
+      setApps(liveApps);
     } else {
-      setApps(DEMO_ROGUE_APPS);
+      setApps([]);
     }
   }, [radarData, sightings]);
 

@@ -52,7 +52,11 @@ export function SightingsQueueView() {
   };
 
   const getRiskScore = (sighting: Sighting) => {
-    const rawScore = sighting.normalized_payload?.threat_analysis?.risk_score;
+    const payload = sighting.normalized_payload;
+    const rawScore =
+      (typeof payload?.computed_risk_score === 'number' ? payload.computed_risk_score : undefined) ??
+      (typeof payload?.threat_analysis?.risk_score === 'number' ? payload.threat_analysis.risk_score : undefined) ??
+      (typeof payload?.triage_priority === 'number' ? payload.triage_priority : undefined);
     if (typeof rawScore !== 'number') return null;
     return rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
   };

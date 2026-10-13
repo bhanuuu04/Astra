@@ -21,6 +21,28 @@ USER_AGENT = (
 )
 
 
+import ipaddress
+
+def is_safe_public_url(url: str) -> bool:
+    """Validate that the target URL resolves to a safe public host, preventing SSRF."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        hostname = parsed.hostname
+        if not hostname or hostname in ("localhost", "127.0.0.1", "::1"):
+            return False
+        if hostname.endswith(".local") or hostname.endswith(".internal") or hostname.endswith(".localhost"):
+            return False
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
 async def verify_social_profile_live(
     platform: str,
     handle_or_url: str,
@@ -69,6 +91,9 @@ async def verify_social_profile_live(
     else:
         target_url = f"https://{clean}" if not clean.startswith("http") else clean
 
+    if not is_safe_public_url(target_url):
+        return False, target_url, "unavailable: Target URL resolves to an invalid or reserved private address"
+
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -79,43 +104,51 @@ async def verify_social_profile_live(
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=timeout,
-            verify=False
+            verify=True
         ) as client:
             resp = await client.get(target_url, headers=headers)
             status = resp.status_code
 
             # Standard 404 or Gone
             if status in {404, 410}:
-                return False, target_url, f"Profile not found (HTTP {status})"
+                return False, target_url, f"not_found: Profile not found (HTTP {status})"
 
-            # Specific platform heuristics
+            # Explicit rate-limiting and access restriction handling
+            if status == 429:
+                return False, target_url, "rate_limited: Provider rate limit exceeded (HTTP 429)"
+
+            if status in {401, 403}:
+                return False, target_url, f"unavailable: Access restricted or authentication required (HTTP {status})"
+
+            if status >= 400:
+                return False, target_url, f"unavailable: Target probe returned HTTP {status}"
+
+            # Specific platform heuristics for successful 2xx responses
             if plat == "instagram":
-                # Instagram returns 200 with "Sorry, this page isn't available" on missing accounts
                 if "page isn't available" in resp.text.lower() or "page may have been removed" in resp.text.lower():
-                    return False, target_url, "Instagram page isn't available or was removed"
+                    return False, target_url, "not_found: Instagram page isn't available or was removed"
                 return True, target_url, None
 
             if plat == "telegram":
-                # Telegram t.me returns 200 even for vacant handles, but lacks tgme_page_title with profile name
                 if "tgme_page_extra" in resp.text or "tgme_page_title" in resp.text:
                     if "If you have Telegram, you can contact" in resp.text:
                         return True, target_url, None
-                return True, target_url, None
+                    return True, target_url, None
+                return False, target_url, "not_found: Telegram handle does not exist"
 
             if plat in {"twitter", "x"}:
                 if "This account doesn’t exist" in resp.text or "Account suspended" in resp.text:
-                    return False, target_url, "Account does not exist on X"
+                    return False, target_url, "not_found: Account does not exist on X"
                 return True, target_url, None
 
             if 200 <= status < 400:
                 return True, target_url, None
 
-            return False, target_url, f"Target probe returned HTTP {status}"
+            return False, target_url, f"unavailable: Target probe returned HTTP {status}"
 
     except httpx.TimeoutException:
-        # If timeout, fail open with unverified status to avoid false hard blocks
         logger.debug(f"Profile check timed out for {target_url}")
-        return False, target_url, "Profile verification timed out"
+        return False, target_url, "unavailable: Profile verification timed out"
     except Exception as exc:
         logger.debug(f"Profile check error for {target_url}: {exc}")
-        return False, target_url, str(exc)
+        return False, target_url, f"unavailable: {str(exc)}"

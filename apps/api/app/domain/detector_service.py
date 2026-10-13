@@ -37,9 +37,28 @@ def run_detectors_on_sighting(
     # Pre-extract Brand DNA parameters
     brand_name = brand.name
     normalized_brand_name = normalize_homoglyphs(brand_name)
-    official_domains = [a.canonical_value.lower() for a in brand_assets if a.asset_type == "domain"]
-    official_handles = [a.canonical_value.lower().split(":")[-1] for a in brand_assets if a.asset_type == "handle"]
-    official_apps = [a.canonical_value.lower() for a in brand_assets if a.asset_type == "mobile_app"]
+    official_domains = [a.canonical_value.lower() for a in brand_assets if a.asset_type in ("domain", "web_domain")]
+    
+    # Support both canonical "social_handle" and legacy "handle", with platform awareness
+    official_social_assets = []
+    for a in brand_assets:
+        if a.asset_type in ("handle", "social_handle"):
+            raw_val = a.canonical_value.lower()
+            platform = None
+            if ":" in raw_val:
+                platform, handle = raw_val.split(":", 1)
+            else:
+                handle = raw_val.lstrip("@")
+                if a.asset_metadata and isinstance(a.asset_metadata, dict):
+                    platform = a.asset_metadata.get("platform")
+            official_social_assets.append({
+                "platform": platform.lower().replace("x_twitter", "twitter") if platform else None,
+                "handle": handle.strip().lower().lstrip("@"),
+                "asset": a,
+            })
+    
+    # Support both canonical "mobile_app_pkg" and legacy "mobile_app"
+    official_apps = [a.canonical_value.lower() for a in brand_assets if a.asset_type in ("mobile_app", "mobile_app_pkg")]
     protected_executives = [a.canonical_value for a in brand_assets if a.asset_type == "executive"]
 
     # -------------------------------------------------------------------------
@@ -49,9 +68,42 @@ def run_detectors_on_sighting(
     display_name = sender.get("displayName", "")
     normalized_user = normalize_homoglyphs(username)
     normalized_display = normalize_homoglyphs(display_name)
+    clean_user = username.strip().lower().lstrip("@")
+    sighting_surface = (sighting.surface or payload.get("surface") or "").lower().replace("x_twitter", "twitter")
 
-    is_official = any(h in username.lower() for h in official_handles)
-    if not is_official and (username or display_name):
+    # Platform-aware exact identity match for official accounts
+    matched_official_social = None
+    if clean_user:
+        for item in official_social_assets:
+            if item["handle"] == clean_user:
+                # If platform is restricted on the asset, verify sighting is on the same platform
+                if item["platform"] and sighting_surface:
+                    if item["platform"] in sighting_surface or sighting_surface in item["platform"]:
+                        matched_official_social = item
+                        break
+                else:
+                    matched_official_social = item
+                    break
+
+    if matched_official_social:
+        signals.append({
+            "detector_key": "official_asset_match",
+            "detector_version": DETECTOR_VERSION,
+            "score": 0.0,
+            "threshold": 0.65,
+            "explanation": (
+                f"Candidate username '@{username}' matches verified official brand account "
+                f"({matched_official_social['asset'].canonical_value}). Excluded from brand impersonation."
+            ),
+            "evidence_ids": [f"official:@{username}"],
+            "feature_values": {
+                "is_official_asset": True,
+                "asset_type": "social_handle",
+                "matched_handle": clean_user,
+                "surface": sighting_surface,
+            },
+        })
+    elif username or display_name:
         # Run rigorous lookalike variation analysis (swaps, added words, spacing, benign decoys)
         user_lookalike = detect_lookalike_variations(username, brand_name, content)
         display_lookalike = detect_lookalike_variations(display_name, brand_name, content)
@@ -208,18 +260,41 @@ def run_detectors_on_sighting(
     # -------------------------------------------------------------------------
     # 6. Counterfeit Mobile App / Rogue APK
     # -------------------------------------------------------------------------
-    contains_apk = ".apk" in content_lower or ".ipa" in content_lower
-    matched_app_triggers = [t for t in ROGUE_APP_TRIGGERS if t in content_lower]
-    if contains_apk or len(matched_app_triggers) >= 2:
+    matched_official_app = False
+    pkg_id = (payload.get("package_name") or payload.get("app_id") or sighting.raw_ref or "").lower()
+    if official_apps and pkg_id:
+        for off_app in official_apps:
+            if off_app and (off_app == pkg_id or off_app in pkg_id or f"id={off_app}" in pkg_id):
+                matched_official_app = True
+                break
+
+    if matched_official_app:
         signals.append({
-            "detector_key": "counterfeit_mobile_app",
+            "detector_key": "official_asset_match",
             "detector_version": DETECTOR_VERSION,
-            "score": 0.96,
-            "threshold": 0.60,
-            "explanation": "Active distribution of unauthorized mobile application (trojanized APK / update) mimicking official brand software.",
-            "evidence_ids": [f"apk_payload:{content[:80]}"],
-            "feature_values": {"matched_triggers": matched_app_triggers, "contains_apk": contains_apk},
+            "score": 0.0,
+            "threshold": 0.65,
+            "explanation": f"Mobile app package matches registered official brand application ({pkg_id}). Excluded from rogue app detection.",
+            "evidence_ids": [f"official_app:{pkg_id}"],
+            "feature_values": {
+                "is_official_asset": True,
+                "asset_type": "mobile_app_pkg",
+                "matched_package": pkg_id,
+            },
         })
+    else:
+        contains_apk = ".apk" in content_lower or ".ipa" in content_lower
+        matched_app_triggers = [t for t in ROGUE_APP_TRIGGERS if t in content_lower]
+        if contains_apk or len(matched_app_triggers) >= 2:
+            signals.append({
+                "detector_key": "counterfeit_mobile_app",
+                "detector_version": DETECTOR_VERSION,
+                "score": 0.96,
+                "threshold": 0.60,
+                "explanation": "Active distribution of unauthorized mobile application (trojanized APK / update) mimicking official brand software.",
+                "evidence_ids": [f"apk_payload:{content[:80]}"],
+                "feature_values": {"matched_triggers": matched_app_triggers, "contains_apk": contains_apk},
+            })
 
     # -------------------------------------------------------------------------
     # 7. Social Engineering & Urgency Coercion

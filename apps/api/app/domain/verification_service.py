@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 import dns.resolver
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models import BrandAsset, User
 
@@ -114,12 +115,12 @@ def initiate_domain_verification(
     token = generate_challenge_token(brand_asset.tenant_id, brand_asset.brand_id, domain)
     
     # Store challenge token in metadata
-    if not brand_asset.asset_metadata:
-        brand_asset.asset_metadata = {}
-    
-    brand_asset.asset_metadata['challenge_token'] = token
-    brand_asset.asset_metadata['challenge_initiated_at'] = datetime.utcnow().isoformat()
-    brand_asset.asset_metadata['challenge_initiated_by'] = str(initiated_by)
+    meta = dict(brand_asset.asset_metadata or {})
+    meta['challenge_token'] = token
+    meta['challenge_initiated_at'] = datetime.utcnow().isoformat()
+    meta['challenge_initiated_by'] = str(initiated_by)
+    brand_asset.asset_metadata = meta
+    flag_modified(brand_asset, "asset_metadata")
     brand_asset.verification_status = 'pending_challenge'
     brand_asset.verification_method = 'dns_txt'
     
@@ -162,10 +163,11 @@ def verify_domain_ownership(
         brand_asset.verified_by = verified_by
         
         # Add verification record to metadata
-        if not brand_asset.asset_metadata:
-            brand_asset.asset_metadata = {}
-        brand_asset.asset_metadata['verified_at'] = datetime.utcnow().isoformat()
-        brand_asset.asset_metadata['verification_method'] = 'dns_txt'
+        meta = dict(brand_asset.asset_metadata or {})
+        meta['verified_at'] = datetime.utcnow().isoformat()
+        meta['verification_method'] = 'dns_txt'
+        brand_asset.asset_metadata = meta
+        flag_modified(brand_asset, "asset_metadata")
         
         session.commit()
         return True, None
@@ -198,11 +200,11 @@ def verify_asset_manual(
     brand_asset.verified_at = datetime.utcnow()
     brand_asset.verified_by = verified_by
     
-    if not brand_asset.asset_metadata:
-        brand_asset.asset_metadata = {}
-    
-    brand_asset.asset_metadata['manual_verification_reason'] = reason
-    brand_asset.asset_metadata['verified_at'] = datetime.utcnow().isoformat()
+    meta = dict(brand_asset.asset_metadata or {})
+    meta['manual_verification_reason'] = reason
+    meta['verified_at'] = datetime.utcnow().isoformat()
+    brand_asset.asset_metadata = meta
+    flag_modified(brand_asset, "asset_metadata")
     
     session.commit()
 

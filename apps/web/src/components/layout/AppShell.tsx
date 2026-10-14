@@ -312,31 +312,9 @@ export function AppShell({ children }: AppShellProps) {
     );
   };
 
-  if (isStandalonePage) {
-    return (
-      <main className="min-h-screen w-full bg-slate-50 text-slate-900 flex flex-col justify-between">
-        <DemoModeBanner />
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={pathname}
-            initial={{ opacity: 0, y: 36 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -36 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="flex-1 w-full flex flex-col"
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
-        <GuidedTour />
-        <TourLauncher />
-      </main>
-    );
-  }
-
   return (
     <div className="astra-shell flex h-dvh min-h-[100svh] w-full overflow-hidden bg-slate-50 font-sans text-slate-900">
-      {mobileMenuOpen && (
+      {!isStandalonePage && mobileMenuOpen && (
         <button
           type="button"
           aria-label="Close navigation"
@@ -345,9 +323,10 @@ export function AppShell({ children }: AppShellProps) {
         />
       )}
 
-      <aside className={`astra-sidebar fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r border-slate-800 bg-[#111c2e] text-white shadow-xl transition-transform duration-200 md:static md:translate-x-0 md:shadow-none ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-400 text-[#102033] shadow-sm shadow-cyan-950/30">
+      {!isStandalonePage && (
+        <aside className={`astra-sidebar fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r border-slate-800 bg-[#111c2e] text-white shadow-xl transition-transform duration-200 md:static md:translate-x-0 md:shadow-none ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-400 text-[#102033] shadow-sm shadow-cyan-950/30">
             <Shield className="h-5 w-5" strokeWidth={2.2} />
           </div>
           <div className="min-w-0 flex-1">
@@ -429,40 +408,43 @@ export function AppShell({ children }: AppShellProps) {
           )}
         </div>
       </aside>
+      )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <DemoModeBanner />
-        <header className="astra-topbar z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 sm:px-7">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 md:hidden"><Menu className="h-4 w-4" /></button>
-            <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
-              <span className="max-w-48 truncate">{tenant?.name || 'Workspace'}</span>
-              <span aria-hidden="true" className="text-slate-300">/</span>
+        {!isStandalonePage && (
+          <header className="astra-topbar z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 sm:px-7">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation" className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 md:hidden"><Menu className="h-4 w-4" /></button>
+              <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
+                <span className="max-w-48 truncate">{tenant?.name || 'Workspace'}</span>
+                <span aria-hidden="true" className="text-slate-300">/</span>
+              </div>
+              <h1 className="truncate text-sm font-semibold text-slate-900">{pageTitle}</h1>
             </div>
-            <h1 className="truncate text-sm font-semibold text-slate-900">{pageTitle}</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700" aria-label="Search cases, brands and indicators">
-              <Search className="h-3.5 w-3.5 text-slate-400" /><span className="hidden lg:inline text-xs">Search cases &amp; brands</span><kbd className="hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] text-slate-500 sm:inline-flex">Ctrl K</kbd>
-            </button>
-            
-            <div className="hidden h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 sm:flex">
-              <span className={`h-2 w-2 rounded-full ${sightingsUnavailable ? 'bg-amber-500' : tenant?.is_demo ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-              <span>{sightingsUnavailable ? 'Data unavailable' : tenant?.is_demo ? 'Demo workspace' : tenant ? 'Workspace' : 'Connecting'}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setCommandPaletteOpen(true)} className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700" aria-label="Search cases, brands and indicators">
+                <Search className="h-3.5 w-3.5 text-slate-400" /><span className="hidden lg:inline text-xs">Search cases &amp; brands</span><kbd className="hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] text-slate-500 sm:inline-flex">Ctrl K</kbd>
+              </button>
+              
+              <div className="hidden h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 sm:flex">
+                <span className={`h-2 w-2 rounded-full ${sightingsUnavailable ? 'bg-amber-500' : tenant?.is_demo ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                <span>{sightingsUnavailable ? 'Data unavailable' : tenant?.is_demo ? 'Demo workspace' : tenant ? 'Workspace' : 'Connecting'}</span>
+              </div>
+
+              <Link href="/alerts" aria-label={sightingsUnavailable ? 'Open alert feed; alert count unavailable' : 'Open alert feed'} title={sightingsUnavailable ? 'Alert count unavailable' : 'Open alert feed'} className="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950">
+                <Bell className="h-4 w-4" />
+                {!sightingsUnavailable && unreadAlerts > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#eb5757] text-[8px] font-bold text-white">
+                    {unreadAlerts > 9 ? '9+' : unreadAlerts}
+                  </span>
+                )}
+              </Link>
+
+              {(isSignedIn || localUser) && <button type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out" className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 sm:hidden"><LogOut className="h-4 w-4" /></button>}
             </div>
-
-            <Link href="/alerts" aria-label={sightingsUnavailable ? 'Open alert feed; alert count unavailable' : 'Open alert feed'} title={sightingsUnavailable ? 'Alert count unavailable' : 'Open alert feed'} className="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950">
-              <Bell className="h-4 w-4" />
-              {!sightingsUnavailable && unreadAlerts > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#eb5757] text-[8px] font-bold text-white">
-                  {unreadAlerts > 9 ? '9+' : unreadAlerts}
-                </span>
-              )}
-            </Link>
-
-            {(isSignedIn || localUser) && <button type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out" className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 sm:hidden"><LogOut className="h-4 w-4" /></button>}
-          </div>
-        </header>
+          </header>
+        )}
 
         <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         <AuthModal
@@ -473,14 +455,14 @@ export function AppShell({ children }: AppShellProps) {
             window.location.reload();
           }}
         />
-        <main className="astra-main min-h-0 flex-1 overflow-y-auto">
+        <main className={`astra-main min-h-0 flex-1 overflow-y-auto ${isStandalonePage ? 'w-full' : ''}`}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={pathname}
-              initial={{ opacity: 0, y: 36 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -36 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0, y: 20, scale: 0.985, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -20, scale: 0.985, filter: 'blur(4px)' }}
+              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
               className="w-full h-full flex flex-col"
             >
               {children}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,31 +8,99 @@ import {
   ArrowRight,
   X,
   RotateCcw,
-  Map,
-  ChevronRight,
   Zap,
   Shield,
   Eye,
   Sparkles,
-  ChevronUp,
   ChevronDown,
-  Check,
   CheckCircle2,
   Activity,
   LogOut,
   Radio,
   ExternalLink,
+  Compass,
 } from 'lucide-react';
 import { useDemo, TOUR_STEPS, type TourStep } from '@/providers/DemoProvider';
-import { FeatureInterstitial } from './FeatureInterstitial';
 import { TourCompletionModal } from './TourCompletionModal';
+
+// ─────────────────────────────────────────────
+// CINEMATIC INTRO METADATA PER FEATURE ROUTE
+// ─────────────────────────────────────────────
+interface CinematicIntroMeta {
+  headline: string;
+  explanation: string;
+  badge: string;
+  icon: string;
+}
+
+const FEATURE_CINEMATIC_INTROS: Record<string, CinematicIntroMeta> = {
+  '/guide': {
+    headline: "Onboard your Brand DNA…",
+    explanation: "Locking in official apex domains & verified handles. If it's not on this allowlist, it's fake. Zero cap.",
+    badge: "BRAND GROUND TRUTH",
+    icon: "🧬",
+  },
+  '/brands': {
+    headline: "Verified brand registry…",
+    explanation: "Cryptographically anchoring your digital footprint. Any lookalike trying to clone this gets flagged on sight.",
+    badge: "ALLOWLIST MATRIX",
+    icon: "🛡️",
+  },
+  '/connectors': {
+    headline: "Live data ingestion tunnels…",
+    explanation: "Hooked up to X, IG, LinkedIn & Telegram via Composio with zero credential exposure.",
+    badge: "COMPOSIO REAL-TIME",
+    icon: "🔌",
+  },
+  '/overview': {
+    headline: "Perimeter threat radar…",
+    explanation: "NVIDIA Nemotron sweeping open registries and social surfaces 24/7 in sub-seconds.",
+    badge: "AI COMMAND CENTER",
+    icon: "📡",
+  },
+  '/sightings': {
+    headline: "Let's investigate suspicious domains…",
+    explanation: "Discover how Astra tracks typosquatting, fast-flux DNS, and live credential harvesting payloads.",
+    badge: "RAW TELEMETRY ARCHIVE",
+    icon: "🌐",
+  },
+  '/alerts': {
+    headline: "Meet your social impersonation detector…",
+    explanation: "Catching homoglyphs like '@NexBànk_Help' with sneaky accented characters before customers get scammed.",
+    badge: "INCIDENT TRIAGE",
+    icon: "🔍",
+  },
+  '/campaigns': {
+    headline: "Connecting the dots across coordinated attacks…",
+    explanation: "Operation ShadowBank mapped: 8 linked phishing nodes and a rogue APK tied to one threat actor.",
+    badge: "ATTACK TOPOLOGY",
+    icon: "🕸️",
+  },
+  '/apps': {
+    headline: "Intercepting rogue mobile APKs…",
+    explanation: "Stopping SMS-stealing spyware APKs and bad certs on Telegram before app store distribution.",
+    badge: "MOBILE APP RADAR",
+    icon: "📱",
+  },
+  '/responses': {
+    headline: "Take action before attackers damage your reputation…",
+    explanation: "Cryptographic evidence packets dispatched to Cloudflare and Meta in one tap. Threat neutralized.",
+    badge: "ONE-CLICK TAKEDOWNS",
+    icon: "⚡",
+  },
+};
+
+function getRouteKey(route: string): string {
+  if (route.startsWith('/campaigns')) return '/campaigns';
+  return route.split('?')[0] || route;
+}
 
 // ─────────────────────────────────────────────
 // GENERATIVE STREAMING TEXT COMPONENT
 // ─────────────────────────────────────────────
 function GenerativeStreamText({
   text,
-  speed = 10,
+  speed = 8,
   onComplete,
 }: {
   text: string;
@@ -47,7 +115,7 @@ function GenerativeStreamText({
     setIsDone(false);
     let i = 0;
     const interval = setInterval(() => {
-      i += 3; // Streams 3 chars per tick for smooth, snappy filling
+      i += 3;
       if (i >= text.length) {
         setDisplayedLength(text.length);
         setIsDone(true);
@@ -79,11 +147,11 @@ interface SpotlightInfo {
   targetTitle?: string;
 }
 
-function useSpotlight(selector?: string, padding = 12) {
+function useSpotlight(selector?: string, padding = 12, enabled = true) {
   const [spotlight, setSpotlight] = useState<SpotlightInfo | null>(null);
 
   useEffect(() => {
-    if (!selector) {
+    if (!selector || !enabled) {
       setSpotlight(null);
       return;
     }
@@ -97,10 +165,8 @@ function useSpotlight(selector?: string, padding = 12) {
       const el = document.querySelector(selector) as HTMLElement | null;
 
       if (el && isMounted) {
-        // 1. Smooth scroll to the target section taking fixed bars into account
         const r = el.getBoundingClientRect();
         const absoluteTop = r.top + window.scrollY;
-        // Vertically center with topbar and dock offset
         const targetScrollY = Math.max(0, absoluteTop - (window.innerHeight - r.height) / 2);
 
         window.scrollTo({
@@ -108,7 +174,6 @@ function useSpotlight(selector?: string, padding = 12) {
           behavior: 'smooth',
         });
 
-        // 2. Measure bounding rect
         const updateRect = () => {
           if (!isMounted) return;
           const liveRect = el.getBoundingClientRect();
@@ -125,13 +190,11 @@ function useSpotlight(selector?: string, padding = 12) {
         updateRect();
         setTimeout(updateRect, 150);
         setTimeout(updateRect, 350);
-        setTimeout(updateRect, 650);
         return;
       }
 
-      // Retry every 90ms for up to 3.5s to wait for async Next.js page rendering
-      if (attempts < 38 && isMounted) {
-        retryTimer = setTimeout(measureAndScroll, 90);
+      if (attempts < 35 && isMounted) {
+        retryTimer = setTimeout(measureAndScroll, 80);
       } else if (isMounted) {
         setSpotlight(null);
       }
@@ -163,13 +226,154 @@ function useSpotlight(selector?: string, padding = 12) {
       window.removeEventListener('resize', handleUpdate);
       window.removeEventListener('scroll', handleUpdate, true);
     };
-  }, [selector, padding]);
+  }, [selector, padding, enabled]);
 
   return spotlight;
 }
 
 // ─────────────────────────────────────────────
-// MAIN GUIDED TOUR COMPONENT
+// FULL-SCREEN CINEMATIC FEATURE INTRODUCTION
+// ─────────────────────────────────────────────
+function CinematicFeatureIntro({
+  stepNumber,
+  totalSteps,
+  targetTitle,
+  intro,
+  onDismiss,
+}: {
+  stepNumber: number;
+  totalSteps: number;
+  targetTitle: string;
+  intro: CinematicIntroMeta;
+  onDismiss: () => void;
+}) {
+  const [typedChars, setTypedChars] = useState(0);
+
+  useEffect(() => {
+    setTypedChars(0);
+    let i = 0;
+    const interval = setInterval(() => {
+      i += 1;
+      setTypedChars(i);
+      if (i >= intro.headline.length) {
+        clearInterval(interval);
+      }
+    }, 22);
+
+    // Auto-advance after 1.8s
+    const timer = setTimeout(() => {
+      onDismiss();
+    }, 1800);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, [intro, onDismiss]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className="fixed inset-0 z-[100000] flex flex-col justify-between bg-[#070b14] text-white p-6 sm:p-10 select-none overflow-hidden"
+    >
+      {/* Background glow effects */}
+      <div className="pointer-events-none absolute top-[-10%] left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_center,rgba(15,123,108,0.22),transparent_70%)] blur-[80px]" />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
+
+      {/* Top Header */}
+      <div className="relative z-10 flex items-center justify-between max-w-5xl mx-auto w-full">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0f7b6c] to-cyan-500 text-white flex items-center justify-center font-bold text-sm shadow-[0_0_20px_rgba(15,123,108,0.4)]">
+            <Shield className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold tracking-tight text-sm text-white">ASTRA</span>
+              <span className="text-slate-600 text-xs">/</span>
+              <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">
+                BYTE XL DEMO
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500 font-medium">{intro.badge}</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer backdrop-blur-md"
+        >
+          <span>Skip Intro</span>
+          <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
+        </button>
+      </div>
+
+      {/* Center Cinematic Typewriter Presentation */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center max-w-3xl mx-auto px-4 py-8">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.4 }}
+          className="mb-6 flex items-center justify-center"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-2xl shadow-[0_0_40px_rgba(15,123,108,0.3)]">
+            {intro.icon}
+          </div>
+        </motion.div>
+
+        {/* Step Badge */}
+        <div className="mb-4 inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono font-semibold uppercase tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Step {stepNumber} of {totalSteps} · {targetTitle}</span>
+        </div>
+
+        {/* Big Centered Typewriter Headline */}
+        <div className="min-h-[80px] sm:min-h-[96px] flex items-center justify-center">
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+            <span>{intro.headline.slice(0, typedChars)}</span>
+            <span className="inline-block w-2 sm:w-2.5 h-7 sm:h-10 bg-emerald-400 ml-1.5 align-middle animate-pulse" />
+          </h1>
+        </div>
+
+        {/* Explanation text fading in underneath */}
+        <motion.p
+          initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ delay: 0.25, duration: 0.4 }}
+          className="mt-4 text-sm sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed"
+        >
+          {intro.explanation}
+        </motion.p>
+      </div>
+
+      {/* Bottom Loading Strip */}
+      <div className="relative z-10 max-w-md mx-auto w-full text-center">
+        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden mb-2">
+          <motion.div
+            className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 rounded-full"
+            initial={{ width: '0%' }}
+            animate={{ width: '100%' }}
+            transition={{ duration: 1.8, ease: 'linear' }}
+          />
+        </div>
+        <span className="text-[11px] font-mono text-slate-500">Entering {targetTitle}…</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MAIN GUIDED TOUR CONTROLLER
 // ─────────────────────────────────────────────
 export function GuidedTour() {
   const [mounted, setMounted] = useState(false);
@@ -180,9 +384,8 @@ export function GuidedTour() {
     tourActive,
     tourStep,
     currentTourStep,
-    nextTourStep,
-    prevTourStep,
     exitDemoMode,
+    skipTour,
     goToStep,
   } = useDemo();
 
@@ -190,28 +393,23 @@ export function GuidedTour() {
     setMounted(true);
   }, []);
 
-  const [showDetails, setShowDetails] = useState(true);
-  const [isSynthesizing, setIsSynthesizing] = useState(true);
-  const [visitedRoutes, setVisitedRoutes] = useState<Set<string>>(new Set());
-  const [interstitialRoute, setInterstitialRoute] = useState<string | null>(null);
-  const [interstitialOpen, setInterstitialOpen] = useState(false);
-  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  // Tour lifecycle state
+  const [tourPhase, setTourPhase] = useState<'idle' | 'cinematic_intro' | 'page_entering' | 'completed'>('idle');
+  const [introMeta, setIntroMeta] = useState<{ stepNumber: number; totalSteps: number; targetTitle: string; intro: CinematicIntroMeta } | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
 
-  // Feature-to-Feature cinematic interstitials on first visit to each route
-  useEffect(() => {
-    if (!tourActive || !pathname) return;
-    const baseRoute = pathname.startsWith('/campaigns/') ? '/campaigns' : pathname.split('?')[0];
-    if (!visitedRoutes.has(baseRoute)) {
-      setVisitedRoutes((prev) => new Set(prev).add(baseRoute));
-      setInterstitialRoute(baseRoute);
-      setInterstitialOpen(true);
-    }
-  }, [pathname, tourActive, visitedRoutes]);
+  // Measure and scroll only when idle
+  const isSpotlightEnabled = tourPhase === 'idle' && !isMinimized;
+  const spotlight = useSpotlight(
+    currentTourStep?.targetSelector,
+    currentTourStep?.spotlightPadding ?? 12,
+    isSpotlightEnabled
+  );
 
-  // Directly handle next step with instant route transition
+  // Directly handle next step with coordinated cinematic sequence
   const handleNext = () => {
     if (tourStep >= TOUR_STEPS.length - 1) {
-      setCompletionModalOpen(true);
+      setTourPhase('completed');
       return;
     }
 
@@ -219,25 +417,84 @@ export function GuidedTour() {
     const targetStep = TOUR_STEPS[nextIdx];
     if (!targetStep) return;
 
-    goToStep(nextIdx);
-
     if (targetStep.route !== pathname) {
+      // 1. Route transition: show full-screen cinematic intro
+      const routeKey = getRouteKey(targetStep.route);
+      const introData = FEATURE_CINEMATIC_INTROS[routeKey] || {
+        headline: `Entering ${targetStep.title}…`,
+        explanation: targetStep.description,
+        badge: 'SECURITY MODULE',
+        icon: targetStep.icon || '🛡️',
+      };
+
+      setIntroMeta({
+        stepNumber: targetStep.stepNumber,
+        totalSteps: targetStep.totalSteps,
+        targetTitle: targetStep.title,
+        intro: introData,
+      });
+
+      setTourPhase('cinematic_intro');
+
+      // 2. Preload and navigate route in background
       router.push(targetStep.route + '?demo=true');
+      goToStep(nextIdx);
+    } else {
+      // Same route step change
+      goToStep(nextIdx);
     }
   };
 
-  // Directly handle prev step with instant route transition
+  // Directly handle previous step
   const handlePrev = () => {
     const prevIdx = Math.max(tourStep - 1, 0);
     const targetStep = TOUR_STEPS[prevIdx];
     if (!targetStep) return;
 
-    goToStep(prevIdx);
-
     if (targetStep.route !== pathname) {
       router.push(targetStep.route + '?demo=true');
     }
+    goToStep(prevIdx);
   };
+
+  // Dismiss cinematic intro and reveal the page
+  const handleDismissIntro = () => {
+    setTourPhase('page_entering');
+    setTimeout(() => {
+      setTourPhase('idle');
+    }, 280);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!tourActive) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (tourPhase === 'cinematic_intro') {
+          handleDismissIntro();
+        } else {
+          handleNext();
+        }
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (tourPhase === 'idle') handlePrev();
+      } else if (e.key === 'Escape') {
+        if (tourPhase === 'cinematic_intro') {
+          handleDismissIntro();
+        } else {
+          setIsMinimized((v) => !v);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tourActive, tourStep, tourPhase, pathname]);
 
   // Keep tour step aligned if user navigated directly
   useEffect(() => {
@@ -248,69 +505,43 @@ export function GuidedTour() {
     }
   }, [pathname, tourActive, tourStep, goToStep]);
 
-  // Generative AI scanning state on each step change
-  useEffect(() => {
-    setIsSynthesizing(true);
-    const timer = setTimeout(() => {
-      setIsSynthesizing(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [tourStep]);
-
-  // Keyboard navigation shortcuts
-  useEffect(() => {
-    if (!tourActive) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        if (tourStep >= TOUR_STEPS.length - 1) {
-          setCompletionModalOpen(true);
-        } else {
-          handleNext();
-        }
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handlePrev();
-      } else if (e.key === 'Escape') {
-        setShowDetails((v) => !v);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tourActive, tourStep, pathname]);
-
-  // Measure and smooth-scroll to the targeted section
-  const spotlight = useSpotlight(
-    currentTourStep?.targetSelector,
-    currentTourStep?.spotlightPadding ?? 12
-  );
-
   // If on login/signup page or demo is not active or not mounted yet, completely unmount!
   if (!mounted || !isDemoMode || !tourActive || !currentTourStep) return null;
-  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
+  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up') || pathname === '/demo') return null;
 
   const isFirst = tourStep === 0;
   const isLast = tourStep === TOUR_STEPS.length - 1;
   const nextStepMeta = !isLast ? TOUR_STEPS[tourStep + 1] : null;
 
-  // Fully purge demo session and redirect to /sign-in
   const handleExitDemo = () => {
     exitDemoMode();
     router.push('/sign-in');
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] pointer-events-none">
+    <>
       {/* ─────────────────────────────────────────────────────────────
-          1. SECTION SCROLL & SPOTLIGHT HIGHLIGHT WITH PINNED BADGE
+          1. FULL-SCREEN CINEMATIC FEATURE INTRODUCTION
+          (Only active during route transitions — NO other tour UI underneath)
          ───────────────────────────────────────────────────────────── */}
-      {spotlight && (
-        <>
-          {/* Spotlight border with glow around the targeted section */}
+      <AnimatePresence>
+        {tourPhase === 'cinematic_intro' && introMeta && (
+          <CinematicFeatureIntro
+            stepNumber={introMeta.stepNumber}
+            totalSteps={introMeta.totalSteps}
+            targetTitle={introMeta.targetTitle}
+            intro={introMeta.intro}
+            onDismiss={handleDismissIntro}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ─────────────────────────────────────────────────────────────
+          2. SPOTLIGHT HIGHLIGHT AROUND TARGETED COMPONENT
+          (Only active when settled in idle phase)
+         ───────────────────────────────────────────────────────────── */}
+      {tourPhase === 'idle' && spotlight && (
+        <div className="fixed inset-0 z-[10000] pointer-events-none">
           <motion.div
             key={`spotlight-${tourStep}`}
             initial={{ opacity: 0, scale: 0.98 }}
@@ -326,260 +557,189 @@ export function GuidedTour() {
               boxShadow: '0 0 0 2px #0f7b6c, 0 0 0 6px rgba(15, 123, 108, 0.20), 0 10px 40px rgba(15, 123, 108, 0.22)',
             }}
           >
-            {/* Pinned section focus tag */}
             <div className="absolute -top-3.5 left-4 flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#0f7b6c] text-white text-[10px] font-bold shadow-md tracking-wider uppercase">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
               <span>Section Focus · {currentTourStep.title}</span>
             </div>
           </motion.div>
-
-          {/* Animated pulsing dashed radar ring */}
-          <motion.div
-            key={`pulse-${tourStep}`}
-            animate={{ opacity: [0.15, 0.45, 0.15], scale: [0.995, 1.008, 0.995] }}
-            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-            className="fixed z-[10001] rounded-2xl pointer-events-none"
-            style={{
-              top: spotlight.rect.top - 4,
-              left: spotlight.rect.left - 4,
-              width: spotlight.rect.width + 8,
-              height: spotlight.rect.height + 8,
-              border: '2px dashed rgba(15, 123, 108, 0.55)',
-            }}
-          />
-        </>
+        </div>
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          2. GENERATIVE EXPLANATION CARD (Smooth typing & finding reveal)
+          3. ONE SINGLE CONTEXTUAL TOUR PANEL
+          (Consolidated narrative + controls. No duplicate bottom dock!)
          ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {showDetails && (
+        {tourPhase === 'idle' && (
           <motion.div
-            key={`details-${tourStep}`}
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            key={`tour-panel-${tourStep}`}
+            initial={{ opacity: 0, y: 28, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-            className="pointer-events-auto fixed bottom-22 left-1/2 -translate-x-1/2 z-[10004] w-[calc(100vw-32px)] max-w-xl rounded-2xl border border-[#e3e2e0] bg-white/98 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden"
+            className="pointer-events-auto fixed bottom-5 left-1/2 -translate-x-1/2 z-[10005] w-[calc(100vw-32px)] max-w-2xl rounded-2xl border border-[#e3e2e0] bg-white/98 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.14)] p-4 sm:p-5 overflow-hidden"
           >
-            {/* Top gradient accent */}
-            <div className="h-1 w-full bg-gradient-to-r from-[#0f7b6c] via-cyan-600 to-[#0f7b6c]" />
+            {/* Top accent line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0f7b6c] via-cyan-500 to-[#0f7b6c]" />
 
-            <div className="p-4 sm:p-5">
-              {/* Header row */}
-              <div className="flex items-center justify-between gap-2 mb-2.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-lg leading-none">{currentTourStep.icon}</span>
-                  <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                    Guided Tour · Step {currentTourStep.stepNumber}
-                  </span>
-                  <span className="text-xs font-semibold text-[#787774] truncate hidden sm:inline">
-                    {currentTourStep.title}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => goToStep(0)}
-                    title="Restart from step 1"
-                    aria-label="Restart tour from step 1"
-                    className="rounded-md p-1 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDetails(false)}
-                    title="Minimize explanation"
-                    aria-label="Minimize explanation card"
-                    className="rounded-md p-1 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
-                </div>
+            {/* Row 1: Header */}
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-base">{currentTourStep.icon}</span>
+                <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                  Step {currentTourStep.stepNumber} of {currentTourStep.totalSteps} · {currentTourStep.title}
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>{currentTourStep.telemetryBadge || 'Perimeter Active'}</span>
+                </span>
               </div>
 
-              {/* Generative AI Telemetry Tag */}
-              <div className="mb-2.5">
-                {isSynthesizing ? (
-                  <div className="inline-flex items-center gap-2 rounded-lg bg-[#0f7b6c]/8 border border-[#0f7b6c]/20 px-2.5 py-1 text-[11px] font-medium text-[#0f7b6c]">
-                    <Activity className="h-3.5 w-3.5 animate-spin" />
-                    <span>Nemotron AI Sweeping Perimeter · Finding threat vectors…</span>
-                  </div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-bold text-[#0f7b6c]"
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => goToStep(0)}
+                  title="Restart from step 1"
+                  className="rounded-md p-1 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={skipTour}
+                  title="Close tour"
+                  className="rounded-md p-1 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Row 2: Headline & Description */}
+            <h3 className="text-base sm:text-lg font-bold text-[#37352f] leading-snug">
+              {currentTourStep.headline}
+            </h3>
+            <p className="mt-1 text-xs text-[#787774] leading-relaxed">
+              <GenerativeStreamText text={currentTourStep.description} speed={8} />
+            </p>
+
+            {/* Discovered Forensic Chips */}
+            {currentTourStep.findingsDiscovered && currentTourStep.findingsDiscovered.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5 pt-2 border-t border-[#f0efed]">
+                {currentTourStep.findingsDiscovered.map((finding) => (
+                  <span
+                    key={finding}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#f7f6f3] border border-[#e3e2e0] text-[10px] font-medium text-[#37352f]"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[#0f7b6c]" />
-                    <span>{currentTourStep.telemetryBadge || 'Perimeter Synthesis Complete'}</span>
-                    <span className="text-[10px] text-[#0f7b6c]/80 font-mono">· 98% AI confidence</span>
-                  </motion.div>
+                    <Shield className="w-2.5 h-2.5 text-[#0f7b6c]" />
+                    <span>{finding}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Interactive Hint */}
+            {currentTourStep.interactionHint && (
+              <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-[#0f7b6c]/20 bg-[#0f7b6c]/5 px-2.5 py-1 text-xs font-semibold text-[#0f7b6c]">
+                <Eye className="h-3.5 w-3.5 shrink-0" />
+                <span>{currentTourStep.interactionHint}</span>
+              </div>
+            )}
+
+            {/* Row 3: Integrated Navigation Controls */}
+            <div className="mt-3.5 pt-3 border-t border-[#f0efed] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExitDemo}
+                  className="text-xs text-[#787774] hover:text-[#eb5757] font-medium flex items-center gap-1.5 transition cursor-pointer py-1"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Exit Demo</span>
+                </button>
+                <span className="text-slate-300 hidden sm:inline">|</span>
+                <button
+                  type="button"
+                  onClick={skipTour}
+                  className="text-xs text-[#787774] hover:text-[#37352f] font-medium transition cursor-pointer py-1"
+                >
+                  Skip Tour
+                </button>
+              </div>
+
+              {/* Progress Dots */}
+              <div className="hidden md:flex items-center gap-1.5">
+                {TOUR_STEPS.map((s, idx) => (
+                  <button
+                    key={s.id}
+                    onClick={() => goToStep(idx)}
+                    title={`Go to step ${idx + 1}: ${s.title}`}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      idx === tourStep ? 'w-5 bg-[#0f7b6c]' : 'w-1.5 bg-[#e3e2e0] hover:bg-[#9b9a97]'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Prev & Next Controls */}
+              <div className="flex items-center gap-2">
+                {!isFirst && (
+                  <button
+                    type="button"
+                    onClick={handlePrev}
+                    className="flex items-center gap-1 rounded-lg border border-[#e3e2e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer shadow-2xs"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+                )}
+
+                {isLast ? (
+                  <button
+                    type="button"
+                    onClick={() => setTourPhase('completed')}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Finish Tour</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer ring-2 ring-[#0f7b6c]/20"
+                  >
+                    <span>Next{nextStepMeta ? `: ${nextStepMeta.title}` : ''}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
-
-              {/* Headline */}
-              <h3 className="text-base sm:text-lg font-bold text-[#37352f] leading-snug">
-                {currentTourStep.headline}
-              </h3>
-
-              {/* Generative streaming description text */}
-              <p className="mt-2 text-xs text-[#787774] leading-relaxed min-h-[42px]">
-                <GenerativeStreamText text={currentTourStep.description} speed={10} />
-              </p>
-
-              {/* Forensic Findings Chips (Discovered items reveal) */}
-              {currentTourStep.findingsDiscovered && currentTourStep.findingsDiscovered.length > 0 && (
-                <div className="mt-3.5 flex flex-wrap gap-1.5 pt-2 border-t border-[#f0efed]">
-                  {currentTourStep.findingsDiscovered.map((finding, idx) => (
-                    <motion.div
-                      key={finding}
-                      initial={{ opacity: 0, y: 6, scale: 0.94 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: 0.15 + idx * 0.08, duration: 0.2 }}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#f7f6f3] border border-[#e3e2e0] text-[11px] font-medium text-[#37352f]"
-                    >
-                      <Shield className="w-3 h-3 text-[#0f7b6c]" />
-                      <span>{finding}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-
-              {/* Interaction Hint */}
-              {currentTourStep.interactionHint && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#0f7b6c]/20 bg-[#0f7b6c]/5 px-3 py-1.5 text-xs font-semibold text-[#0f7b6c]">
-                  <Eye className="h-3.5 w-3.5 shrink-0" />
-                  <span>{currentTourStep.interactionHint}</span>
-                </div>
-              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ─────────────────────────────────────────────────────────────
-          4. DOCKED SHORT NAVIGATION CONTROLLER
+          4. TOUR COMPLETION MODAL
          ───────────────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-        className="pointer-events-auto fixed bottom-4 left-1/2 -translate-x-1/2 z-[10005] w-[calc(100vw-24px)] max-w-2xl"
-      >
-        <div className="rounded-2xl border border-[#e3e2e0] bg-white/95 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.14),0_2px_8px_rgba(0,0,0,0.06)] px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between gap-3">
-          {/* Left: Step Badge & Headline */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={() => setShowDetails((v) => !v)}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 hover:bg-[#0f7b6c]/20 transition cursor-pointer"
-              title={showDetails ? 'Minimize details' : 'Show details'}
-              aria-label={showDetails ? 'Minimize details' : 'Show details'}
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-[4px] bg-[#0f7b6c]/10 text-[#0f7b6c] px-2 py-0.5 text-[10px] font-bold">
-                  Step {currentTourStep.stepNumber}
-                </span>
-                <span className="text-xs font-bold text-[#37352f] truncate">
-                  {currentTourStep.title}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#787774] truncate hidden sm:block">
-                {currentTourStep.headline}
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Short Navigation Actions */}
-          <div className="flex items-center gap-2 shrink-0">
-            {!isFirst && (
-              <button
-                type="button"
-                onClick={handlePrev}
-                className="flex items-center gap-1 rounded-lg border border-[#e3e2e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#787774] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer shadow-2xs"
-                title="Go to previous step (Left Arrow)"
-                aria-label="Go to previous step"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Prev</span>
-              </button>
-            )}
-
-            {isLast ? (
-              <motion.button
-                type="button"
-                onClick={() => setCompletionModalOpen(true)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Finish &amp; Review</span>
-              </motion.button>
-            ) : (
-              <motion.button
-                type="button"
-                onClick={handleNext}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-2 text-xs font-bold text-white shadow-xs transition cursor-pointer ring-2 ring-[#0f7b6c]/20"
-                title="Go to next step (Right Arrow)"
-                aria-label="Go to next step"
-              >
-                <span>Next{nextStepMeta ? `: ${nextStepMeta.title}` : ''}</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </motion.button>
-            )}
-
-            {/* Explicit Exit Demo Button: Clears all demo state & redirects to /sign-in */}
-            <button
-              type="button"
-              onClick={handleExitDemo}
-              title="Exit BYTE XL Demo and return to sign-in page"
-              aria-label="Exit BYTE XL Demo"
-              className="flex items-center gap-1 rounded-lg border border-[#e3e2e0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#787774] hover:text-[#eb5757] hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer shadow-2xs"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Exit Demo</span>
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          5. FEATURE INTERSTITIAL & TOUR COMPLETION MODALS
-         ───────────────────────────────────────────────────────────── */}
-      <FeatureInterstitial
-        route={interstitialRoute || pathname}
-        isOpen={interstitialOpen}
-        onDismiss={() => setInterstitialOpen(false)}
-      />
-
       <TourCompletionModal
-        isOpen={completionModalOpen}
-        onClose={() => setCompletionModalOpen(false)}
+        isOpen={tourPhase === 'completed'}
+        onClose={() => setTourPhase('idle')}
         onRestartTour={() => {
           goToStep(0);
+          setTourPhase('idle');
           const firstStep = TOUR_STEPS[0];
           if (firstStep && firstStep.route !== pathname) {
             router.push(firstStep.route + '?demo=true');
           }
         }}
       />
-    </div>
+    </>
   );
 }
 
 // ─────────────────────────────────────────────
-// FLOATING TOUR LAUNCHER (When tour is minimized)
+// FLOATING TOUR LAUNCHER (When tour is dismissed/skipped)
 // ─────────────────────────────────────────────
 export function TourLauncher() {
   const [mounted, setMounted] = useState(false);
@@ -590,9 +750,8 @@ export function TourLauncher() {
     setMounted(true);
   }, []);
 
-  // If on login/signup page or not in demo mode or not mounted yet, NEVER render launcher!
   if (!mounted || !isDemoMode || tourActive) return null;
-  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
+  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up') || pathname === '/demo') return null;
 
   return (
     <motion.button
@@ -604,7 +763,7 @@ export function TourLauncher() {
       whileTap={{ scale: 0.97 }}
       className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-2xl border border-[#0f7b6c]/30 bg-white/95 backdrop-blur-md px-4 py-2.5 text-xs font-bold text-[#0f7b6c] shadow-[0_10px_30px_rgba(15,123,108,0.22)] hover:bg-[#f7f6f3] transition cursor-pointer"
     >
-      <Zap className="h-4 w-4 text-[#0f7b6c]" />
+      <Compass className="h-4 w-4 text-[#0f7b6c]" />
       <span>Resume BYTE XL Tour</span>
     </motion.button>
   );

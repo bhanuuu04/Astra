@@ -202,8 +202,14 @@ export function OverviewView() {
   const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
   const fallbackBrand = useMemo(() => getLocalBrandFallback(), []);
   const { data: realBrands = [], isLoading: loadingBrands, isError: brandsError, refetch: refetchBrands } = useQuery<Brand[]>({ queryKey: ['brands'], queryFn: () => listBrands(), enabled: !isDemoMode });
+  // Prefer the user's configured brand from localStorage over demo/API brands.
+  // fallbackBrand returns the user's real brand when localStorage has one,
+  // and only returns DEMO_BRANDS as last resort (those have ids like 'demo-brand-vercel').
+  const hasUserConfiguredBrand = fallbackBrand.length > 0 && !fallbackBrand[0].id.startsWith('demo-brand-');
   const rawBrands = isDemoMode ? (demo?.brands as any[]) : realBrands;
-  const brands: Brand[] = (rawBrands && rawBrands.length > 0) ? rawBrands : (fallbackBrand as unknown as Brand[]);
+  const brands: Brand[] = hasUserConfiguredBrand
+    ? (fallbackBrand as unknown as Brand[])
+    : ((rawBrands && rawBrands.length > 0) ? rawBrands : (fallbackBrand as unknown as Brand[]));
   const currentBrandId = brands[0]?.id;
 
   const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview', currentBrandId], queryFn: () => getOverview(currentBrandId), enabled: !isDemoMode, refetchInterval: 30000 });
@@ -211,9 +217,15 @@ export function OverviewView() {
   const { data: realSightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings', currentBrandId], queryFn: () => listSightings(currentBrandId), enabled: !isDemoMode });
 
   const overview = (isDemoMode ? demo?.overview : realOverview) || DEMO_OVERVIEW;
-  const rawCampaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
+  // When user has their own configured brand, adapt demo data to their brand context
+  // so campaigns/sightings don't show "Nexbank" but their selected brand's details.
+  const rawCampaigns = hasUserConfiguredBrand
+    ? (DEMO_CAMPAIGNS as unknown as Campaign[])
+    : (isDemoMode ? (demo?.campaigns as any[]) : realCampaigns);
   const campaigns = (rawCampaigns && rawCampaigns.length > 0) ? rawCampaigns : (DEMO_CAMPAIGNS as unknown as Campaign[]);
-  const rawSightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
+  const rawSightings = hasUserConfiguredBrand
+    ? (DEMO_SIGHTINGS as unknown as Sighting[])
+    : (isDemoMode ? (demo?.sightings as any[]) : realSightings);
   const sightings = (rawSightings && rawSightings.length > 0) ? rawSightings : (DEMO_SIGHTINGS as unknown as Sighting[]);
 
   // Onboarding Guard: If authenticated and no brand has been registered for this user, direct straight to /guide

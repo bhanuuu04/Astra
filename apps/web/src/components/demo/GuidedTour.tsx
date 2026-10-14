@@ -170,6 +170,7 @@ function useSpotlight(selector?: string, padding = 12) {
 // MAIN GUIDED TOUR COMPONENT
 // ─────────────────────────────────────────────
 export function GuidedTour() {
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const {
@@ -182,6 +183,10 @@ export function GuidedTour() {
     exitDemoMode,
     goToStep,
   } = useDemo();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [showDetails, setShowDetails] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -249,8 +254,8 @@ export function GuidedTour() {
     currentTourStep?.spotlightPadding ?? 12
   );
 
-  // If on login/signup page or demo is not active, completely unmount!
-  if (!isDemoMode || !tourActive || !currentTourStep) return null;
+  // If on login/signup page or demo is not active or not mounted yet, completely unmount!
+  if (!mounted || !isDemoMode || !tourActive || !currentTourStep) return null;
   if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
 
   const isFirst = tourStep === 0;
@@ -560,11 +565,16 @@ export function GuidedTour() {
 // FLOATING TOUR LAUNCHER (When tour is minimized)
 // ─────────────────────────────────────────────
 export function TourLauncher() {
+  const [mounted, setMounted] = useState(false);
   const { isDemoMode, tourActive, startTour } = useDemo();
   const pathname = usePathname();
 
-  // If on login/signup page or not in demo mode, NEVER render launcher!
-  if (!isDemoMode || tourActive) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // If on login/signup page or not in demo mode or not mounted yet, NEVER render launcher!
+  if (!mounted || !isDemoMode || tourActive) return null;
   if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
 
   return (

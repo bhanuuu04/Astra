@@ -13,13 +13,18 @@ import {
 import { useDemo } from '@/providers/DemoProvider';
 
 export function DemoModeBanner() {
+  const [mounted, setMounted] = useState(false);
   const { isDemoMode, exitDemoMode, resetDemo, startTour, tourActive } = useDemo();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
 
-  if (!isDemoMode || pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isDemoMode || pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
 
   const handleExit = () => {
     exitDemoMode();

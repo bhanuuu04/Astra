@@ -315,39 +315,35 @@ function saveInteractions(state: DemoInteractionState) {
 }
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+  const [tourActive, setTourActive] = useState<boolean>(false);
+  const [tourStep, setTourStep] = useState<number>(0);
+  const [interactions, setInteractions] = useState<DemoInteractionState>({
+    whitelistedDomains: new Set(),
+    dismissedAlerts: new Set(),
+    triggeredTakedowns: new Set(),
+    inspectedFindings: new Set(),
+    simulatedActions: [],
+  });
+
+  // Client-side initial hydration from storage/cookies/URL
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
       const hasCookie = typeof document !== 'undefined' && document.cookie.includes('astra_demo_mode=true');
       const hasParam = window.location.search.includes('demo=true') || window.location.pathname.startsWith('/demo');
-      return stored || hasCookie || hasParam;
-    } catch {
-      return false;
-    }
-  });
-  const [tourActive, setTourActive] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      const demoActive = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
-      const storedActive = localStorage.getItem(DEMO_TOUR_ACTIVE_KEY);
-      if (storedActive !== null) {
-        return storedActive === 'true';
+      const active = stored || hasCookie || hasParam;
+
+      if (active) {
+        setIsDemoMode(true);
+        const savedStep = parseInt(localStorage.getItem(DEMO_TOUR_STEP_KEY) || '0', 10);
+        const storedActive = localStorage.getItem(DEMO_TOUR_ACTIVE_KEY);
+        setTourStep(savedStep);
+        setTourActive(storedActive !== null ? storedActive === 'true' : true);
+        setInteractions(loadInteractions());
       }
-      return demoActive;
-    } catch {
-      return false;
-    }
-  });
-  const [tourStep, setTourStep] = useState<number>(() => {
-    if (typeof window === 'undefined') return 0;
-    try {
-      return parseInt(localStorage.getItem(DEMO_TOUR_STEP_KEY) || '0', 10);
-    } catch {
-      return 0;
-    }
-  });
-  const [interactions, setInteractions] = useState<DemoInteractionState>(() => loadInteractions());
+    } catch {}
+  }, []);
 
   // Synchronize across tabs or custom storage triggers
   useEffect(() => {

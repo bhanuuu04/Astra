@@ -531,17 +531,62 @@ export default function GuideOnboardingPage() {
         if (email) {
           localStorage.setItem(`astra_onboarding_completed_${email.toLowerCase()}`, 'true');
         }
-        localStorage.setItem(
-          'astra_current_brand_dna',
-          JSON.stringify({
+        const brandDnaPayload = {
+          name: effectiveBrandName,
+          domain: cleanDomain,
+          legalName: brandFormData.legalName,
+          industry: brandFormData.industry,
+          logoUrl: brandFormData.logoUrl,
+          summary: brandFormData.summary,
+          securityEmail: brandFormData.securityEmail,
+          supportEmail: brandFormData.supportEmail,
+          threatKeywords: brandFormData.threatKeywords,
+          highRiskTyposquats: brandFormData.highRiskTyposquats,
+          socials: brandFormData.socials,
+          verification: result.aiVerification,
+          connectedCount: activeAppsList.length,
+          connectedApps: activeAppsList,
+        };
+        localStorage.setItem('astra_current_brand_dna', JSON.stringify(brandDnaPayload));
+        localStorage.setItem('astra_configured_brand', JSON.stringify(brandDnaPayload));
+
+        // Sync with consumer feed store
+        try {
+          const rawExisting = localStorage.getItem('astra_all_onboarded_brands');
+          const existingList = rawExisting ? JSON.parse(rawExisting) : [];
+          const newBrandProfile = {
+            id: `brand-custom-${Date.now()}`,
             name: effectiveBrandName,
             domain: cleanDomain,
+            legalEntity: brandFormData.legalName || `${effectiveBrandName} Inc.`,
             industry: brandFormData.industry,
-            logoUrl: brandFormData.logoUrl,
-            verification: result.aiVerification,
-            connectedCount: activeAppsList.length,
-          })
-        );
+            logoUrl: brandFormData.logoUrl || `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`,
+            summary: brandFormData.summary,
+            confidenceScore: 99,
+            verifiedAt: new Date().toISOString(),
+            isCustomBrand: true,
+            officialWebsites: [
+              { label: 'Primary Domain', url: `https://${cleanDomain}`, isPrimary: true, sslVerified: true },
+            ],
+            officialSocials: Object.entries(brandFormData.socials || {})
+              .filter(([_, val]) => typeof val === 'string' && val.trim())
+              .map(([platform, handle]) => ({
+                platform: platform as any,
+                handle: String(handle),
+                url: `https://${platform}.com/${String(handle).replace('@', '')}`,
+                isVerified: true,
+              })),
+            securityEmail: brandFormData.securityEmail,
+            supportEmail: brandFormData.supportEmail,
+            threatKeywords: brandFormData.threatKeywords,
+            highRiskTyposquats: brandFormData.highRiskTyposquats || [`login-${cleanDomain}`, `${cleanDomain.split('.')[0]}-verify.top`],
+          };
+          const filtered = existingList.filter((b: any) => b.domain !== cleanDomain);
+          filtered.unshift(newBrandProfile);
+          localStorage.setItem('astra_all_onboarded_brands', JSON.stringify(filtered));
+        } catch (e) {
+          console.warn('Error saving to consumer feed:', e);
+        }
       }
 
       await new Promise((r) => setTimeout(r, 1100));
@@ -666,15 +711,15 @@ export default function GuideOnboardingPage() {
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 w-full rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-white to-amber-50/80 p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            className="mb-6 w-full rounded-2xl border border-[#e3e2e0] bg-white p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-amber-900 border border-amber-300">
-                <Sparkles className="h-4.5 w-4.5" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20">
+                <Shield className="h-4.5 w-4.5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-900">BYTE XL Judges Demo</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#37352f]">BYTE XL Judges Demo</span>
                   <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2 py-0.5 text-[10px] font-bold">
                     Step 1 of 12: Enrolling Brand DNA
                   </span>
@@ -685,7 +730,7 @@ export default function GuideOnboardingPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               {step === 1 && (
                 <button
                   type="button"
@@ -705,6 +750,17 @@ export default function GuideOnboardingPage() {
               >
                 <span>Next Tour Step: Brand Baseline (/brands)</span>
                 <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  demo?.exitDemoMode();
+                  router.push('/sign-in');
+                }}
+                className="rounded-xl border border-[#e3e2e0] bg-white px-3 py-1.5 text-xs font-medium text-[#787774] hover:text-[#eb5757] hover:border-rose-200 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                title="Exit Demo and return to sign in"
+              >
+                Exit Demo
               </button>
             </div>
           </motion.div>

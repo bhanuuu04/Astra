@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   RotateCcw,
   LogOut,
@@ -15,14 +15,15 @@ import { useDemo } from '@/providers/DemoProvider';
 export function DemoModeBanner() {
   const { isDemoMode, exitDemoMode, resetDemo, startTour, tourActive } = useDemo();
   const router = useRouter();
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
 
-  if (!isDemoMode) return null;
+  if (!isDemoMode || pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
 
   const handleExit = () => {
     exitDemoMode();
-    router.push('/');
+    router.push('/sign-in');
   };
 
   const handleReset = () => {
@@ -148,7 +149,7 @@ export function DemoModeBanner() {
               </div>
               <h3 className="text-lg font-bold text-[#37352f]">Exit BYTE XL Demo?</h3>
               <p className="mt-2 text-xs leading-relaxed text-[#787774]">
-                You&apos;ll be returned to the landing page. All simulated state and tour progress will be cleared.
+                You&apos;ll be redirected to the sign-in page. All simulated state and tour progress will be cleared.
               </p>
               <div className="mt-5 flex gap-2.5">
                 <button
@@ -161,9 +162,9 @@ export function DemoModeBanner() {
                 <button
                   type="button"
                   onClick={handleExit}
-                  className="flex-1 rounded-xl bg-[#d97706] hover:bg-[#b45309] py-2.5 text-xs font-bold text-white transition cursor-pointer shadow-xs"
+                  className="flex-1 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] py-2.5 text-xs font-bold text-white transition cursor-pointer shadow-xs"
                 >
-                  Exit Demo
+                  Exit &amp; Go to Sign In
                 </button>
               </div>
             </motion.div>

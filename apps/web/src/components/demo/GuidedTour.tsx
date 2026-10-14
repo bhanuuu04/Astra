@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -17,59 +17,157 @@ import {
   ChevronUp,
   ChevronDown,
   Check,
-  Info,
+  CheckCircle2,
+  Activity,
+  LogOut,
+  Radio,
+  ExternalLink,
 } from 'lucide-react';
 import { useDemo, TOUR_STEPS, type TourStep } from '@/providers/DemoProvider';
 
 // ─────────────────────────────────────────────
-// SPOTLIGHT: highlights a DOM element
+// GENERATIVE STREAMING TEXT COMPONENT
 // ─────────────────────────────────────────────
-interface SpotlightRect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
+function GenerativeStreamText({
+  text,
+  speed = 10,
+  onComplete,
+}: {
+  text: string;
+  speed?: number;
+  onComplete?: () => void;
+}) {
+  const [displayedLength, setDisplayedLength] = useState(0);
+  const [isDone, setIsDone] = useState(false);
+
+  useEffect(() => {
+    setDisplayedLength(0);
+    setIsDone(false);
+    let i = 0;
+    const interval = setInterval(() => {
+      i += 3; // Streams 3 chars per tick for smooth, snappy filling
+      if (i >= text.length) {
+        setDisplayedLength(text.length);
+        setIsDone(true);
+        clearInterval(interval);
+        if (onComplete) onComplete();
+      } else {
+        setDisplayedLength(i);
+      }
+    }, speed);
+
+    return () => clearInterval(interval);
+  }, [text, speed, onComplete]);
+
+  return (
+    <span>
+      {text.slice(0, displayedLength)}
+      {!isDone && (
+        <span className="inline-block w-1.5 h-3.5 bg-[#0f7b6c] ml-1 animate-pulse align-middle" />
+      )}
+    </span>
+  );
 }
 
-function useSpotlight(selector?: string, padding = 10) {
-  const [rect, setRect] = useState<SpotlightRect | null>(null);
+// ─────────────────────────────────────────────
+// SPOTLIGHT WITH AUTO-SCROLL TO SECTION
+// ─────────────────────────────────────────────
+interface SpotlightInfo {
+  rect: { top: number; left: number; width: number; height: number };
+  targetTitle?: string;
+}
+
+function useSpotlight(selector?: string, padding = 12) {
+  const [spotlight, setSpotlight] = useState<SpotlightInfo | null>(null);
 
   useEffect(() => {
     if (!selector) {
-      setRect(null);
+      setSpotlight(null);
       return;
     }
 
-    const measure = () => {
-      const el = document.querySelector(selector);
-      if (!el) {
-        setRect(null);
+    let isMounted = true;
+    let retryTimer: NodeJS.Timeout | null = null;
+    let attempts = 0;
+
+    const measureAndScroll = () => {
+      attempts++;
+      const el = document.querySelector(selector) as HTMLElement | null;
+
+      if (el && isMounted) {
+        // 1. Smooth scroll to the target section taking fixed bars into account
+        const r = el.getBoundingClientRect();
+        const absoluteTop = r.top + window.scrollY;
+        // Vertically center with topbar and dock offset
+        const targetScrollY = Math.max(0, absoluteTop - (window.innerHeight - r.height) / 2);
+
+        window.scrollTo({
+          top: targetScrollY,
+          behavior: 'smooth',
+        });
+
+        // 2. Measure bounding rect
+        const updateRect = () => {
+          if (!isMounted) return;
+          const liveRect = el.getBoundingClientRect();
+          setSpotlight({
+            rect: {
+              top: Math.max(0, liveRect.top - padding),
+              left: Math.max(0, liveRect.left - padding),
+              width: liveRect.width + padding * 2,
+              height: liveRect.height + padding * 2,
+            },
+          });
+        };
+
+        updateRect();
+        setTimeout(updateRect, 150);
+        setTimeout(updateRect, 350);
+        setTimeout(updateRect, 650);
         return;
       }
-      const r = el.getBoundingClientRect();
-      setRect({
-        top: Math.max(0, r.top - padding),
-        left: Math.max(0, r.left - padding),
-        width: r.width + padding * 2,
-        height: r.height + padding * 2,
-      });
+
+      // Retry every 90ms for up to 3.5s to wait for async Next.js page rendering
+      if (attempts < 38 && isMounted) {
+        retryTimer = setTimeout(measureAndScroll, 90);
+      } else if (isMounted) {
+        setSpotlight(null);
+      }
     };
 
-    const timer = setTimeout(measure, 300);
-    window.addEventListener('resize', measure);
-    window.addEventListener('scroll', measure, true);
+    measureAndScroll();
+
+    const handleUpdate = () => {
+      const el = selector ? (document.querySelector(selector) as HTMLElement | null) : null;
+      if (el && isMounted) {
+        const liveRect = el.getBoundingClientRect();
+        setSpotlight({
+          rect: {
+            top: Math.max(0, liveRect.top - padding),
+            left: Math.max(0, liveRect.left - padding),
+            width: liveRect.width + padding * 2,
+            height: liveRect.height + padding * 2,
+          },
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleUpdate);
+    window.addEventListener('scroll', handleUpdate, true);
+
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', measure, true);
+      isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener('resize', handleUpdate);
+      window.removeEventListener('scroll', handleUpdate, true);
     };
   }, [selector, padding]);
 
-  return rect;
+  return spotlight;
 }
 
 // ─────────────────────────────────────────────
-// TOUR PROGRESS DOTS (Light Theme)
+// TOUR PROGRESS DOTS
 // ─────────────────────────────────────────────
 function TourProgressDots({
   current,
@@ -182,10 +280,11 @@ function ChapterMenu({
 }
 
 // ─────────────────────────────────────────────
-// FLOATING TOUR DOCK & CONTROLLER
+// MAIN GUIDED TOUR COMPONENT
 // ─────────────────────────────────────────────
 export function GuidedTour() {
   const router = useRouter();
+  const pathname = usePathname();
   const {
     isDemoMode,
     tourActive,
@@ -193,16 +292,18 @@ export function GuidedTour() {
     currentTourStep,
     nextTourStep,
     prevTourStep,
-    skipTour,
+    exitDemoMode,
     goToStep,
   } = useDemo();
 
   const [showChapterMenu, setShowChapterMenu] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(true);
   const prevStepRef = useRef<number>(-1);
   const navLockRef = useRef(false);
 
-  // Auto-route on step change
+  // Auto-route on step change with smooth transition state
   useEffect(() => {
     if (!currentTourStep || !tourActive) return;
     if (prevStepRef.current === tourStep) return;
@@ -210,17 +311,34 @@ export function GuidedTour() {
 
     if (navLockRef.current) return;
     navLockRef.current = true;
-    router.push(currentTourStep.route);
-    setTimeout(() => {
+
+    // Check if route is changing
+    if (pathname !== currentTourStep.route) {
+      setIsNavigating(true);
+      router.push(currentTourStep.route);
+      const timer = setTimeout(() => {
+        setIsNavigating(false);
+        navLockRef.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
       navLockRef.current = false;
-    }, 500);
-  }, [tourStep, currentTourStep, tourActive, router]);
+    }
+  }, [tourStep, currentTourStep, tourActive, router, pathname]);
+
+  // Generative AI scanning state on each step change
+  useEffect(() => {
+    setIsSynthesizing(true);
+    const timer = setTimeout(() => {
+      setIsSynthesizing(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [tourStep]);
 
   // Keyboard navigation shortcuts
   useEffect(() => {
     if (!tourActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger when user is typing in form inputs
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
@@ -240,55 +358,114 @@ export function GuidedTour() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [tourActive, nextTourStep, prevTourStep, showChapterMenu]);
 
-  const spotlightRect = useSpotlight(
+  // Measure and smooth-scroll to the targeted section
+  const spotlight = useSpotlight(
     currentTourStep?.targetSelector,
-    currentTourStep?.spotlightPadding ?? 10
+    currentTourStep?.spotlightPadding ?? 12
   );
 
+  // If on login/signup page or demo is not active, completely unmount!
   if (!isDemoMode || !tourActive || !currentTourStep) return null;
+  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
 
   const isFirst = tourStep === 0;
   const isLast = tourStep === TOUR_STEPS.length - 1;
   const nextStepMeta = !isLast ? TOUR_STEPS[tourStep + 1] : null;
 
+  // Fully purge demo session and redirect to /sign-in
+  const handleExitDemo = () => {
+    exitDemoMode();
+    router.push('/sign-in');
+  };
+
   return (
     <div className="fixed inset-0 z-[10000] pointer-events-none">
-      {/* Target element spotlight border & halo (non-blocking) */}
-      {spotlightRect && (
+      {/* ─────────────────────────────────────────────────────────────
+          1. SMOOTH PAGE SWITCHING TRANSITION OVERLAY
+         ───────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isNavigating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed inset-0 z-[10020] pointer-events-none flex flex-col justify-between"
+          >
+            {/* Top glowing progress shimmer */}
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="h-1 w-full bg-gradient-to-r from-[#0f7b6c] via-cyan-400 to-[#0f7b6c] origin-left shadow-[0_0_12px_rgba(15,123,108,0.5)]"
+            />
+
+            {/* Smooth transition status chip */}
+            <div className="flex-1 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0, y: 14 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.94, opacity: 0, y: -10 }}
+                className="flex items-center gap-3 px-5 py-2.5 rounded-2xl border border-[#e3e2e0] bg-white/98 backdrop-blur-xl shadow-2xl text-xs font-bold text-[#37352f]"
+              >
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f7b6c] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-[#0f7b6c]" />
+                </div>
+                <span>Navigating to Step {tourStep + 1}: {currentTourStep.title}…</span>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─────────────────────────────────────────────────────────────
+          2. SECTION SCROLL & SPOTLIGHT HIGHLIGHT WITH PINNED BADGE
+         ───────────────────────────────────────────────────────────── */}
+      {spotlight && (
         <>
+          {/* Spotlight border with glow around the targeted section */}
           <motion.div
             key={`spotlight-${tourStep}`}
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            className="fixed z-[10001] rounded-xl pointer-events-none"
+            className="fixed z-[10001] rounded-2xl pointer-events-none"
             style={{
-              top: spotlightRect.top,
-              left: spotlightRect.left,
-              width: spotlightRect.width,
-              height: spotlightRect.height,
-              boxShadow: '0 0 0 2px #0f7b6c, 0 0 0 5px rgba(15, 123, 108, 0.20), 0 0 25px rgba(15, 123, 108, 0.25)',
+              top: spotlight.rect.top,
+              left: spotlight.rect.left,
+              width: spotlight.rect.width,
+              height: spotlight.rect.height,
+              boxShadow: '0 0 0 2px #0f7b6c, 0 0 0 6px rgba(15, 123, 108, 0.20), 0 10px 40px rgba(15, 123, 108, 0.22)',
             }}
-          />
+          >
+            {/* Pinned section focus tag */}
+            <div className="absolute -top-3.5 left-4 flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#0f7b6c] text-white text-[10px] font-bold shadow-md tracking-wider uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+              <span>Section Focus · {currentTourStep.title}</span>
+            </div>
+          </motion.div>
+
+          {/* Animated pulsing dashed radar ring */}
           <motion.div
             key={`pulse-${tourStep}`}
-            animate={{ opacity: [0.15, 0.45, 0.15], scale: [0.99, 1.01, 0.99] }}
+            animate={{ opacity: [0.15, 0.45, 0.15], scale: [0.995, 1.008, 0.995] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-            className="fixed z-[10001] rounded-xl pointer-events-none"
+            className="fixed z-[10001] rounded-2xl pointer-events-none"
             style={{
-              top: spotlightRect.top - 4,
-              left: spotlightRect.left - 4,
-              width: spotlightRect.width + 8,
-              height: spotlightRect.height + 8,
-              border: '2px dashed rgba(15, 123, 108, 0.5)',
+              top: spotlight.rect.top - 4,
+              left: spotlight.rect.left - 4,
+              width: spotlight.rect.width + 8,
+              height: spotlight.rect.height + 8,
+              border: '2px dashed rgba(15, 123, 108, 0.55)',
             }}
           />
         </>
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          EXPANDABLE CONTEXT CARD (Floating directly above navigation)
+          3. GENERATIVE EXPLANATION CARD (Smooth typing & finding reveal)
          ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showDetails && (
@@ -304,8 +481,9 @@ export function GuidedTour() {
             <div className="h-1 w-full bg-gradient-to-r from-[#0f7b6c] via-cyan-600 to-[#0f7b6c]" />
 
             <div className="p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
+              {/* Header row */}
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg leading-none">{currentTourStep.icon}</span>
                   <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
                     Step {currentTourStep.stepNumber} of {currentTourStep.totalSteps}
@@ -337,15 +515,57 @@ export function GuidedTour() {
                 </div>
               </div>
 
+              {/* Generative AI Telemetry Tag */}
+              <div className="mb-2.5">
+                {isSynthesizing ? (
+                  <div className="inline-flex items-center gap-2 rounded-lg bg-[#0f7b6c]/8 border border-[#0f7b6c]/20 px-2.5 py-1 text-[11px] font-medium text-[#0f7b6c]">
+                    <Activity className="h-3.5 w-3.5 animate-spin" />
+                    <span>Nemotron AI Sweeping Perimeter · Finding threat vectors…</span>
+                  </div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-bold text-[#0f7b6c]"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[#0f7b6c]" />
+                    <span>{currentTourStep.telemetryBadge || 'Perimeter Synthesis Complete'}</span>
+                    <span className="text-[10px] text-[#0f7b6c]/80 font-mono">· 98% AI confidence</span>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Headline */}
               <h3 className="text-base sm:text-lg font-bold text-[#37352f] leading-snug">
                 {currentTourStep.headline}
               </h3>
-              <p className="mt-1.5 text-xs text-[#787774] leading-relaxed">
-                {currentTourStep.description}
+
+              {/* Generative streaming description text */}
+              <p className="mt-2 text-xs text-[#787774] leading-relaxed min-h-[42px]">
+                <GenerativeStreamText text={currentTourStep.description} speed={10} />
               </p>
 
+              {/* Forensic Findings Chips (Discovered items reveal) */}
+              {currentTourStep.findingsDiscovered && currentTourStep.findingsDiscovered.length > 0 && (
+                <div className="mt-3.5 flex flex-wrap gap-1.5 pt-2 border-t border-[#f0efed]">
+                  {currentTourStep.findingsDiscovered.map((finding, idx) => (
+                    <motion.div
+                      key={finding}
+                      initial={{ opacity: 0, y: 6, scale: 0.94 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ delay: 0.15 + idx * 0.08, duration: 0.2 }}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#f7f6f3] border border-[#e3e2e0] text-[11px] font-medium text-[#37352f]"
+                    >
+                      <Shield className="w-3 h-3 text-[#0f7b6c]" />
+                      <span>{finding}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              {/* Interaction Hint */}
               {currentTourStep.interactionHint && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#0f7b6c]/20 bg-[#0f7b6c]/5 px-3 py-1.5 text-xs font-medium text-[#0f7b6c]">
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#0f7b6c]/20 bg-[#0f7b6c]/5 px-3 py-1.5 text-xs font-semibold text-[#0f7b6c]">
                   <Eye className="h-3.5 w-3.5 shrink-0" />
                   <span>{currentTourStep.interactionHint}</span>
                 </div>
@@ -356,7 +576,7 @@ export function GuidedTour() {
       </AnimatePresence>
 
       {/* ─────────────────────────────────────────────────────────────
-          SHORT FLOATING NAVIGATION CONTROLLER (Always docked at bottom)
+          4. DOCKED SHORT NAVIGATION CONTROLLER
          ───────────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -430,13 +650,13 @@ export function GuidedTour() {
             {isLast ? (
               <motion.button
                 type="button"
-                onClick={skipTour}
+                onClick={handleExitDemo}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
               >
                 <Shield className="h-3.5 w-3.5" />
-                <span>Finish Tour</span>
+                <span>Finish &amp; Sign In</span>
               </motion.button>
             ) : (
               <motion.button
@@ -453,14 +673,16 @@ export function GuidedTour() {
               </motion.button>
             )}
 
+            {/* Explicit Exit Demo Button: Clears all demo state & redirects to /sign-in */}
             <button
               type="button"
-              onClick={skipTour}
-              title="Skip or exit tour"
-              aria-label="Skip or exit tour"
-              className="rounded-lg p-1.5 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer"
+              onClick={handleExitDemo}
+              title="Exit BYTE XL Demo and return to sign-in page"
+              aria-label="Exit BYTE XL Demo"
+              className="flex items-center gap-1 rounded-lg border border-[#e3e2e0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#787774] hover:text-[#eb5757] hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer shadow-2xs"
             >
-              <X className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Exit Demo</span>
             </button>
           </div>
         </div>
@@ -486,7 +708,11 @@ export function GuidedTour() {
 // ─────────────────────────────────────────────
 export function TourLauncher() {
   const { isDemoMode, tourActive, startTour } = useDemo();
+  const pathname = usePathname();
+
+  // If on login/signup page or not in demo mode, NEVER render launcher!
   if (!isDemoMode || tourActive) return null;
+  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
 
   return (
     <motion.button

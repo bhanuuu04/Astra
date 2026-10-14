@@ -41,6 +41,8 @@ export interface TourStep {
   accentColor?: string;
   interactionHint?: string;      // Prompt user to click something
   autoAdvanceMs?: number;
+  telemetryBadge?: string;        // E.g. "Nemotron-3.5 Real-Time Analysis"
+  findingsDiscovered?: string[];  // Forensic signals found in this step
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -56,6 +58,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'bottom',
     icon: '✨',
     accentColor: '#0f7b6c',
+    telemetryBadge: 'Brand Registry Enrolled',
+    findingsDiscovered: ['Apex Domain: nexbank.com', '4 Verified channels locked', 'Cryptographic DNS anchor'],
   },
   {
     id: 'brand-registry',
@@ -69,6 +73,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'bottom',
     icon: '🧬',
     accentColor: '#0f7b6c',
+    telemetryBadge: 'Allowlist Active & Immutable',
+    findingsDiscovered: ['4 Verified core assets', 'Delta threshold: 0.85', 'Self-flagging hard-excluded'],
   },
   {
     id: 'connectors',
@@ -82,6 +88,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'bottom',
     icon: '🔌',
     accentColor: '#0f7b6c',
+    telemetryBadge: 'Composio Ingestion Streaming',
+    findingsDiscovered: ['5 Active broker tunnels', 'Bi-directional webhooks', 'Zero API credential leaks'],
   },
   {
     id: 'threat-scan-hud',
@@ -95,6 +103,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'bottom',
     icon: '📡',
     accentColor: '#0f7b6c',
+    telemetryBadge: 'Nemotron Perimeter Sweep Active',
+    findingsDiscovered: ['Sub-second open web radar', 'Cross-platform scraper feed', 'Cryptographic hash checks'],
   },
   {
     id: 'overview-metrics',
@@ -108,6 +118,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'bottom',
     icon: '🛡️',
     accentColor: '#0f7b6c',
+    telemetryBadge: 'Command Center Telemetry',
+    findingsDiscovered: ['15 Threat findings (24h)', '5 Active hostile campaigns', '94% Aggregate risk score'],
   },
   {
     id: 'sightings',
@@ -122,6 +134,8 @@ export const TOUR_STEPS: TourStep[] = [
     icon: '📋',
     accentColor: '#0f7b6c',
     interactionHint: 'Click a finding to inspect raw evidence',
+    telemetryBadge: 'Forensic Ingestion Queue',
+    findingsDiscovered: ['Live HTTP payload archive', 'WHOIS registrant attribution', 'ASN router footprinting'],
   },
   {
     id: 'alerts',
@@ -135,6 +149,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'bottom',
     icon: '🔔',
     accentColor: '#eb5757',
+    telemetryBadge: 'Real-Time Alert Dispatch',
+    findingsDiscovered: ['Critical alerts prioritized', 'Official profiles whitelisted', 'Zero alert fatigue'],
   },
   {
     id: 'lookalike-tags',
@@ -149,6 +165,8 @@ export const TOUR_STEPS: TourStep[] = [
     icon: '🔍',
     accentColor: '#0f7b6c',
     interactionHint: 'Try clicking Export CSV',
+    telemetryBadge: 'Character Homoglyph Analysis',
+    findingsDiscovered: ['Accented char U+00E0 flag', 'Visual distance score: 0.94', 'Exportable CSV dossier'],
   },
   {
     id: 'campaigns-overview',
@@ -163,6 +181,8 @@ export const TOUR_STEPS: TourStep[] = [
     icon: '🕸️',
     accentColor: '#eb5757',
     interactionHint: 'Click Investigate to explore the attack graph',
+    telemetryBadge: 'Threat Clustering Engine',
+    findingsDiscovered: ['Operation ShadowBank', '8 Linked domain nodes', 'Cross-surface actor map'],
   },
   {
     id: 'campaign-graph',
@@ -176,6 +196,8 @@ export const TOUR_STEPS: TourStep[] = [
     tooltipPosition: 'right',
     icon: '🗺️',
     accentColor: '#0f7b6c',
+    telemetryBadge: 'Interactive Attack Topology',
+    findingsDiscovered: ['Shared IP: 185.220.101.47', 'Fast-flux DNS beaconing', 'Human-in-the-loop review'],
   },
   {
     id: 'app-radar',
@@ -190,6 +212,8 @@ export const TOUR_STEPS: TourStep[] = [
     icon: '📱',
     accentColor: '#eb5757',
     interactionHint: 'Click a rogue app to inspect permissions',
+    telemetryBadge: 'Rogue Mobile APK Scanner',
+    findingsDiscovered: ['3 Cloned banking APKs', 'SMS-intercept permissions', 'SHA-256 cert mismatch'],
   },
   {
     id: 'responses',
@@ -204,6 +228,8 @@ export const TOUR_STEPS: TourStep[] = [
     icon: '⚡',
     accentColor: '#0f7b6c',
     interactionHint: 'Click "Approve" to simulate takedown dispatch',
+    telemetryBadge: 'Cryptographic Takedown Suite',
+    findingsDiscovered: ['SHA-256 evidence bundle', 'Cloudflare & Meta templates', '1-Click verified dispatch'],
   },
 ];
 
@@ -369,6 +395,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('astra_active_tenant');
       localStorage.removeItem('astra_auth_token');
       localStorage.removeItem('astra_onboarding_completed');
+      localStorage.removeItem('astra_user_role');
+      localStorage.removeItem('astra_intended_account_type');
+      localStorage.removeItem('astra_current_brand_dna');
+      localStorage.removeItem('astra_configured_brand');
     }
     setIsDemoMode(false);
     setTourActive(false);

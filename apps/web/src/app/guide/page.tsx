@@ -244,7 +244,24 @@ export default function GuideOnboardingPage() {
     // Check if user has an intended account type from sign-in/sign-up
     const storedIntended = localStorage.getItem('astra_intended_account_type') as AccountType | null;
     const storedRole = localStorage.getItem('astra_user_role') as AccountType | null;
-    const effectiveRole = queryType || storedIntended || storedRole;
+
+    // Determine effective role: query takes priority, then stored role, then stored intent
+    let effectiveRole: AccountType | null = null;
+    if (queryType === 'brand' || queryStep === 'brand_form') {
+      effectiveRole = 'brand';
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('astra_user_role', 'brand');
+        localStorage.setItem('astra_intended_account_type', 'brand');
+      }
+    } else if (queryType === 'consumer') {
+      effectiveRole = 'consumer';
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('astra_user_role', 'consumer');
+        localStorage.setItem('astra_intended_account_type', 'consumer');
+      }
+    } else {
+      effectiveRole = storedRole || storedIntended;
+    }
 
     if (effectiveRole === 'consumer') {
       setSelectedRole('consumer');
@@ -255,10 +272,25 @@ export default function GuideOnboardingPage() {
       }
     } else if (effectiveRole === 'brand') {
       setSelectedRole('brand');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('astra_user_role', 'brand');
+        localStorage.setItem('astra_intended_account_type', 'brand');
+      }
+
+      const isOnboarded =
+        localStorage.getItem('astra_onboarding_completed') === 'true' ||
+        Boolean(localStorage.getItem('astra_configured_brand'));
+
+      // If user is already onboarded and didn't explicitly request the brand form, go to dashboard
+      if (isOnboarded && queryStep !== 'brand_form') {
+        router.replace('/overview');
+        return;
+      }
+
       // If brand explicitly requested via query or button, advance to brand form (step 1)
       if (queryStep === 'brand_form' || queryType === 'brand') {
         setStep(1);
-      } else if (!storedRole) {
+      } else if (!storedRole && !storedIntended) {
         // First time brand without stored confirmation: ask to confirm role
         setStep(0);
       } else {

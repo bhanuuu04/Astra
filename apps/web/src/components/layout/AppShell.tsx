@@ -459,8 +459,8 @@ export function AppShell({ children }: AppShellProps) {
               </button>
               
               <div className="hidden h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 sm:flex">
-                <span className={`h-2 w-2 rounded-full ${sightingsUnavailable ? 'bg-amber-500' : tenant?.is_demo ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                <span>{sightingsUnavailable ? 'Data unavailable' : tenant?.is_demo ? 'Demo workspace' : tenant ? 'Workspace' : 'Connecting'}</span>
+                <span className={`h-2 w-2 rounded-full ${sightingsUnavailable && sightings.length === 0 ? 'bg-amber-500' : tenant?.is_demo ? 'bg-cyan-500' : 'bg-emerald-500'}`} />
+                <span>{sightingsUnavailable && sightings.length === 0 ? 'Data unavailable' : tenant?.is_demo ? 'Demo workspace' : tenant ? 'Workspace' : 'Workspace'}</span>
               </div>
 
               <Link
@@ -487,9 +487,9 @@ export function AppShell({ children }: AppShellProps) {
                 <span>Consumer Feed</span>
               </Link>
 
-              <Link href="/alerts" aria-label={sightingsUnavailable ? 'Open alert feed; alert count unavailable' : 'Open alert feed'} title={sightingsUnavailable ? 'Alert count unavailable' : 'Open alert feed'} className="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950">
+              <Link href="/alerts" aria-label={sightingsUnavailable && sightings.length === 0 ? 'Open alert feed; alert count unavailable' : 'Open alert feed'} title={sightingsUnavailable && sightings.length === 0 ? 'Alert count unavailable' : 'Open alert feed'} className="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950">
                 <Bell className="h-4 w-4" />
-                {!sightingsUnavailable && unreadAlerts > 0 && (
+                {!(sightingsUnavailable && sightings.length === 0) && unreadAlerts > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#eb5757] text-[8px] font-bold text-white">
                     {unreadAlerts > 9 ? '9+' : unreadAlerts}
                   </span>

@@ -329,7 +329,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   // Client-side initial hydration from storage/cookies/URL
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
+      const stored =
+        localStorage.getItem(DEMO_STORAGE_KEY) === 'true' ||
+        localStorage.getItem('astra_demo_mode') === 'true';
       const hasCookie = typeof document !== 'undefined' && document.cookie.includes('astra_demo_mode=true');
       const hasParam = window.location.search.includes('demo=true') || window.location.pathname.startsWith('/demo');
       const active = stored || hasCookie || hasParam;
@@ -349,7 +351,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleStorage = () => {
       try {
-        const active = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
+        const active =
+          localStorage.getItem(DEMO_STORAGE_KEY) === 'true' ||
+          localStorage.getItem('astra_demo_mode') === 'true';
         const savedStep = parseInt(localStorage.getItem(DEMO_TOUR_STEP_KEY) || '0', 10);
         const storedActive = localStorage.getItem(DEMO_TOUR_ACTIVE_KEY);
         setIsDemoMode(active);

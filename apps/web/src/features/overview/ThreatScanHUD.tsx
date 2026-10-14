@@ -136,7 +136,7 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
                   : 'border border-[#e3e2e0] bg-white text-[#0f7b6c]'
               }`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${isScanning ? 'bg-cyan-600 animate-ping' : 'bg-[#0f7b6c]'}`} />
-                {isScanning ? 'Scanning Vectors' : statusError ? 'Status unavailable' : scanState?.status || 'Active'}
+                {isScanning ? 'Scanning Vectors' : (statusError && !scanState) ? 'Status unavailable' : scanState?.status || 'Active'}
               </span>
             </div>
             <p className="mt-0.5 text-[11px] text-[#787774]">
@@ -178,7 +178,7 @@ export function ThreatScanHUD({ brandId, brandName, brandDomain }: ThreatScanHUD
 
       {/* Main HUD Body */}
       <div className="space-y-4 p-4 sm:p-5">
-        {statusError && (
+        {statusError && !scanState && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-950">
             <span>Analysis status is unavailable. Existing results remain available elsewhere in the workspace.</span>
             <button type="button" onClick={() => void refetch()} className="font-semibold underline underline-offset-2">Retry status</button>

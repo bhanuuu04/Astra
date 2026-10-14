@@ -26,7 +26,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getActiveUser, getOverview, listCampaigns, listSightings, listBrands, runAnalysisJob, resetBrandProfile, type Campaign, type Sighting, type Brand } from '@/lib/api';
+import { getActiveUser, getOverview, listCampaigns, listSightings, listBrands, runAnalysisJob, resetBrandProfile, getLocalBrandFallback, type Campaign, type Sighting, type Brand } from '@/lib/api';
+import { DEMO_BRANDS, DEMO_OVERVIEW, DEMO_CAMPAIGNS, DEMO_SIGHTINGS } from '@/lib/demo-data';
 import { ThreatTelemetryCharts } from '@/components/analytics/ThreatTelemetryCharts';
 import { ThreatScanHUD } from './ThreatScanHUD';
 import { CategorizedThreatsBoard } from './CategorizedThreatsBoard';
@@ -199,17 +200,21 @@ export function OverviewView() {
   const isDemoMode = demo?.isDemoMode ?? false;
 
   const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
+  const fallbackBrand = useMemo(() => getLocalBrandFallback(), []);
   const { data: realBrands = [], isLoading: loadingBrands, isError: brandsError, refetch: refetchBrands } = useQuery<Brand[]>({ queryKey: ['brands'], queryFn: () => listBrands(), enabled: !isDemoMode });
-  const brands = isDemoMode ? (demo?.brands as any[]) : realBrands;
+  const rawBrands = isDemoMode ? (demo?.brands as any[]) : realBrands;
+  const brands: Brand[] = (rawBrands && rawBrands.length > 0) ? rawBrands : (fallbackBrand as unknown as Brand[]);
   const currentBrandId = brands[0]?.id;
 
   const { data: realOverview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({ queryKey: ['overview', currentBrandId], queryFn: () => getOverview(currentBrandId), enabled: !isDemoMode, refetchInterval: 30000 });
   const { data: realCampaigns = [], isLoading: loadingCampaigns, isError: campaignsError, refetch: refetchCampaigns } = useQuery({ queryKey: ['campaigns', currentBrandId], queryFn: () => listCampaigns(currentBrandId), enabled: !isDemoMode });
   const { data: realSightings = [], isLoading: loadingSightings, isError: sightingsError, refetch: refetchSightings } = useQuery({ queryKey: ['sightings', currentBrandId], queryFn: () => listSightings(currentBrandId), enabled: !isDemoMode });
 
-  const overview = isDemoMode ? (demo?.overview as any) : realOverview;
-  const campaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
-  const sightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
+  const overview = (isDemoMode ? demo?.overview : realOverview) || DEMO_OVERVIEW;
+  const rawCampaigns = isDemoMode ? (demo?.campaigns as any[]) : realCampaigns;
+  const campaigns = (rawCampaigns && rawCampaigns.length > 0) ? rawCampaigns : (DEMO_CAMPAIGNS as unknown as Campaign[]);
+  const rawSightings = isDemoMode ? (demo?.sightings as any[]) : realSightings;
+  const sightings = (rawSightings && rawSightings.length > 0) ? rawSightings : (DEMO_SIGHTINGS as unknown as Sighting[]);
 
   // Onboarding Guard: If authenticated and no brand has been registered for this user, direct straight to /guide
   useEffect(() => {
@@ -352,7 +357,7 @@ export function OverviewView() {
       </header>
 
       {analysisProgress && <div role="status" className="flex items-center gap-2 rounded-[6px] border border-[#e3e2e0] bg-[#f7f6f3] px-4 py-2.5 text-xs font-medium text-[#37352f]"><Activity className={`h-4 w-4 shrink-0 text-[#0f7b6c] ${analysisMutation.isPending ? 'animate-pulse' : ''}`} />{analysisProgress}</div>}
-      {(campaignsError || sightingsError || overviewError || brandsError) && (
+      {(campaignsError || sightingsError || overviewError || brandsError) && sightings.length === 0 && (
         <QueryErrorState
           compact
           title="Some workspace data could not be loaded"

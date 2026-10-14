@@ -167,119 +167,6 @@ function useSpotlight(selector?: string, padding = 12) {
 }
 
 // ─────────────────────────────────────────────
-// TOUR PROGRESS DOTS
-// ─────────────────────────────────────────────
-function TourProgressDots({
-  current,
-  total,
-  onGoTo,
-}: {
-  current: number;
-  total: number;
-  onGoTo: (n: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1.5" role="tablist" aria-label="Tour navigation progress">
-      {Array.from({ length: total }).map((_, i) => {
-        const stepMeta = TOUR_STEPS[i];
-        const isActive = i === current;
-        const isCompleted = i < current;
-        return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onGoTo(i)}
-            title={`Step ${i + 1}: ${stepMeta?.title || ''}`}
-            aria-label={`Go to step ${i + 1}: ${stepMeta?.title || ''}`}
-            className={`rounded-full transition-all duration-300 cursor-pointer ${
-              isActive
-                ? 'w-6 h-2 bg-[#0f7b6c] shadow-xs'
-                : isCompleted
-                ? 'w-2 h-2 bg-[#0f7b6c]/50 hover:bg-[#0f7b6c]'
-                : 'w-2 h-2 bg-[#e3e2e0] hover:bg-[#9b9a97]'
-            }`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// CHAPTER MENU (Tour Map)
-// ─────────────────────────────────────────────
-function ChapterMenu({
-  current,
-  onClose,
-}: {
-  current: number;
-  onClose: () => void;
-}) {
-  const { goToStep } = useDemo();
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: 12 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[10010] w-[calc(100vw-32px)] max-w-md rounded-2xl border border-[#e3e2e0] bg-white/98 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden"
-    >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#e3e2e0] bg-[#fafaf9]">
-        <div className="flex items-center gap-2">
-          <Map className="h-4 w-4 text-[#0f7b6c]" />
-          <span className="text-xs font-bold uppercase tracking-wider text-[#37352f]">BYTE XL Tour Map</span>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close Tour Map"
-          className="rounded-md p-1 text-[#9b9a97] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <div className="py-2 max-h-[60vh] overflow-y-auto divide-y divide-[#f7f6f3]">
-        {TOUR_STEPS.map((step, i) => (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => {
-              goToStep(i);
-              onClose();
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-xs transition cursor-pointer hover:bg-[#f7f6f3] ${
-              i === current
-                ? 'bg-[#0f7b6c]/10 text-[#0f7b6c] font-bold'
-                : 'text-[#787774] hover:text-[#37352f]'
-            }`}
-          >
-            <span className="text-base shrink-0">{step.icon}</span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-[#9b9a97]">Step {i + 1}</span>
-                <span className="font-semibold text-[#37352f] truncate">{step.title}</span>
-              </div>
-              <p className="text-[11px] text-[#787774] truncate">{step.headline}</p>
-            </div>
-            {i < current && (
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[#0f7b6c] text-[10px] font-bold">
-                ✓
-              </span>
-            )}
-            {i === current && (
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#0f7b6c] text-white text-[9px] font-bold">
-                ●
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-// ─────────────────────────────────────────────
 // MAIN GUIDED TOUR COMPONENT
 // ─────────────────────────────────────────────
 export function GuidedTour() {
@@ -296,7 +183,6 @@ export function GuidedTour() {
     goToStep,
   } = useDemo();
 
-  const [showChapterMenu, setShowChapterMenu] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(true);
@@ -349,14 +235,13 @@ export function GuidedTour() {
         e.preventDefault();
         prevTourStep();
       } else if (e.key === 'Escape') {
-        if (showChapterMenu) setShowChapterMenu(false);
-        else setShowDetails((v) => !v);
+        setShowDetails((v) => !v);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tourActive, nextTourStep, prevTourStep, showChapterMenu]);
+  }, [tourActive, nextTourStep, prevTourStep]);
 
   // Measure and smooth-scroll to the targeted section
   const spotlight = useSpotlight(
@@ -485,8 +370,8 @@ export function GuidedTour() {
               <div className="flex items-center justify-between gap-2 mb-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg leading-none">{currentTourStep.icon}</span>
-                  <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                    Step {currentTourStep.stepNumber} of {currentTourStep.totalSteps}
+                  <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                    Guided Tour · Step {currentTourStep.stepNumber}
                   </span>
                   <span className="text-xs font-semibold text-[#787774] truncate hidden sm:inline">
                     {currentTourStep.title}
@@ -582,7 +467,7 @@ export function GuidedTour() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-        className="pointer-events-auto fixed bottom-4 left-1/2 -translate-x-1/2 z-[10005] w-[calc(100vw-24px)] max-w-4xl"
+        className="pointer-events-auto fixed bottom-4 left-1/2 -translate-x-1/2 z-[10005] w-[calc(100vw-24px)] max-w-2xl"
       >
         <div className="rounded-2xl border border-[#e3e2e0] bg-white/95 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.14),0_2px_8px_rgba(0,0,0,0.06)] px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between gap-3">
           {/* Left: Step Badge & Headline */}
@@ -599,8 +484,8 @@ export function GuidedTour() {
 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="rounded-[4px] bg-[#0f7b6c]/10 text-[#0f7b6c] px-1.5 py-0.5 text-[10px] font-bold">
-                  {currentTourStep.stepNumber}/{currentTourStep.totalSteps}
+                <span className="rounded-[4px] bg-[#0f7b6c]/10 text-[#0f7b6c] px-2 py-0.5 text-[10px] font-bold">
+                  Step {currentTourStep.stepNumber}
                 </span>
                 <span className="text-xs font-bold text-[#37352f] truncate">
                   {currentTourStep.title}
@@ -612,28 +497,8 @@ export function GuidedTour() {
             </div>
           </div>
 
-          {/* Center: Progress dots (desktop only) */}
-          <div className="hidden md:flex items-center px-2">
-            <TourProgressDots
-              current={tourStep}
-              total={TOUR_STEPS.length}
-              onGoTo={goToStep}
-            />
-          </div>
-
           {/* Right: Short Navigation Actions */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowChapterMenu((v) => !v)}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#e3e2e0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#787774] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer shadow-2xs"
-              title="View all 12 tour steps"
-              aria-label="View all 12 tour steps"
-            >
-              <Map className="h-3.5 w-3.5 text-[#0f7b6c]" />
-              <span>Tour Map</span>
-            </button>
-
             {!isFirst && (
               <button
                 type="button"
@@ -687,18 +552,6 @@ export function GuidedTour() {
           </div>
         </div>
       </motion.div>
-
-      {/* Tour Map Modal */}
-      <AnimatePresence>
-        {showChapterMenu && (
-          <div className="pointer-events-auto">
-            <ChapterMenu
-              current={tourStep}
-              onClose={() => setShowChapterMenu(false)}
-            />
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

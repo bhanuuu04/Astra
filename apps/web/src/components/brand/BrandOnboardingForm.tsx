@@ -520,7 +520,7 @@ export function BrandOnboardingForm({
          ───────────────────────────────────────────────────────────── */}
       <form onSubmit={handleSubmitForm} className="space-y-6">
         {/* SECTION 1: CORE BRAND IDENTITY */}
-        <div className="bg-white rounded-[12px] border border-[#e3e2e0] p-6 shadow-xs space-y-5">
+        <div data-tour="onboarding-dna" className="bg-white rounded-[12px] border border-[#e3e2e0] p-6 shadow-xs space-y-5">
           <div className="flex items-center justify-between border-b border-[#e3e2e0] pb-3">
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-[#0f7b6c]" />

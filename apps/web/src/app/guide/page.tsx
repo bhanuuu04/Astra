@@ -669,20 +669,6 @@ export default function GuideOnboardingPage() {
 
           {/* Top Actions */}
           <div className="flex items-center gap-2">
-            {isDemoMode && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (goToStep) goToStep(1);
-                  else router.push('/brands');
-                }}
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#0f7b6c] hover:bg-[#0c6357] px-3.5 py-1.5 rounded-lg shadow-xs transition cursor-pointer"
-                title="Advance to Tour Step 2: Brand Baseline Allowlist"
-              >
-                <span>Tour Next Step: Brand Baseline</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            )}
             <button
               type="button"
               onClick={handleManualReset}
@@ -706,65 +692,6 @@ export default function GuideOnboardingPage() {
 
       {/* Main Container */}
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-start">
-        {/* BYTE XL DEMO IN-PAGE NAVIGATION BANNER */}
-        {isDemoMode && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 w-full rounded-2xl border border-[#e3e2e0] bg-white p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20">
-                <Shield className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#37352f]">BYTE XL Judges Demo</span>
-                  <span className="rounded-full bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 px-2 py-0.5 text-[10px] font-bold">
-                    Step 1 of 12: Enrolling Brand DNA
-                  </span>
-                </div>
-                <p className="text-xs text-[#787774] mt-0.5">
-                  NexBank Financial identity is preloaded. Advance to Connected Channels below or jump to the next tour stop.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {step === 1 && (
-                <button
-                  type="button"
-                  onClick={() => handleBrandFormSubmit(brandFormData)}
-                  className="rounded-xl border border-[#e3e2e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#37352f] hover:bg-[#f7f6f3] shadow-2xs transition cursor-pointer"
-                >
-                  <span>Channels (Step 2) →</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (goToStep) goToStep(1);
-                  else router.push('/brands');
-                }}
-                className="flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
-              >
-                <span>Next Tour Step: Brand Baseline (/brands)</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  demo?.exitDemoMode();
-                  router.push('/sign-in');
-                }}
-                className="rounded-xl border border-[#e3e2e0] bg-white px-3 py-1.5 text-xs font-medium text-[#787774] hover:text-[#eb5757] hover:border-rose-200 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
-                title="Exit Demo and return to sign in"
-              >
-                Exit Demo
-              </button>
-            </div>
-          </motion.div>
-        )}
         <AnimatePresence mode="wait">
           {/* STEP 0: ASK CONSUMER LOGIN OR BRAND LOGIN */}
           {step === 0 && (
@@ -788,7 +715,6 @@ export default function GuideOnboardingPage() {
           {/* STEP 1: DETAILED BRAND SETUP FORM WITH AUTO-FETCH & FRAMER MOTION ANIMATION */}
           {step === 1 && (
             <motion.div
-              data-tour="onboarding-dna"
               key="step-1"
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}

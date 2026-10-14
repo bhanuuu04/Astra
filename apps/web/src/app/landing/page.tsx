@@ -84,10 +84,17 @@ export default function LandingPage() {
             <button
               type="button"
               onClick={() => setDemoModalOpen(true)}
-              className="flex items-center gap-1.5 text-[13px] font-bold text-amber-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:brightness-105 active:scale-[0.98] px-3.5 py-1.5 rounded-[6px] shadow-xs border border-amber-400/80 transition-all cursor-pointer"
+              className="group flex items-center gap-2 text-[13px] font-semibold text-[#37352f] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] hover:border-[#0f7b6c]/50 px-3.5 py-1.5 rounded-[6px] shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+              title="Launch BYTE XL Judges Interactive Demo"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-900" />
-              <span>BYTE XL Judges Demo</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f7b6c] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0f7b6c]" />
+              </span>
+              <span>BYTE XL Demo</span>
+              <span className="text-[10px] font-bold text-[#0f7b6c] bg-[#0f7b6c]/10 border border-[#0f7b6c]/20 px-1.5 py-0.5 rounded-[4px]">
+                Live Tour
+              </span>
             </button>
 
             {isSignedIn ? (
@@ -179,47 +186,55 @@ export default function LandingPage() {
             transition={{ ...transitionSmooth, delay: 0.18 }}
             className="flex flex-col items-center justify-center gap-3.5 pt-4"
           >
-            {/* Prominent BYTE XL Judges Demo Button */}
-            <motion.button
-              type="button"
-              onClick={() => setDemoModalOpen(true)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-[10px] bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-extrabold text-[16px] shadow-[0_8px_32px_rgba(245,158,11,0.35)] transition-all cursor-pointer border border-amber-300 ring-4 ring-amber-400/20"
-            >
-              <Sparkles className="w-5 h-5 text-amber-950 animate-pulse" />
-              <span>BYTE XL Judges Demo</span>
-              <span className="text-xs font-bold uppercase tracking-wider bg-amber-950/20 px-2 py-0.5 rounded-full text-amber-950">1-Click Live Tour</span>
-              <ArrowRight className="w-5 h-5 text-amber-950 transition-transform group-hover:translate-x-1" />
-            </motion.button>
-
-            {isSignedIn ? (
-              <Link
-                href="/guide"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[14px] shadow-xs transition active:scale-[0.98]"
+            {/* Unified Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 w-full sm:w-auto">
+              {/* Highlighted BYTE XL Judges Demo Button */}
+              <motion.button
+                type="button"
+                onClick={() => setDemoModalOpen(true)}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-[8px] bg-[#37352f] hover:bg-[#201f1d] text-white font-medium text-[14px] shadow-xs hover:shadow-md transition-all cursor-pointer border border-[#201f1d]"
               >
-                <span>Launch Security Workspace</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                </span>
+                <span className="font-semibold tracking-tight">BYTE XL Judges Demo</span>
+                <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-[4px] tracking-wide">
+                  1-Click Live Tour
+                </span>
+                <ArrowRight className="w-4 h-4 text-slate-300 transition-transform group-hover:translate-x-0.5" />
+              </motion.button>
+
+              {isSignedIn ? (
                 <Link
-                  href="/sign-up?type=brand"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[14px] shadow-xs transition active:scale-[0.98] cursor-pointer"
+                  href="/guide"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[14px] shadow-xs transition active:scale-[0.98]"
                 >
-                  <Building2 className="w-4 h-4" />
-                  <span>Start Brand Protection</span>
+                  <span>Launch Security Workspace</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
-                <Link
-                  href="/sign-in?type=consumer"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-[8px] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-[#37352f] font-medium text-[14px] shadow-xs transition active:scale-[0.98] cursor-pointer"
-                >
-                  <UserCheck className="w-4 h-4 text-[#0f7b6c]" />
-                  <span>Consumer Scam Shield</span>
-                </Link>
-              </div>
-            )}
+              ) : (
+                <>
+                  <Link
+                    href="/sign-up?type=brand"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white font-medium text-[14px] shadow-xs transition active:scale-[0.98] cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>Start Brand Protection</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                  <Link
+                    href="/sign-in?type=consumer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[8px] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] text-[#37352f] font-medium text-[14px] shadow-2xs transition active:scale-[0.98] cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4 text-[#0f7b6c]" />
+                    <span>Consumer Scam Shield</span>
+                  </Link>
+                </>
+              )}
+            </div>
           </motion.div>
 
           {/* Clean metadata strip */}

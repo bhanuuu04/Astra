@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Home,
   Globe,
   Sparkles,
   Building2,
@@ -1229,17 +1231,25 @@ export function BrandOnboardingForm({
             4. FORM ACTIONS & NAVIGATION BAR
            ───────────────────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-          {onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              className="text-xs font-medium text-[#787774] hover:text-[#37352f] transition cursor-pointer py-2 px-3 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3]"
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="text-xs font-medium text-[#787774] hover:text-[#37352f] transition cursor-pointer py-2 px-3 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3]"
+              >
+                ← Back to Account Type
+              </button>
+            )}
+            <Link
+              href="/"
+              className="text-xs font-medium text-[#787774] hover:text-[#37352f] transition cursor-pointer py-2 px-3 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] inline-flex items-center gap-1.5"
+              title="Go back to landing page"
             >
-              ← Back to Account Type
-            </button>
-          ) : (
-            <div />
-          )}
+              <Home className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <span>Landing Page</span>
+            </Link>
+          </div>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <button

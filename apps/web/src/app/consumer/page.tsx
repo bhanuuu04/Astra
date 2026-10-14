@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useUser, UserButton } from '@clerk/nextjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Home,
   Shield,
   Search,
   AlertTriangle,
@@ -364,8 +365,22 @@ export default function ConsumerHubPage() {
   const handleSwitchToBrand = () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('astra_user_role', 'brand');
+      localStorage.setItem('astra_intended_account_type', 'brand');
     }
-    router.push('/guide?step=brand_form');
+    const isOnboarded =
+      typeof window !== 'undefined' &&
+      (localStorage.getItem('astra_onboarding_completed') === 'true' ||
+        Boolean(localStorage.getItem('astra_configured_brand')) ||
+        Boolean(localStorage.getItem('astra_current_brand_dna')));
+
+    showToast('Switching to Brand DRP Workspace...');
+    setTimeout(() => {
+      if (isOnboarded) {
+        router.push('/overview');
+      } else {
+        router.push('/guide?type=brand&step=brand_form');
+      }
+    }, 200);
   };
 
   return (
@@ -393,6 +408,15 @@ export default function ConsumerHubPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs text-[#1d1d1f] hover:text-[#0071e3] font-medium py-1.5 px-3 rounded-full border border-black/[0.08] bg-white hover:bg-[#f5f5f7] transition cursor-pointer shadow-2xs"
+              title="Go back to landing page"
+            >
+              <Home className="w-3.5 h-3.5 text-[#0071e3]" />
+              <span className="hidden sm:inline">Landing Page</span>
+            </Link>
+
             <button
               type="button"
               onClick={() => setIsDirectoryOpen(true)}
@@ -417,11 +441,11 @@ export default function ConsumerHubPage() {
             <button
               type="button"
               onClick={handleSwitchToBrand}
-              className="inline-flex items-center gap-1.5 text-xs text-[#86868b] hover:text-[#1d1d1f] font-medium py-1.5 px-3 rounded-full border border-black/[0.08] bg-white hover:bg-[#f5f5f7] transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs text-[#1d1d1f] hover:text-[#0071e3] font-semibold py-1.5 px-3.5 rounded-full border border-black/[0.08] bg-white hover:bg-[#f5f5f7] transition cursor-pointer shadow-2xs group"
               title="Switch to Brand DRP Workspace"
             >
-              <Building2 className="w-3.5 h-3.5 text-[#0071e3]" />
-              <span className="hidden md:inline">Brand Workspace</span>
+              <Building2 className="w-3.5 h-3.5 text-[#0071e3] transition group-hover:scale-110" />
+              <span>Brand Workspace</span>
             </button>
 
             <UserButton

@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Home,
   Shield,
   CheckCircle2,
   Lock,
@@ -168,7 +170,7 @@ export function CinematicWelcome({
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={{ opacity: 1 }}
       animate={{ opacity: isTransitioningOut ? 0 : 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
@@ -196,7 +198,7 @@ export function CinematicWelcome({
           1. TOP BAR
          ───────────────────────────────────────────────────────────── */}
       <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <Link href="/" title="Back to Landing Page" className="flex items-center gap-3 group cursor-pointer hover:opacity-85 transition">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0f7b6c] to-cyan-500 text-white flex items-center justify-center font-bold text-sm shadow-[0_0_20px_rgba(15,123,108,0.4)]">
             <Shield className="w-4 h-4" />
           </div>
@@ -210,19 +212,31 @@ export function CinematicWelcome({
             </div>
             <p className="text-[10px] text-slate-500 font-medium">Digital Risk Protection Platform</p>
           </div>
-        </div>
+        </Link>
 
-        {/* Skip to Interactive Tour Button */}
-        <motion.button
-          type="button"
-          onClick={handleAdvance}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="group flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/40 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer backdrop-blur-md"
-        >
-          <span>Enter Live Tour</span>
-          <ArrowRight className="w-3.5 h-3.5 text-emerald-400 transition-transform group-hover:translate-x-0.5" />
-        </motion.button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/40 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer backdrop-blur-md"
+            title="Go back to landing page"
+          >
+            <Home className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Landing Page</span>
+          </Link>
+
+          {/* Skip to Interactive Tour Button */}
+          <motion.button
+            type="button"
+            onClick={handleAdvance}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className="group flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/40 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer backdrop-blur-md"
+          >
+            <span>Enter Live Tour</span>
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+          </motion.button>
+        </div>
       </header>
 
       {/* ─────────────────────────────────────────────────────────────

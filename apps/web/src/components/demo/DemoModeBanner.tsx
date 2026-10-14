@@ -24,7 +24,7 @@ export function DemoModeBanner() {
     setMounted(true);
   }, []);
 
-  if (!mounted || !isDemoMode || pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return null;
+  if (!mounted || !isDemoMode || pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up') || pathname.startsWith('/demo')) return null;
 
   const handleExit = () => {
     exitDemoMode();

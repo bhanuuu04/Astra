@@ -26,6 +26,7 @@ import * as z from 'zod';
 import { listBrands, createBrand, resetBrandProfile, getActiveUser, Brand } from '@/lib/api';
 import { QueryErrorState } from '@/components/ui/QueryErrorState';
 import { useDemoSafe } from '@/providers/DemoProvider';
+import { DEMO_BRANDS } from '@/lib/demo-data';
 
 const brandEnrollmentSchema = z.object({
   name: z.string().min(2, 'Brand name must be at least 2 characters'),
@@ -86,7 +87,12 @@ export function BrandRegistryView() {
   };
 
   const demo = useDemoSafe();
-  const isDemoMode = demo?.isDemoMode ?? false;
+  const isDemoMode =
+    demo?.isDemoMode ??
+    (typeof window !== 'undefined' &&
+      (window.location.search.includes('demo=true') ||
+        document.cookie.includes('astra_demo_mode=true') ||
+        localStorage.getItem('astra_demo_mode') === 'true'));
 
   const { data: realBrands = [], isLoading: realLoading, isError: realError, error, refetch } = useQuery({
     queryKey: ['brands'],
@@ -94,7 +100,8 @@ export function BrandRegistryView() {
     enabled: !isDemoMode,
   });
 
-  const brands: Brand[] = isDemoMode ? ((demo?.brands as unknown) as Brand[]) : realBrands;
+  const demoBrands = (demo?.brands && demo.brands.length > 0 ? demo.brands : DEMO_BRANDS) as unknown as Brand[];
+  const brands: Brand[] = isDemoMode ? demoBrands : realBrands;
   const isLoading = isDemoMode ? false : realLoading;
   const isError = isDemoMode ? false : realError;
 

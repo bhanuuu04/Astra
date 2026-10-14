@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion, type Variants } from 'framer-motion';
 import {
   Sparkles,
@@ -9,6 +10,7 @@ import {
   User,
   CheckCircle2,
   ArrowRight,
+  ArrowLeft,
   Lock,
 } from 'lucide-react';
 
@@ -59,6 +61,18 @@ export function AccountTypeSelector({
       animate="visible"
       className="w-full max-w-4xl mx-auto space-y-8"
     >
+      {/* Back to Landing Page link */}
+      <motion.div variants={itemVariants} className="flex items-center justify-start -mb-3">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#37352f] font-medium transition py-1.5 px-2.5 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3]"
+          title="Go back to landing page"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Landing Page</span>
+        </Link>
+      </motion.div>
+
       {/* Header Banner */}
       <motion.div variants={itemVariants} className="text-center space-y-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[6px] bg-[#0f7b6c]/10 border border-[#0f7b6c]/25 text-[#0f7b6c] text-xs font-semibold">

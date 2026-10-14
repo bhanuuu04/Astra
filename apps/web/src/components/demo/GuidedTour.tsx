@@ -165,14 +165,9 @@ function useSpotlight(selector?: string, padding = 12, enabled = true) {
       const el = document.querySelector(selector) as HTMLElement | null;
 
       if (el && isMounted) {
-        const r = el.getBoundingClientRect();
-        const absoluteTop = r.top + window.scrollY;
-        const targetScrollY = Math.max(0, absoluteTop - (window.innerHeight - r.height) / 2);
-
-        window.scrollTo({
-          top: targetScrollY,
-          behavior: 'smooth',
-        });
+        try {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch {}
 
         const updateRect = () => {
           if (!isMounted) return;
@@ -406,6 +401,8 @@ export function GuidedTour() {
     isSpotlightEnabled
   );
 
+  const navigatingToRouteRef = useRef<string | null>(null);
+
   // Directly handle next step with coordinated cinematic sequence
   const handleNext = () => {
     if (tourStep >= TOUR_STEPS.length - 1) {
@@ -435,6 +432,7 @@ export function GuidedTour() {
       });
 
       setTourPhase('cinematic_intro');
+      navigatingToRouteRef.current = targetStep.route;
 
       // 2. Preload and navigate route in background
       router.push(targetStep.route + '?demo=true');
@@ -452,6 +450,7 @@ export function GuidedTour() {
     if (!targetStep) return;
 
     if (targetStep.route !== pathname) {
+      navigatingToRouteRef.current = targetStep.route;
       router.push(targetStep.route + '?demo=true');
     }
     goToStep(prevIdx);
@@ -462,7 +461,7 @@ export function GuidedTour() {
     setTourPhase('page_entering');
     setTimeout(() => {
       setTourPhase('idle');
-    }, 280);
+    }, 200);
   };
 
   // Keyboard navigation
@@ -496,12 +495,24 @@ export function GuidedTour() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [tourActive, tourStep, tourPhase, pathname]);
 
-  // Keep tour step aligned if user navigated directly
+  // Keep tour step aligned if user navigated directly outside the tour
   useEffect(() => {
     if (!tourActive) return;
-    const stepOnRoute = TOUR_STEPS.findIndex((s) => s.route === pathname);
-    if (stepOnRoute !== -1 && TOUR_STEPS[tourStep]?.route !== pathname) {
-      goToStep(stepOnRoute);
+
+    // If an in-flight tour navigation is happening, check if we reached destination
+    if (navigatingToRouteRef.current) {
+      if (pathname === navigatingToRouteRef.current) {
+        navigatingToRouteRef.current = null;
+      }
+      return; // Do not clobber tourStep during tour-driven navigation!
+    }
+
+    // Only sync if user manually navigated to another route
+    if (TOUR_STEPS[tourStep]?.route !== pathname) {
+      const stepOnRoute = TOUR_STEPS.findIndex((s) => s.route === pathname);
+      if (stepOnRoute !== -1) {
+        goToStep(stepOnRoute);
+      }
     }
   }, [pathname, tourActive, tourStep, goToStep]);
 

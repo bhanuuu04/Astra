@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Home,
   Share2,
   CheckCircle2,
   Sparkles,
@@ -656,13 +658,23 @@ export function SocialChannelsStep({
           5. BOTTOM STEP NAVIGATION
          ───────────────────────────────────────────────────────────── */}
       <div className="pt-4 border-t border-[#e3e2e0] flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-3.5 py-2 text-xs font-medium text-[#787774] hover:text-[#37352f] rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] transition cursor-pointer"
-        >
-          ← Back to Brand Form
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-3.5 py-2 text-xs font-medium text-[#787774] hover:text-[#37352f] rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] transition cursor-pointer"
+          >
+            ← Back to Brand Form
+          </button>
+          <Link
+            href="/"
+            className="text-xs font-medium text-[#787774] hover:text-[#37352f] transition cursor-pointer py-2 px-3 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] inline-flex items-center gap-1.5"
+            title="Go back to landing page"
+          >
+            <Home className="w-3.5 h-3.5 text-[#0f7b6c]" />
+            <span>Landing Page</span>
+          </Link>
+        </div>
 
         <button
           type="button"

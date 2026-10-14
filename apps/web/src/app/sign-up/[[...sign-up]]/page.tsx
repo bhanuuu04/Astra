@@ -239,7 +239,7 @@ export default function SignUpPage() {
           className="text-xs font-medium text-[#787774] hover:text-[#37352f] flex items-center gap-1.5 transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to product</span>
+          <span>Back to landing page</span>
         </Link>
       </div>
 

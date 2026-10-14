@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Home,
   Shield,
   Globe,
   CheckCircle2,
@@ -192,7 +194,13 @@ export default function GuideOnboardingPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    if (isDemoMode) {
+    const isDemo =
+      isDemoMode ||
+      window.location.search.includes('demo=true') ||
+      document.cookie.includes('astra_demo_mode=true') ||
+      localStorage.getItem('astra_demo_mode') === 'true';
+
+    if (isDemo) {
       setSelectedRole('brand');
       setStep(1);
       setBrandFormData({
@@ -642,8 +650,8 @@ export default function GuideOnboardingPage() {
          ───────────────────────────────────────────────────────────── */}
       <header className="border-b border-[#e3e2e0] bg-white/95 backdrop-blur-md sticky top-0 z-40 px-6 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-[6px] bg-[#37352f] text-white flex items-center justify-center font-bold text-sm shadow-xs">
+          <Link href="/" title="Back to Landing Page" className="flex items-center gap-3 hover:opacity-85 transition group cursor-pointer">
+            <div className="h-8 w-8 rounded-[6px] bg-[#37352f] text-white flex items-center justify-center font-bold text-sm shadow-xs group-hover:bg-[#0f7b6c] transition-colors">
               A
             </div>
             <div>
@@ -655,7 +663,7 @@ export default function GuideOnboardingPage() {
               </div>
               <p className="text-[11px] text-[#787774]">Digital Risk Protection Onboarding</p>
             </div>
-          </div>
+          </Link>
 
           {/* Stepper Indicators */}
           <div className="hidden md:flex items-center gap-2 text-xs font-medium">
@@ -701,6 +709,14 @@ export default function GuideOnboardingPage() {
 
           {/* Top Actions */}
           <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#37352f] font-medium transition py-1.5 px-2.5 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3]"
+              title="Go back to landing page"
+            >
+              <Home className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <span>Landing Page</span>
+            </Link>
             <button
               type="button"
               onClick={handleManualReset}

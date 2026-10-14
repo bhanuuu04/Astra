@@ -24,6 +24,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useDemo, TOUR_STEPS, type TourStep } from '@/providers/DemoProvider';
+import { FeatureInterstitial } from './FeatureInterstitial';
+import { TourCompletionModal } from './TourCompletionModal';
 
 // ─────────────────────────────────────────────
 // GENERATIVE STREAMING TEXT COMPONENT
@@ -190,10 +192,30 @@ export function GuidedTour() {
 
   const [showDetails, setShowDetails] = useState(true);
   const [isSynthesizing, setIsSynthesizing] = useState(true);
+  const [visitedRoutes, setVisitedRoutes] = useState<Set<string>>(new Set());
+  const [interstitialRoute, setInterstitialRoute] = useState<string | null>(null);
+  const [interstitialOpen, setInterstitialOpen] = useState(false);
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+
+  // Feature-to-Feature cinematic interstitials on first visit to each route
+  useEffect(() => {
+    if (!tourActive || !pathname) return;
+    const baseRoute = pathname.startsWith('/campaigns/') ? '/campaigns' : pathname.split('?')[0];
+    if (!visitedRoutes.has(baseRoute)) {
+      setVisitedRoutes((prev) => new Set(prev).add(baseRoute));
+      setInterstitialRoute(baseRoute);
+      setInterstitialOpen(true);
+    }
+  }, [pathname, tourActive, visitedRoutes]);
 
   // Directly handle next step with instant route transition
   const handleNext = () => {
-    const nextIdx = Math.min(tourStep + 1, TOUR_STEPS.length - 1);
+    if (tourStep >= TOUR_STEPS.length - 1) {
+      setCompletionModalOpen(true);
+      return;
+    }
+
+    const nextIdx = tourStep + 1;
     const targetStep = TOUR_STEPS[nextIdx];
     if (!targetStep) return;
 
@@ -244,7 +266,11 @@ export function GuidedTour() {
 
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        handleNext();
+        if (tourStep >= TOUR_STEPS.length - 1) {
+          setCompletionModalOpen(true);
+        } else {
+          handleNext();
+        }
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         handlePrev();
@@ -490,13 +516,13 @@ export function GuidedTour() {
             {isLast ? (
               <motion.button
                 type="button"
-                onClick={handleExitDemo}
+                onClick={() => setCompletionModalOpen(true)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
               >
-                <Shield className="h-3.5 w-3.5" />
-                <span>Finish &amp; Sign In</span>
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Finish &amp; Review</span>
               </motion.button>
             ) : (
               <motion.button
@@ -527,6 +553,27 @@ export function GuidedTour() {
           </div>
         </div>
       </motion.div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          5. FEATURE INTERSTITIAL & TOUR COMPLETION MODALS
+         ───────────────────────────────────────────────────────────── */}
+      <FeatureInterstitial
+        route={interstitialRoute || pathname}
+        isOpen={interstitialOpen}
+        onDismiss={() => setInterstitialOpen(false)}
+      />
+
+      <TourCompletionModal
+        isOpen={completionModalOpen}
+        onClose={() => setCompletionModalOpen(false)}
+        onRestartTour={() => {
+          goToStep(0);
+          const firstStep = TOUR_STEPS[0];
+          if (firstStep && firstStep.route !== pathname) {
+            router.push(firstStep.route + '?demo=true');
+          }
+        }}
+      />
     </div>
   );
 }

@@ -52,7 +52,7 @@ export interface BrandFormData {
   confidenceScore?: number;
 }
 
-const PRESET_DOMAINS = ['stripe.com', 'linear.app', 'nilapay.com', 'apple.com', 'vercel.com'];
+const PRESET_DOMAINS = ['stripe.com', 'apple.com', 'spotify.com', 'tesla.com', 'amazon.com'];
 
 const INDUSTRY_OPTIONS = [
   'Fintech & Digital Payments',
@@ -553,7 +553,7 @@ export function BrandOnboardingForm({
                 key={`brandName-${animationTriggerKey}`}
                 type="text"
                 required
-                placeholder="e.g. Stripe, Linear, Nilapay"
+                placeholder="e.g. Apple, Spotify, Stripe"
                 value={formData.brandName}
                 onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
                 animate={

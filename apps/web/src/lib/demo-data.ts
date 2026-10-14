@@ -105,6 +105,48 @@ export const DEMO_BRANDS = [
       },
     ],
   },
+  {
+    id: 'demo-brand-vercel',
+    tenant_id: DEMO_TENANT.id,
+    name: 'Vercel',
+    status: 'active',
+    created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+    assets: [
+      {
+        id: 'asset-vc-domain',
+        brand_id: 'demo-brand-vercel',
+        asset_type: 'domain',
+        canonical_value: 'vercel.com',
+        verification_status: 'verified' as const,
+        verification_method: 'dns_txt',
+        verified_at: new Date(Date.now() - 86400000 * 42).toISOString(),
+        verified_by: 'system',
+        created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+      },
+      {
+        id: 'asset-vc-twitter',
+        brand_id: 'demo-brand-vercel',
+        asset_type: 'social_handle',
+        canonical_value: '@vercel',
+        verification_status: 'verified' as const,
+        verification_method: 'oauth',
+        verified_at: new Date(Date.now() - 86400000 * 41).toISOString(),
+        verified_by: 'system',
+        created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+      },
+      {
+        id: 'asset-vc-ig',
+        brand_id: 'demo-brand-vercel',
+        asset_type: 'social_handle',
+        canonical_value: '@vercel_official',
+        verification_status: 'verified' as const,
+        verification_method: 'oauth',
+        verified_at: new Date(Date.now() - 86400000 * 40).toISOString(),
+        verified_by: 'system',
+        created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+      },
+    ],
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -116,6 +158,119 @@ const hours = (n: number) => new Date(now - n * 3600000).toISOString();
 const days = (n: number) => new Date(now - n * 86400000).toISOString();
 
 export const DEMO_SIGHTINGS = [
+  {
+    id: 'demo-sight-vc-001',
+    tenant_id: DEMO_TENANT.id,
+    brand_id: 'demo-brand-vercel',
+    surface: 'web_domain',
+    source_kind: 'domain_monitor',
+    observed_at: mins(12),
+    raw_ref: 'vercellll.co',
+    normalized_payload: {
+      domain: 'vercellll.co',
+      target_url: 'https://vercellll.co/login',
+      whois_url: 'https://who.is/whois/vercellll.co',
+      ips: ['104.21.32.189', '172.67.144.22'],
+      threat_analysis: {
+        risk_score: 0.98,
+        summary: '[SYNTHETIC THREAT · DEMO] Active typosquatting domain replicating Vercel dashboard login. Harvesting developer deployment tokens and GitHub OAuth tokens.',
+        indicators: [
+          { title: 'Typosquat Domain (Levenshtein=3)', severity: 'critical' },
+          { title: 'Credential Harvester Phishing Form', severity: 'critical' },
+          { title: 'Registered via Anonymous Offshore Registrar', severity: 'high' },
+        ],
+        categories: ['phishing_link', 'credential_harvesting'],
+        severity: 'critical',
+      },
+    },
+    created_at: mins(12),
+  },
+  {
+    id: 'demo-sight-vc-002',
+    tenant_id: DEMO_TENANT.id,
+    brand_id: 'demo-brand-vercel',
+    surface: 'web_domain',
+    source_kind: 'domain_monitor',
+    observed_at: mins(35),
+    raw_ref: 'verce.lo',
+    normalized_payload: {
+      domain: 'verce.lo',
+      target_url: 'https://verce.lo/install.sh',
+      whois_url: 'https://who.is/whois/verce.lo',
+      ips: ['198.54.117.200'],
+      threat_analysis: {
+        risk_score: 0.96,
+        summary: '[SYNTHETIC THREAT · DEMO] Combo-squatting domain mimicking Vercel CLI documentation. Distributing trojanized curl bash installer that exfiltrates environment variables.',
+        indicators: [
+          { title: 'Combosquat Lookalike Domain', severity: 'critical' },
+          { title: 'Malicious Dropper Script Detected', severity: 'critical' },
+          { title: 'Targeting Developer Workstations', severity: 'high' },
+        ],
+        categories: ['malicious_download', 'brand_impersonation'],
+        severity: 'critical',
+      },
+    },
+    created_at: mins(35),
+  },
+  {
+    id: 'demo-sight-vc-003',
+    tenant_id: DEMO_TENANT.id,
+    brand_id: 'demo-brand-vercel',
+    surface: 'web_domain',
+    source_kind: 'domain_monitor',
+    observed_at: hours(3),
+    raw_ref: 'vercelsupport.co',
+    normalized_payload: {
+      domain: 'vercelsupport.co',
+      target_url: 'https://vercelsupport.co',
+      whois_url: 'https://who.is/whois/vercelsupport.co',
+      ips: ['185.220.101.99'],
+      threat_analysis: {
+        risk_score: 0.94,
+        summary: '[SYNTHETIC THREAT · DEMO] Fake support portal claiming deployment quota suspensions to harvest Vercel Access Tokens and enterprise SSO credentials.',
+        indicators: [
+          { title: 'Lookalike Keyword Addition: [support]', severity: 'high' },
+          { title: 'Social Engineering Phishing Portal', severity: 'critical' },
+          { title: 'C2 IP Cluster Correlated (ShadowBank Network)', severity: 'high' },
+        ],
+        categories: ['credential_harvesting', 'brand_impersonation'],
+        severity: 'high',
+      },
+    },
+    created_at: hours(3),
+  },
+  {
+    id: 'demo-sight-vc-004',
+    tenant_id: DEMO_TENANT.id,
+    brand_id: 'demo-brand-vercel',
+    surface: 'x_twitter_profile',
+    source_kind: 'social_monitor',
+    observed_at: hours(5),
+    raw_ref: '@vercel_support_bot',
+    normalized_payload: {
+      sender: {
+        username: 'vercel_support_bot',
+        displayName: 'Vercel Deployment Support',
+        followerCount: 34,
+        followingCount: 3820,
+        accountCreatedAt: days(2),
+        isVerifiedBadge: false,
+        isFakeBadgeEmoji: true,
+        bio: 'Automated Vercel Build & DNS Resolution Assistant. DM error logs to restore deployments.',
+      },
+      threat_analysis: {
+        risk_score: 0.92,
+        summary: '[SYNTHETIC THREAT · DEMO] Fake automated bot on X intercepting public tweets containing "vercel deployment error" to lure developers into phishing DMs.',
+        indicators: [
+          { title: 'Lookalike Username Impersonating Official Bot', severity: 'critical' },
+          { title: 'Active Mention Monitoring & Reply Hijacking', severity: 'high' },
+        ],
+        categories: ['brand_impersonation', 'social_engineering'],
+        severity: 'high',
+      },
+    },
+    created_at: hours(5),
+  },
   {
     id: 'demo-sight-001',
     tenant_id: DEMO_TENANT.id,
@@ -801,7 +956,7 @@ export const DEMO_RESPONSE_CASES = [
 // OVERVIEW STATS
 // ─────────────────────────────────────────────
 export const DEMO_OVERVIEW = {
-  brands: 2,
+  brands: 3,
   sightings: DEMO_SIGHTINGS.length,
   active_campaigns: 5,
   high_risk_campaigns: 3,

@@ -49,9 +49,7 @@ export default function LandingPage() {
   const [demoModalOpen, setDemoModalOpen] = useState(false);
 
   const handleDirectDemoTour = () => {
-    demo?.enterDemoMode();
-    demo?.startTour();
-    router.push('/guide');
+    router.push('/demo');
   };
   
   // Interactive product demo tab

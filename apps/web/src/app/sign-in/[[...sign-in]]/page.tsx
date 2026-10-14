@@ -171,9 +171,7 @@ export default function SignInPage() {
   const [portalMode, setPortalMode] = useState<'brand' | 'consumer'>('brand');
 
   const handleJudgesFastTrack = () => {
-    demo?.enterDemoMode();
-    demo?.startTour();
-    router.push('/guide');
+    router.push('/demo');
   };
 
   React.useEffect(() => {

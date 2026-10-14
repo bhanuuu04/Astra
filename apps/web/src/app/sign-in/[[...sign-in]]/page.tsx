@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ShieldCheck, Sparkles, Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck, Sparkles, Mail, Lock, AlertCircle, Loader2, Zap } from "lucide-react";
 import { ClerkErrorBoundary } from "@/components/auth/ClerkErrorBoundary";
 import { loginUser, registerUser } from "@/lib/api";
+import { useDemoSafe } from "@/providers/DemoProvider";
 
 function NativeSignInForm() {
   const router = useRouter();
@@ -157,6 +158,8 @@ function NativeSignInForm() {
 }
 
 export default function SignInPage() {
+  const router = useRouter();
+  const demo = useDemoSafe();
   const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
   const isClerkConfigured = Boolean(
     clerkKey && 
@@ -166,6 +169,12 @@ export default function SignInPage() {
   );
 
   const [portalMode, setPortalMode] = useState<'brand' | 'consumer'>('brand');
+
+  const handleJudgesFastTrack = () => {
+    demo?.enterDemoMode();
+    demo?.startTour();
+    router.push('/guide');
+  };
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -213,6 +222,28 @@ export default function SignInPage() {
 
       {/* Main Centered Sign-In Container */}
       <div className="w-full flex flex-col items-center justify-center py-6 sm:py-10 space-y-5">
+        {/* BYTE XL Judges Fast-Track Demo (Zero Login Required) */}
+        <div className="w-full max-w-[420px] rounded-xl border border-[#0f7b6c]/30 bg-white p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f7b6c] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#0f7b6c]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#37352f] truncate">BYTE XL Judges Evaluation</p>
+              <p className="text-[11px] text-[#787774] truncate">No account or login required</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleJudgesFastTrack}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[#0f7b6c] hover:bg-[#0b5e52] text-white text-xs font-semibold shadow-xs transition active:scale-[0.98] cursor-pointer"
+          >
+            <span>Enter Tour</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         {/* Portal Mode Switcher */}
         <div className="w-full max-w-[420px] bg-white rounded-[10px] border border-[#e3e2e0] p-1.5 shadow-2xs flex items-center gap-1">
           <button

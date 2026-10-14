@@ -124,7 +124,11 @@ export function AppShell({ children }: AppShellProps) {
   // Client-side authentication guard: enforce login on all protected dashboard routes
   // Skip if demo mode is active — demo has its own localStorage session
   React.useEffect(() => {
-    if (isDemoMode) return; // Demo mode bypasses auth
+    const isDemoActive =
+      isDemoMode ||
+      (typeof document !== 'undefined' && document.cookie.includes('astra_demo_mode=true')) ||
+      (typeof window !== 'undefined' && (window.location.search.includes('demo=true') || window.location.pathname.startsWith('/demo')));
+    if (isDemoActive) return; // Demo mode bypasses auth completely
     const hasLocalAuth = !clerkAuthConfigured && Boolean(getActiveUser() && getAuthToken());
     if (isAuthLoaded && !(clerkAuthConfigured ? isSignedIn : hasLocalAuth) && !isStandalonePage) {
       window.location.href = '/sign-in';

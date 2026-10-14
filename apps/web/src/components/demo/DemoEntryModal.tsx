@@ -204,13 +204,13 @@ export function DemoEntryModal({
                 {/* CTA */}
                 <motion.button
                   type="button"
-                  onClick={handleLaunch}
+                  onClick={handleEnter}
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] py-3 text-sm font-bold text-white shadow-xs transition-colors cursor-pointer"
                 >
                   <Zap className="h-4 w-4" />
-                  Launch Interactive Demo Tour
+                  Enter Interactive Demo Tour Directly
                   <ArrowRight className="h-4 w-4" />
                 </motion.button>
 

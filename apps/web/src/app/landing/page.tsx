@@ -28,21 +28,31 @@ import {
   Shield,
   MessageSquare,
   Share2,
-  Building2
+  Building2,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAuth, UserButton } from '@clerk/nextjs';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { type AuthResponse } from '@/lib/api';
 import { DemoEntryModal } from '@/components/demo/DemoEntryModal';
+import { useDemoSafe } from '@/providers/DemoProvider';
 
 // Motion physics: 180ms ease-out matching Notion design language
 const transitionQuick = { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const };
 const transitionSmooth = { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const };
 
 export default function LandingPage() {
+  const router = useRouter();
+  const demo = useDemoSafe();
   const { isSignedIn } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
+
+  const handleDirectDemoTour = () => {
+    demo?.enterDemoMode();
+    demo?.startTour();
+    router.push('/guide');
+  };
   
   // Interactive product demo tab
   const [activeDemoTab, setActiveDemoTab] = useState<'radar' | 'dms' | 'dna' | 'nim'>('radar');
@@ -83,9 +93,9 @@ export default function LandingPage() {
           <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setDemoModalOpen(true)}
+              onClick={handleDirectDemoTour}
               className="group flex items-center gap-2 text-[13px] font-semibold text-[#37352f] bg-white hover:bg-[#f7f6f3] border border-[#e3e2e0] hover:border-[#0f7b6c]/50 px-3.5 py-1.5 rounded-[6px] shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
-              title="Launch BYTE XL Judges Interactive Demo"
+              title="Launch BYTE XL Judges Interactive Demo directly without login"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f7b6c] opacity-75" />
@@ -191,10 +201,11 @@ export default function LandingPage() {
               {/* Highlighted BYTE XL Judges Demo Button */}
               <motion.button
                 type="button"
-                onClick={() => setDemoModalOpen(true)}
+                onClick={handleDirectDemoTour}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-[8px] bg-[#37352f] hover:bg-[#201f1d] text-white font-medium text-[14px] shadow-xs hover:shadow-md transition-all cursor-pointer border border-[#201f1d]"
+                title="Launch BYTE XL Judges Interactive Demo directly without login"
               >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />

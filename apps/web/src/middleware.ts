@@ -10,10 +10,21 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/consumer(.*)',
+  '/demo(.*)',
   '/api/(.*)'
 ]);
 
 const clerkHandler = clerkMiddleware(async (auth, request) => {
+  // If in demo mode (cookie, search param, or /demo route), allow judges directly in with no login!
+  const isDemo =
+    request.cookies.get('astra_demo_mode')?.value === 'true' ||
+    request.nextUrl.searchParams.get('demo') === 'true' ||
+    request.nextUrl.pathname.startsWith('/demo');
+
+  if (isDemo) {
+    return NextResponse.next();
+  }
+
   // If user is trying to access protected pages without signing in, redirect to /sign-in
   if (!isPublicRoute(request)) {
     const { userId } = await auth();

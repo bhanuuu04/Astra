@@ -318,7 +318,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     try {
-      return localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
+      const stored = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
+      const hasCookie = typeof document !== 'undefined' && document.cookie.includes('astra_demo_mode=true');
+      const hasParam = window.location.search.includes('demo=true') || window.location.pathname.startsWith('/demo');
+      return stored || hasCookie || hasParam;
     } catch {
       return false;
     }
@@ -380,10 +383,21 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('astra_auth_token', 'demo-token-bytexl-2026');
       localStorage.setItem('astra_onboarding_completed', 'true');
     }
+    if (typeof document !== 'undefined') {
+      document.cookie = 'astra_demo_mode=true; path=/; max-age=86400; SameSite=Lax';
+    }
     setIsDemoMode(true);
     setTourStep(0);
     setTourActive(true);
   }, []);
+
+  // Auto-activate demo mode if URL contains demo=true or is on /demo route
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.search.includes('demo=true') || window.location.pathname.startsWith('/demo')) {
+      enterDemoMode();
+    }
+  }, [enterDemoMode]);
 
   const exitDemoMode = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -399,6 +413,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('astra_intended_account_type');
       localStorage.removeItem('astra_current_brand_dna');
       localStorage.removeItem('astra_configured_brand');
+    }
+    if (typeof document !== 'undefined') {
+      document.cookie = 'astra_demo_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     }
     setIsDemoMode(false);
     setTourActive(false);

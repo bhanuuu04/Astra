@@ -580,57 +580,44 @@ export default function GuideOnboardingPage() {
 
           {/* Stepper Indicators */}
           <div className="hidden md:flex items-center gap-2 text-xs font-medium">
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border transition ${
-                step === 0
-                  ? 'bg-[#0f7b6c]/10 border-[#0f7b6c]/30 text-[#0f7b6c] font-semibold'
-                  : 'bg-white border-[#e3e2e0] text-[#787774]'
-              }`}
-            >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                step === 0 ? 'bg-[#0f7b6c] text-white' : 'bg-[#e3e2e0] text-[#787774]'
-              }`}>1</span>
-              <span>Account Type</span>
-            </div>
-            <div className="w-3 h-px bg-[#e3e2e0]" />
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border transition ${
-                step === 1
-                  ? 'bg-[#0f7b6c]/10 border-[#0f7b6c]/30 text-[#0f7b6c] font-semibold'
-                  : 'bg-white border-[#e3e2e0] text-[#787774]'
-              }`}
-            >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                step === 1 ? 'bg-[#0f7b6c] text-white' : 'bg-[#e3e2e0] text-[#787774]'
-              }`}>2</span>
-              <span>Brand Profile</span>
-            </div>
-            <div className="w-3 h-px bg-[#e3e2e0]" />
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border transition ${
-                step === 2
-                  ? 'bg-[#0f7b6c]/10 border-[#0f7b6c]/30 text-[#0f7b6c] font-semibold'
-                  : 'bg-white border-[#e3e2e0] text-[#787774]'
-              }`}
-            >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                step === 2 ? 'bg-[#0f7b6c] text-white' : 'bg-[#e3e2e0] text-[#787774]'
-              }`}>3</span>
-              <span>Connect Channels</span>
-            </div>
-            <div className="w-3 h-px bg-[#e3e2e0]" />
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border transition ${
-                step === 3
-                  ? 'bg-[#0f7b6c]/10 border-[#0f7b6c]/30 text-[#0f7b6c] font-semibold'
-                  : 'bg-white border-[#e3e2e0] text-[#787774]'
-              }`}
-            >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                step === 3 ? 'bg-[#0f7b6c] text-white' : 'bg-[#e3e2e0] text-[#787774]'
-              }`}>4</span>
-              <span>AI Verification</span>
-            </div>
+            {[
+              { idx: 0, label: 'Account Type' },
+              { idx: 1, label: 'Brand Profile' },
+              { idx: 2, label: 'Connect Channels' },
+              { idx: 3, label: 'AI Verification' },
+            ].map((s, i, arr) => {
+              const isCompleted = step > s.idx;
+              const isCurrent = step === s.idx;
+              return (
+                <React.Fragment key={s.idx}>
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border transition-all ${
+                      isCurrent
+                        ? 'bg-[#0f7b6c]/10 border-[#0f7b6c]/40 text-[#0f7b6c] font-semibold shadow-2xs'
+                        : isCompleted
+                        ? 'bg-emerald-50/70 border-emerald-200 text-[#0f7b6c] font-medium'
+                        : 'bg-white border-[#e3e2e0] text-[#9b9a97]'
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        isCurrent
+                          ? 'bg-[#0f7b6c] text-white shadow-xs'
+                          : isCompleted
+                          ? 'bg-[#0f7b6c] text-white'
+                          : 'bg-[#e3e2e0] text-[#787774]'
+                      }`}
+                    >
+                      {isCompleted ? <Check className="w-2.5 h-2.5 stroke-[2.5]" /> : s.idx + 1}
+                    </span>
+                    <span>{s.label}</span>
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className={`w-3.5 h-px transition-colors ${isCompleted ? 'bg-[#0f7b6c]' : 'bg-[#e3e2e0]'}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
 
           {/* Top Actions */}
@@ -739,124 +726,237 @@ export default function GuideOnboardingPage() {
           {step === 3 && (
             <motion.div
               key="step-3"
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4 }}
-              className="w-full max-w-xl mx-auto py-4 sm:py-8 space-y-8 text-center relative"
+              className="w-full max-w-2xl mx-auto py-2 sm:py-6"
             >
-              <div className="space-y-4">
-                <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+              <div className="rounded-[16px] border border-[#e3e2e0] bg-white p-6 sm:p-9 shadow-[0_12px_40px_rgba(0,0,0,0.04)] relative overflow-hidden space-y-7">
+                {/* Subtle top ambient radial glow */}
+                <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-96 h-64 bg-[radial-gradient(ellipse_at_center,rgba(15,123,108,0.12),transparent_70%)]" />
+
+                {/* Hero Beacon & Status Pill */}
+                <div className="text-center space-y-3.5 relative">
+                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                    <motion.div
+                      animate={{ scale: [1, 1.32, 1], opacity: [0.55, 0, 0.55] }}
+                      transition={{ repeat: Infinity, duration: 2.6, ease: 'easeInOut' }}
+                      className="absolute inset-0 rounded-full border-2 border-[#0f7b6c]/30"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.16, 1], opacity: [0.35, 0.08, 0.35] }}
+                      transition={{ repeat: Infinity, duration: 2.6, ease: 'easeInOut', delay: 0.3 }}
+                      className="absolute inset-1.5 rounded-full bg-[#0f7b6c]/10"
+                    />
+                    <div className="relative w-14 h-14 rounded-2xl bg-[#37352f] text-white flex items-center justify-center shadow-[0_8px_24px_rgba(15,123,108,0.28)] border border-white/20">
+                      <Shield className="w-7 h-7 text-[#0f7b6c]" />
+                      <span className="absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#37352f] animate-pulse" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#0f7b6c]/10 border border-[#0f7b6c]/25 text-xs text-[#0f7b6c] shadow-2xs">
+                      <Lock className="w-3 h-3 text-[#0f7b6c]" />
+                      <span className="font-mono font-semibold">https://{cleanDomain}</span>
+                      <span className="text-[#0f7b6c]/40">•</span>
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-[11px] text-[#0f7b6c]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0f7b6c] animate-ping" />
+                        Active Sentinel Defense
+                      </span>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#37352f]">
+                      Verifying Brand Integrity
+                    </h1>
+
+                    <p className="text-xs sm:text-sm text-[#787774] max-w-lg mx-auto leading-relaxed">
+                      Establishing cryptographic invariants, isolating tenant perimeter space, and deploying NVIDIA Nemotron-3.5 threat detection.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live Progress Bar Header */}
+                <div className="space-y-2 pt-2 border-t border-[#f0efed] relative">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[#37352f] flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-[#0f7b6c]" />
+                      <span>Security Pipeline Progress</span>
+                    </span>
+                    <span className="font-mono font-bold text-[#0f7b6c] bg-[#0f7b6c]/10 border border-[#0f7b6c]/20 px-2 py-0.5 rounded-[4px]">
+                      Stage {processingStage} of 5 · {Math.min(processingStage * 20, 100)}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-[#f7f6f3] border border-[#e3e2e0] p-0.5 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-gradient-to-r from-[#0f7b6c] via-[#2eaadc] to-[#0f7b6c]"
+                      initial={{ width: '20%' }}
+                      animate={{ width: `${Math.min(processingStage * 20, 100)}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Pipeline Steps with Connected Visual Timeline */}
+                <div className="relative space-y-2.5 pt-1">
+                  {/* Vertical connecting line */}
+                  <div className="absolute left-4 sm:left-5 top-5 bottom-5 w-0.5 bg-[#e3e2e0] -translate-x-1/2 z-0" />
+
+                  {[
+                    {
+                      step: 1,
+                      title: `Resolving perimeter for ${cleanDomain}`,
+                      subtitle: 'HTTPS certificate chain, DNS TXT challenge records & nameserver authority verified',
+                      badgeDone: 'DNS VERIFIED',
+                      badgeActive: 'RESOLVING...',
+                    },
+                    {
+                      step: 2,
+                      title: 'Storing Brand DNA in Supabase Database',
+                      subtitle: 'Partitioning tenant workspace, registering baseline digital assets & identity rules',
+                      badgeDone: 'RLS PARTITIONED',
+                      badgeActive: 'STORING DNA...',
+                    },
+                    {
+                      step: 3,
+                      title: 'Configuring Inbound Social & App Monitors',
+                      subtitle: 'Armed telemetry connectors across Meta Graph, X Enterprise, Google Play & Telegram',
+                      badgeDone: 'CHANNELS LINKED',
+                      badgeActive: 'CONFIGURING...',
+                    },
+                    {
+                      step: 4,
+                      title: 'NVIDIA Nemotron 3.5 AI Synthesis',
+                      subtitle: 'Synthesizing defensive dictionary, homoglyphs, brand typosquats & threat patterns',
+                      badgeDone: 'AI MODEL ARMED',
+                      badgeActive: 'SYNTHESIZING...',
+                    },
+                    {
+                      step: 5,
+                      title: 'Protection Active · Entering Command Center',
+                      subtitle: 'All perimeter guards active — Initializing ASTRA Brand Sentinel Command Center',
+                      badgeDone: 'LIVE DEFENSE',
+                      badgeActive: 'ACTIVATING...',
+                    },
+                  ].map((item) => {
+                    const isDone = processingStage > item.step || (item.step === 5 && processingStage >= 5);
+                    const isActive = processingStage === item.step && !(item.step === 5 && processingStage >= 5);
+
+                    return (
+                      <div
+                        key={item.step}
+                        className={`relative z-10 flex items-start gap-3.5 p-3 rounded-[10px] border transition-all duration-300 ${
+                          isActive
+                            ? 'bg-[#0f7b6c]/5 border-[#0f7b6c]/30 shadow-2xs'
+                            : isDone
+                            ? 'bg-white border-[#e3e2e0]/80'
+                            : 'bg-[#faf9f8]/60 border-transparent opacity-65'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-all duration-300 ring-4 ring-white ${
+                            isDone
+                              ? 'bg-[#0f7b6c] text-white shadow-xs'
+                              : isActive
+                              ? 'bg-white border-2 border-[#0f7b6c] text-[#0f7b6c] shadow-xs'
+                              : 'bg-[#f7f6f3] border border-[#e3e2e0] text-[#9b9a97]'
+                          }`}
+                        >
+                          {isDone ? (
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          ) : isActive ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0f7b6c]" />
+                          ) : (
+                            item.step
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={`text-xs font-bold truncate ${isActive ? 'text-[#0f7b6c]' : isDone ? 'text-[#37352f]' : 'text-[#787774]'}`}>
+                              {item.title}
+                            </p>
+                            {isDone ? (
+                              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-[4px]">
+                                <Check className="w-2.5 h-2.5 stroke-[2.5]" />
+                                {item.badgeDone}
+                              </span>
+                            ) : isActive ? (
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-[#0f7b6c] bg-white border border-[#0f7b6c]/30 px-2 py-0.5 rounded-[4px] shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#0f7b6c] animate-pulse" />
+                                {item.badgeActive}
+                              </span>
+                            ) : (
+                              <span className="hidden sm:inline-block text-[10px] font-mono text-[#9b9a97]">
+                                QUEUED
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[#787774] mt-0.5 leading-relaxed">
+                            {item.subtitle}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* AI Verdict Card */}
+                {aiResult && (
                   <motion.div
-                    animate={{ scale: [1, 1.35, 1], opacity: [0.4, 0, 0.4] }}
-                    transition={{ repeat: Infinity, duration: 2.8, ease: 'easeInOut' }}
-                    className="absolute inset-0 rounded-full border border-[#0f7b6c]/30"
-                  />
-                  <div className="relative w-14 h-14 rounded-full bg-[#37352f] text-white flex items-center justify-center shadow-[0_8px_24px_rgba(15,123,108,0.25)] border border-white/20">
-                    <Shield className="w-7 h-7 text-[#0f7b6c]" />
-                  </div>
-                </div>
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-[10px] bg-emerald-50/60 border border-emerald-200 text-left space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-emerald-800 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-emerald-600" />
+                        NVIDIA Nemotron-3.5 Verdict: Verified Authenticity
+                      </span>
+                      <span className="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded text-[11px]">
+                        Confidence: {aiResult.confidenceScore || 98}%
+                      </span>
+                    </div>
+                    <p className="text-emerald-900 leading-relaxed text-[11px]">
+                      {aiResult.brandSummary || `${effectiveBrandName} verified as legitimate entity. Defense perimeter established.`}
+                    </p>
+                  </motion.div>
+                )}
 
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0f7b6c]/10 border border-[#0f7b6c]/20 text-xs text-[#0f7b6c]">
-                    <span className="font-mono font-medium">https://{cleanDomain}</span>
-                    <span>·</span>
-                    <span className="font-semibold text-[11px]">Active Sentinel Defense</span>
-                  </div>
+                {/* Direct Action when reaching stage 5 */}
+                {processingStage >= 5 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="pt-1"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => router.push('/overview')}
+                      className="w-full inline-flex items-center justify-center gap-2 py-3 px-5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0b5e52] active:scale-[0.99] text-white font-semibold text-xs shadow-xs transition cursor-pointer"
+                    >
+                      <span>Enter Brand Sentinel Command Center</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
 
-                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#37352f]">
-                    Verifying Brand Integrity
-                  </h1>
-
-                  <p className="text-xs sm:text-sm text-[#787774] max-w-md mx-auto leading-relaxed">
-                    Establishing cryptographic invariants and configuring NVIDIA Nemotron 3.5 Lightning defense baseline.
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress Steps */}
-              <div className="relative max-w-md mx-auto text-left pt-2 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    processingStage >= 1 ? 'bg-[#0f7b6c] text-white' : 'bg-white border text-[#9b9a97]'
-                  }`}>
-                    {processingStage >= 1 ? <Check className="w-4 h-4" /> : '1'}
+                {/* System Micro-Telemetry Footnote */}
+                <div className="pt-3 border-t border-[#f0efed] grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-[6px] bg-[#f7f6f3] border border-[#e3e2e0]">
+                    <p className="text-[9px] uppercase font-bold tracking-wider text-[#9b9a97]">Encryption</p>
+                    <p className="font-mono font-semibold text-[11px] text-[#37352f] mt-0.5">AES-256 GCM</p>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#37352f]">Resolving perimeter for {cleanDomain}</p>
-                    <p className="text-[11px] text-[#787774]">HTTPS certificates &amp; nameservers confirmed</p>
+                  <div className="p-2 rounded-[6px] bg-[#f7f6f3] border border-[#e3e2e0]">
+                    <p className="text-[9px] uppercase font-bold tracking-wider text-[#9b9a97]">AI Engine</p>
+                    <p className="font-mono font-semibold text-[11px] text-[#0f7b6c] mt-0.5">Nemotron-3.5</p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    processingStage >= 2 ? 'bg-[#0f7b6c] text-white' : 'bg-white border text-[#9b9a97]'
-                  }`}>
-                    {processingStage >= 2 ? <Check className="w-4 h-4" /> : '2'}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#37352f]">Storing Brand DNA in Supabase</p>
-                    <p className="text-[11px] text-[#787774]">Partitioning tenant perimeter space</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    processingStage >= 3 ? 'bg-[#0f7b6c] text-white' : 'bg-white border text-[#9b9a97]'
-                  }`}>
-                    {processingStage >= 3 ? <Check className="w-4 h-4" /> : '3'}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#37352f]">Configuring Inbound Social Monitors</p>
-                    <p className="text-[11px] text-[#787774]">Meta, X, and connected handles linked</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    processingStage >= 4 ? 'bg-[#0f7b6c] text-white' : 'bg-white border text-[#9b9a97]'
-                  }`}>
-                    {processingStage >= 4 ? <Check className="w-4 h-4" /> : '4'}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#37352f]">NVIDIA Nemotron 3.5 AI Synthesis</p>
-                    <p className="text-[11px] text-[#787774]">Synthesizing threat keywords &amp; typosquats</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    processingStage >= 5 ? 'bg-[#0f7b6c] text-white' : 'bg-white border text-[#9b9a97]'
-                  }`}>
-                    {processingStage >= 5 ? <Check className="w-4 h-4" /> : '5'}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#0f7b6c]">Protection Active · Entering Dashboard...</p>
-                    <p className="text-[11px] text-[#787774]">Opening ASTRA Brand Sentinel Command Center</p>
+                  <div className="p-2 rounded-[6px] bg-[#f7f6f3] border border-[#e3e2e0]">
+                    <p className="text-[9px] uppercase font-bold tracking-wider text-[#9b9a97]">Isolation</p>
+                    <p className="font-mono font-semibold text-[11px] text-[#37352f] mt-0.5">RLS Partitioned</p>
                   </div>
                 </div>
               </div>
-
-              {aiResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="max-w-md mx-auto p-4 rounded-[10px] bg-white border border-[#0f7b6c]/30 shadow-xs text-left space-y-2 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[#0f7b6c] flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-[#0f7b6c]" />
-                      NVIDIA NIM Verdict: Verified Authenticity
-                    </span>
-                    <span className="font-mono font-semibold text-[#0f7b6c] bg-[#0f7b6c]/10 px-2 py-0.5 rounded">
-                      Score: {aiResult.confidenceScore || 98}%
-                    </span>
-                  </div>
-                  <p className="text-[#37352f]">
-                    {aiResult.brandSummary || `${effectiveBrandName} verified as legitimate entity.`}
-                  </p>
-                </motion.div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>

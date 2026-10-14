@@ -374,16 +374,19 @@ export function BrandOnboardingForm({
       {/* ─────────────────────────────────────────────────────────────
           1. HEADER BANNER
          ───────────────────────────────────────────────────────────── */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[6px] bg-[#0f7b6c]/10 border border-[#0f7b6c]/25 text-[#0f7b6c] text-xs font-semibold">
+      <div
+        data-tour="onboarding-dna"
+        className="text-center space-y-2.5 p-5 sm:p-6 rounded-2xl bg-white border border-[#e3e2e0] shadow-xs"
+      >
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0f7b6c]/10 border border-[#0f7b6c]/25 text-[#0f7b6c] text-xs font-semibold">
           <Building2 className="w-3.5 h-3.5" />
-          <span>Brand Login · Perimeter &amp; Ground-Truth Profile</span>
+          <span>Brand Protection Workspace</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#37352f]">
-          Configure your Brand Protection Workspace
+          Onboard Your Brand DNA
         </h1>
         <p className="text-xs sm:text-sm text-[#787774] max-w-xl mx-auto leading-relaxed">
-          Provide your official commercial details so ASTRA can detect impersonation, rogue lookalikes, and unauthorized trademark usage.
+          Enroll official apex domains, handles &amp; certificates to establish your ground-truth baseline.
         </p>
       </div>
 
@@ -520,7 +523,7 @@ export function BrandOnboardingForm({
          ───────────────────────────────────────────────────────────── */}
       <form onSubmit={handleSubmitForm} className="space-y-6">
         {/* SECTION 1: CORE BRAND IDENTITY */}
-        <div data-tour="onboarding-dna" className="bg-white rounded-[12px] border border-[#e3e2e0] p-6 shadow-xs space-y-5">
+        <div className="bg-white rounded-[12px] border border-[#e3e2e0] p-6 shadow-xs space-y-5">
           <div className="flex items-center justify-between border-b border-[#e3e2e0] pb-3">
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-[#0f7b6c]" />

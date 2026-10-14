@@ -189,57 +189,42 @@ export function GuidedTour() {
   }, []);
 
   const [showDetails, setShowDetails] = useState(true);
-  const [isNavigating, setIsNavigating] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(true);
-  const prevStepRef = useRef<number>(-1);
-  const navLockRef = useRef(false);
 
-  // Auto-route on step change with smooth transition state
-  useEffect(() => {
-    if (!currentTourStep || !tourActive) return;
-    if (prevStepRef.current === tourStep) return;
-    prevStepRef.current = tourStep;
+  // Directly handle next step with instant route transition
+  const handleNext = () => {
+    const nextIdx = Math.min(tourStep + 1, TOUR_STEPS.length - 1);
+    const targetStep = TOUR_STEPS[nextIdx];
+    if (!targetStep) return;
 
-    if (navLockRef.current) return;
-    navLockRef.current = true;
+    goToStep(nextIdx);
 
-    // Check if route is changing
-    if (pathname !== currentTourStep.route) {
-      setIsNavigating(true);
-
-      // Give Framer Motion curtain 150ms to smoothly fade in before Next.js page switch
-      const pushTimer = setTimeout(() => {
-        router.push(currentTourStep.route);
-      }, 150);
-
-      // Safety timeout: auto-dismiss in case router takes unusually long or fails
-      const safetyTimer = setTimeout(() => {
-        setIsNavigating(false);
-        navLockRef.current = false;
-      }, 3500);
-
-      return () => {
-        clearTimeout(pushTimer);
-        clearTimeout(safetyTimer);
-      };
-    } else {
-      navLockRef.current = false;
+    if (targetStep.route !== pathname) {
+      router.push(targetStep.route + '?demo=true');
     }
-  }, [tourStep, currentTourStep, tourActive, router, pathname]);
+  };
 
-  // When pathname matches the destination route, gracefully dismiss the transition curtain
-  useEffect(() => {
-    if (!currentTourStep || !tourActive) return;
+  // Directly handle prev step with instant route transition
+  const handlePrev = () => {
+    const prevIdx = Math.max(tourStep - 1, 0);
+    const targetStep = TOUR_STEPS[prevIdx];
+    if (!targetStep) return;
 
-    if (isNavigating && pathname === currentTourStep.route) {
-      // Allow 260ms for destination page DOM elements to render and settle
-      const settleTimer = setTimeout(() => {
-        setIsNavigating(false);
-        navLockRef.current = false;
-      }, 260);
-      return () => clearTimeout(settleTimer);
+    goToStep(prevIdx);
+
+    if (targetStep.route !== pathname) {
+      router.push(targetStep.route + '?demo=true');
     }
-  }, [pathname, currentTourStep, tourActive, isNavigating]);
+  };
+
+  // Keep tour step aligned if user navigated directly
+  useEffect(() => {
+    if (!tourActive) return;
+    const stepOnRoute = TOUR_STEPS.findIndex((s) => s.route === pathname);
+    if (stepOnRoute !== -1 && TOUR_STEPS[tourStep]?.route !== pathname) {
+      goToStep(stepOnRoute);
+    }
+  }, [pathname, tourActive, tourStep, goToStep]);
 
   // Generative AI scanning state on each step change
   useEffect(() => {
@@ -259,10 +244,10 @@ export function GuidedTour() {
 
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        nextTourStep();
+        handleNext();
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        prevTourStep();
+        handlePrev();
       } else if (e.key === 'Escape') {
         setShowDetails((v) => !v);
       }
@@ -270,7 +255,7 @@ export function GuidedTour() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tourActive, nextTourStep, prevTourStep]);
+  }, [tourActive, tourStep, pathname]);
 
   // Measure and smooth-scroll to the targeted section
   const spotlight = useSpotlight(
@@ -295,77 +280,9 @@ export function GuidedTour() {
   return (
     <div className="fixed inset-0 z-[10000] pointer-events-none">
       {/* ─────────────────────────────────────────────────────────────
-          1. SMOOTH FRAMER MOTION PAGE SWITCHING TRANSITION CURTAIN
+          1. SECTION SCROLL & SPOTLIGHT HIGHLIGHT WITH PINNED BADGE
          ───────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isNavigating && (
-          <motion.div
-            key="page-nav-curtain"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.02 }}
-            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-[10050] bg-slate-950/40 backdrop-blur-xl flex flex-col items-center justify-center p-4 pointer-events-auto"
-          >
-            {/* Top glowing progress shimmer */}
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#0f7b6c] to-transparent shadow-[0_0_16px_rgba(15,123,108,0.7)]" />
-
-            {/* Generative Transition Hub Card */}
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0, y: 16 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 1.05, opacity: 0, y: -10 }}
-              transition={{ type: 'spring', stiffness: 360, damping: 26 }}
-              className="relative w-full max-w-sm rounded-3xl border border-[#e3e2e0]/80 bg-white/95 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)] backdrop-blur-2xl text-center"
-            >
-              {/* Radial Glow */}
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-36 h-36 bg-[#0f7b6c]/20 rounded-full blur-2xl pointer-events-none" />
-
-              {/* Radar pulse center icon */}
-              <div className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#0f7b6c]/25" />
-                <span className="absolute inline-flex h-11 w-11 rounded-full bg-[#0f7b6c]/15 animate-pulse" />
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f7b6c] text-white shadow-lg shadow-[#0f7b6c]/30">
-                  <Sparkles className="h-6 w-6 animate-pulse" />
-                </div>
-              </div>
-
-              {/* Step info & title */}
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#0f7b6c]/10 border border-[#0f7b6c]/20 px-3 py-0.5 text-[11px] font-bold text-[#0f7b6c] uppercase tracking-wider mb-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#0f7b6c] animate-ping" />
-                <span>Navigating to Step {currentTourStep.stepNumber}</span>
-              </div>
-
-              <h4 className="text-base font-bold text-[#37352f] leading-snug">
-                {currentTourStep.title}
-              </h4>
-              <p className="mt-1 text-xs text-[#787774] leading-relaxed">
-                Loading telemetry for <span className="font-mono text-[#0f7b6c] font-semibold">{currentTourStep.route}</span>…
-              </p>
-
-              {/* Dynamic Scanning Shimmer Bar */}
-              <div className="mt-5 w-full h-1.5 rounded-full bg-[#f0efed] overflow-hidden">
-                <motion.div
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '100%' }}
-                  transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut' }}
-                  className="h-full w-2/3 rounded-full bg-gradient-to-r from-[#0f7b6c] via-emerald-400 to-[#0f7b6c]"
-                />
-              </div>
-
-              <div className="mt-2.5 flex items-center justify-between text-[10px] text-[#9b9a97] font-medium">
-                <span>Synthesizing modules…</span>
-                <span className="text-[#0f7b6c] font-semibold">98% AI Confidence</span>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ─────────────────────────────────────────────────────────────
-          2. SECTION SCROLL & SPOTLIGHT HIGHLIGHT WITH PINNED BADGE
-         ───────────────────────────────────────────────────────────── */}
-      {spotlight && !isNavigating && (
+      {spotlight && (
         <>
           {/* Spotlight border with glow around the targeted section */}
           <motion.div
@@ -408,10 +325,10 @@ export function GuidedTour() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          3. GENERATIVE EXPLANATION CARD (Smooth typing & finding reveal)
+          2. GENERATIVE EXPLANATION CARD (Smooth typing & finding reveal)
          ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {showDetails && !isNavigating && (
+        {showDetails && (
           <motion.div
             key={`details-${tourStep}`}
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -560,7 +477,7 @@ export function GuidedTour() {
             {!isFirst && (
               <button
                 type="button"
-                onClick={prevTourStep}
+                onClick={handlePrev}
                 className="flex items-center gap-1 rounded-lg border border-[#e3e2e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#787774] hover:text-[#37352f] hover:bg-[#f7f6f3] transition cursor-pointer shadow-2xs"
                 title="Go to previous step (Left Arrow)"
                 aria-label="Go to previous step"
@@ -584,7 +501,7 @@ export function GuidedTour() {
             ) : (
               <motion.button
                 type="button"
-                onClick={nextTourStep}
+                onClick={handleNext}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="flex items-center gap-1.5 rounded-xl bg-[#0f7b6c] hover:bg-[#0c6357] px-4 py-2 text-xs font-bold text-white shadow-xs transition cursor-pointer ring-2 ring-[#0f7b6c]/20"

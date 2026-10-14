@@ -11,28 +11,18 @@ import {
   AlertTriangle,
   CheckCircle2,
   Lock,
-  ArrowRight,
-  ExternalLink,
   MessageSquare,
   Sparkles,
   Loader2,
-  RefreshCw,
   Building2,
   AlertCircle,
-  Eye,
-  Send,
-  HelpCircle,
-  Check,
   Bookmark,
-  Heart,
-  Share2,
   Radio,
-  SlidersHorizontal,
   X,
-  Filter,
   UserCheck,
   Globe,
-  Plus
+  SlidersHorizontal,
+  ChevronRight
 } from 'lucide-react';
 import {
   BrandSecurityProfile,
@@ -184,7 +174,7 @@ export default function ConsumerHubPage() {
     setPosts((prev) =>
       prev.map((p) => (p.id === postId ? { ...p, isSaved: newState } : p))
     );
-    showToast(newState ? 'Alert saved to your Bookmarks' : 'Alert removed from Bookmarks');
+    showToast(newState ? 'Saved to Bookmarks' : 'Removed from Bookmarks');
   };
 
   const handleToggleFollow = (brandId: string) => {
@@ -192,7 +182,7 @@ export default function ConsumerHubPage() {
     setPosts((prev) =>
       prev.map((p) => (p.brandId === brandId ? { ...p, isFollowingBrand: newState } : p))
     );
-    showToast(newState ? 'Now following brand security updates' : 'Unfollowed brand updates');
+    showToast(newState ? 'Following brand updates' : 'Unfollowed brand');
   };
 
   const handleAddComment = (postId: string, text: string) => {
@@ -210,7 +200,7 @@ export default function ConsumerHubPage() {
             : p
         )
       );
-      showToast('Community report posted successfully');
+      showToast('Community report shared');
     }
   };
 
@@ -246,6 +236,7 @@ export default function ConsumerHubPage() {
         lower.includes('patch') ||
         lower.includes('.xyz') ||
         lower.includes('.top') ||
+        lower.includes('.shop') ||
         lower.includes('login-') ||
         lower.includes('update-') ||
         lower.includes('bit.ly');
@@ -259,17 +250,19 @@ export default function ConsumerHubPage() {
           verdict: 'malicious',
           score: 18,
           reasons: [
-            'Detected suspicious high-risk top-level domain (.top/.xyz) or spoofed prefix',
-            'Signature matches active credential harvesting campaign against official brands',
+            'Detected suspicious high-risk top-level domain (.top/.xyz/.shop) or spoofed prefix',
+            'Signature matches active credential harvesting campaign against popular brands',
             'Domain registered recently with no EV TLS certificate backing',
           ],
-          brandTargeted: lower.includes('nilapay')
-            ? 'NilaPay'
+          brandTargeted: lower.includes('apple')
+            ? 'Apple'
+            : lower.includes('nike')
+            ? 'Nike'
+            : lower.includes('spotify')
+            ? 'Spotify'
             : lower.includes('stripe')
             ? 'Stripe'
-            : lower.includes('apple')
-            ? 'Apple'
-            : 'Popular Online Service',
+            : 'Popular Global Brand',
           domainAge: '3 days ago',
           sslValid: false,
         });
@@ -279,7 +272,7 @@ export default function ConsumerHubPage() {
           verdict: 'suspicious',
           score: 54,
           reasons: [
-            'Domain closely mimics an authoritative brand name without recognized TXT record',
+            'Domain closely mimics an authoritative brand name without recognized DNS TXT record',
             'Unverified redirect chain detected by ASTRA crawler',
           ],
           domainAge: '14 days ago',
@@ -289,18 +282,18 @@ export default function ConsumerHubPage() {
         setUrlResult({
           url: raw,
           verdict: 'safe',
-          score: 96,
+          score: 98,
           reasons: [
-            'Valid extended-validation TLS certificate issued to authoritative entity',
+            'Valid extended-validation TLS certificate issued to authoritative corporate entity',
             'Canonical DNS perimeter verified on official brand registry',
             'Zero malware or phishing complaints across active global threat feeds',
           ],
-          domainAge: '7+ years',
+          domainAge: '10+ years',
           sslValid: true,
         });
       }
       setIsScanningUrl(false);
-    }, 900);
+    }, 850);
   };
 
   // Message Analyzer Logic
@@ -319,20 +312,22 @@ export default function ConsumerHubPage() {
         lower.includes('24 hours') ||
         lower.includes('immediate') ||
         lower.includes('freeze') ||
-        lower.includes('suspend');
+        lower.includes('suspend') ||
+        lower.includes('delete');
       const hasPayment =
-        lower.includes('mpin') ||
+        lower.includes('cvv') ||
         lower.includes('pin') ||
         lower.includes('otp') ||
         lower.includes('crypto') ||
         lower.includes('seed phrase') ||
         lower.includes('wallet') ||
-        lower.includes('gift card');
+        lower.includes('fee');
       const hasLink =
         lower.includes('http') ||
         lower.includes('click') ||
         lower.includes('.apk') ||
         lower.includes('.top') ||
+        lower.includes('.shop') ||
         lower.includes('.xyz');
 
       if ((hasUrgency && hasLink) || hasPayment) {
@@ -340,11 +335,11 @@ export default function ConsumerHubPage() {
           riskLevel: 'high',
           isScam: true,
           analysis:
-            'This message matches coordinated social engineering: manufactured urgency (account suspension), unauthorized brand impersonation, and a demand for sensitive credentials/unverified URLs.',
+            'This message matches coordinated social engineering: manufactured urgency (account suspension), unauthorized brand impersonation, and a demand for sensitive credentials or payment cards.',
           detectedTactics: [
-            'Manufactured Urgency (Threat of account freeze within 24h)',
-            'Imposter Support Persona',
-            'Solicitation of OTP, MPIN, or unverified link click',
+            'Manufactured Urgency (Threat of account deletion within 24h)',
+            'Imposter Brand Support Persona',
+            'Solicitation of OTP, PIN, or unverified link click',
           ],
         });
       } else if (hasUrgency || hasLink) {
@@ -363,7 +358,7 @@ export default function ConsumerHubPage() {
         });
       }
       setIsAnalyzingMsg(false);
-    }, 800);
+    }, 750);
   };
 
   const handleSwitchToBrand = () => {
@@ -374,27 +369,25 @@ export default function ConsumerHubPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f6f3] text-[#37352f] flex flex-col justify-between selection:bg-[#0f7b6c]/15 selection:text-[#0f7b6c] font-sans antialiased">
+    <div className="min-h-screen bg-[#f5f5f7] text-[#1d1d1f] flex flex-col justify-between selection:bg-[#0071e3]/15 selection:text-[#0071e3] font-sans antialiased">
       {/* ─────────────────────────────────────────────────────────────
-          1. TOP NAVIGATION HEADER
+          1. TOP NAVIGATION (Apple Frosted Glass Header)
          ───────────────────────────────────────────────────────────── */}
-      <header className="border-b border-[#e3e2e0] bg-white sticky top-0 z-40 px-4 sm:px-6 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="border-b border-black/[0.05] bg-white/80 backdrop-blur-2xl sticky top-0 z-40 px-4 sm:px-8 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="h-8 w-8 rounded-[6px] bg-[#37352f] text-white flex items-center justify-center font-bold text-sm shadow-xs transition group-hover:bg-[#0f7b6c]">
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="h-8 w-8 rounded-xl bg-black text-white flex items-center justify-center font-bold text-sm shadow-sm transition group-hover:scale-105">
                 A
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight text-[#37352f]">ASTRA</span>
-                  <span className="rounded-[4px] bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 text-[10px] font-semibold px-2 py-0.5">
-                    Consumer Security Feed
+                  <span className="text-[15px] font-semibold tracking-tight text-[#1d1d1f]">ASTRA</span>
+                  <span className="rounded-full bg-[#0071e3]/10 text-[#0071e3] text-[10px] font-semibold px-2.5 py-0.5">
+                    Security Feed
                   </span>
                 </div>
-                <p className="text-[11px] text-[#787774]">
-                  Brand Ground Truth &amp; Phishing Shield
-                </p>
+                <p className="text-[11px] text-[#86868b]">Brand Ground Truth &amp; Scam Shield</p>
               </div>
             </Link>
           </div>
@@ -403,38 +396,38 @@ export default function ConsumerHubPage() {
             <button
               type="button"
               onClick={() => setIsDirectoryOpen(true)}
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#37352f] hover:text-[#0f7b6c] font-medium py-1.5 px-3 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] transition cursor-pointer shadow-2xs"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#1d1d1f] hover:text-[#0071e3] font-medium py-1.5 px-3.5 rounded-full border border-black/[0.08] bg-white hover:bg-[#f5f5f7] transition cursor-pointer shadow-2xs"
             >
-              <Globe className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <Globe className="w-3.5 h-3.5 text-[#0071e3]" />
               <span>Verified Directory</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsGenerateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-white bg-[#0f7b6c] hover:bg-[#0c6357] font-semibold py-1.5 px-3 rounded-[6px] shadow-2xs transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs text-white bg-[#0071e3] hover:bg-[#0077ed] font-semibold py-1.5 px-3.5 rounded-full shadow-sm transition cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Generate Safety Alert</span>
+              <span className="hidden sm:inline">Generate Alert</span>
               <span className="sm:hidden">Alert</span>
             </button>
 
-            <div className="h-4 w-px bg-[#e3e2e0] mx-0.5" />
+            <div className="h-4 w-px bg-black/[0.08] mx-1" />
 
             <button
               type="button"
               onClick={handleSwitchToBrand}
-              className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#0f7b6c] font-medium py-1.5 px-2.5 rounded-[6px] border border-[#e3e2e0] bg-white hover:bg-[#f7f6f3] transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs text-[#86868b] hover:text-[#1d1d1f] font-medium py-1.5 px-3 rounded-full border border-black/[0.08] bg-white hover:bg-[#f5f5f7] transition cursor-pointer"
               title="Switch to Brand DRP Workspace"
             >
-              <Building2 className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <Building2 className="w-3.5 h-3.5 text-[#0071e3]" />
               <span className="hidden md:inline">Brand Workspace</span>
             </button>
 
             <UserButton
               appearance={{
                 elements: {
-                  avatarBox: 'h-8 w-8 rounded-[6px] border border-[#e3e2e0]',
+                  avatarBox: 'h-8 w-8 rounded-full border border-black/[0.08]',
                 },
               }}
             />
@@ -442,41 +435,41 @@ export default function ConsumerHubPage() {
         </div>
       </header>
 
-      {/* Floating Toast Notification */}
+      {/* Floating Apple-style Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#37352f] text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 border border-white/10"
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#1d1d1f] text-white text-xs font-semibold px-5 py-2.5 rounded-full shadow-xl flex items-center gap-2 border border-white/10"
           >
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <CheckCircle2 className="w-4 h-4 text-[#34c759]" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. MAIN CONTENT BODY
+          2. MAIN CONTENT BODY (Apple HIG Layout)
          ───────────────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Hero Section */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[6px] bg-[#0f7b6c]/10 border border-[#0f7b6c]/25 text-[#0f7b6c] text-xs font-semibold">
-            <Radio className="w-3.5 h-3.5 animate-pulse text-[#0f7b6c]" />
-            <span>Real-time Brand Security Network · Instagram for Safety</span>
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-7">
+        {/* Apple-style Hero Banner */}
+        <div className="text-center space-y-2.5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#0071e3]/10 border border-[#0071e3]/15 text-[#0071e3] text-xs font-semibold">
+            <Radio className="w-3.5 h-3.5 animate-pulse text-[#0071e3]" />
+            <span>Live Brand Protection Network</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#37352f]">
-            Verified Brand Updates &amp; Scam Radar Feed
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#1d1d1f]">
+            Verified Brand Updates &amp; Security Radar
           </h1>
-          <p className="text-xs sm:text-sm text-[#787774] max-w-xl mx-auto leading-relaxed">
-            Discover official websites and confirmed social handles published by brands on our apps. Defend against phishing links and fake profiles in real time.
+          <p className="text-sm sm:text-[15px] text-[#86868b] max-w-xl mx-auto leading-relaxed">
+            Direct announcements, authentic website domains, and confirmed social handles published by global brands on ASTRA.
           </p>
         </div>
 
         {/* ─────────────────────────────────────────────────────────────
-            3. INSTAGRAM STORIES CAROUSEL BAR (Live Brand Highlights)
+            3. STORIES BAR (Apple HIG Circular Badges)
            ───────────────────────────────────────────────────────────── */}
         <ConsumerStoriesBar
           stories={stories}
@@ -485,24 +478,24 @@ export default function ConsumerHubPage() {
         />
 
         {/* ─────────────────────────────────────────────────────────────
-            4. SEARCH & BRAND FILTER BAR
+            4. SEARCH & POPULAR BRANDS FILTER BAR
            ───────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-[12px] border border-[#e3e2e0] p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="bg-white/80 backdrop-blur-xl rounded-[24px] border border-black/[0.05] p-4 sm:p-5 shadow-[0_2px_16px_rgba(0,0,0,0.02)] space-y-3.5">
           <div className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9b9a97]" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868b]" />
               <input
                 type="text"
-                placeholder="Search updates by brand (NilaPay, Stripe, Apple...), handle (@stripe), or domain..."
+                placeholder="Search popular brands (Apple, Nike, Spotify, Tesla, Netflix...)"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full pl-10 pr-9 py-2 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[8px] text-xs text-[#37352f] focus:outline-none focus:border-[#0f7b6c] focus:bg-white transition"
+                className="w-full pl-11 pr-10 py-2.5 bg-[#f5f5f7] border border-black/[0.05] rounded-full text-xs text-[#1d1d1f] focus:outline-none focus:border-[#0071e3] focus:bg-white transition"
               />
               {searchFilter && (
                 <button
                   type="button"
                   onClick={() => setSearchFilter('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9b9a97] hover:text-[#37352f]"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#86868b] hover:text-[#1d1d1f]"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -512,27 +505,29 @@ export default function ConsumerHubPage() {
             <button
               type="button"
               onClick={() => setIsDirectoryOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-[8px] border border-[#e3e2e0] bg-[#f7f6f3] hover:bg-[#e3e2e0] text-xs font-semibold text-[#37352f] transition cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-black/[0.08] bg-[#f5f5f7] hover:bg-black/[0.05] text-xs font-semibold text-[#1d1d1f] transition cursor-pointer shrink-0"
             >
-              <Globe className="w-3.5 h-3.5 text-[#0f7b6c]" />
+              <Globe className="w-3.5 h-3.5 text-[#0071e3]" />
               <span>Browse All {brands.length} Brands</span>
             </button>
           </div>
 
-          {/* Quick Brand Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none text-xs">
-            <span className="text-[11px] text-[#9b9a97] shrink-0">Filter by Brand:</span>
+          {/* Popular Brand Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
+            <span className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wider shrink-0">
+              Popular Brands:
+            </span>
             {selectedBrandFilter && (
               <button
                 type="button"
                 onClick={() => setSelectedBrandFilter(null)}
-                className="px-2.5 py-1 rounded-[6px] bg-[#eb5757]/10 text-[#eb5757] border border-[#eb5757]/20 text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                className="px-3 py-1 rounded-full bg-[#ff3b30]/10 text-[#ff3b30] text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <span>Clear &ldquo;{selectedBrandFilter}&rdquo;</span>
                 <X className="w-3 h-3" />
               </button>
             )}
-            {brands.slice(0, 6).map((b) => {
+            {brands.slice(0, 7).map((b) => {
               const isSelected = selectedBrandFilter?.toLowerCase() === b.name.toLowerCase();
               return (
                 <button
@@ -541,15 +536,15 @@ export default function ConsumerHubPage() {
                   onClick={() =>
                     setSelectedBrandFilter(isSelected ? null : b.name)
                   }
-                  className={`px-2.5 py-1 rounded-[6px] text-[11px] font-semibold transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-[#0f7b6c] text-white shadow-2xs'
-                      : 'bg-[#f7f6f3] text-[#787774] hover:text-[#37352f] border border-[#e3e2e0]'
+                      ? 'bg-[#0071e3] text-white shadow-sm'
+                      : 'bg-black/[0.04] text-[#424245] hover:text-[#1d1d1f] hover:bg-black/[0.07]'
                   }`}
                 >
                   <span>{b.name}</span>
                   {b.isCustomBrand && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" title="Your Onboarded Brand" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" title="Your Onboarded Brand" />
                   )}
                 </button>
               );
@@ -558,17 +553,17 @@ export default function ConsumerHubPage() {
         </div>
 
         {/* ─────────────────────────────────────────────────────────────
-            5. FEED NAVIGATION TABS
+            5. APPLE SEGMENTED CONTROL TABS
            ───────────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between border-b border-[#e3e2e0] pb-1 overflow-x-auto">
-          <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1">
+          <div className="bg-black/[0.05] p-1 rounded-full inline-flex border border-black/[0.04]">
             <button
               type="button"
               onClick={() => setActiveTab('feed')}
-              className={`px-3 py-2 text-xs font-semibold rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 text-xs rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'feed'
-                  ? 'text-[#0f7b6c] border-b-2 border-[#0f7b6c] bg-[#0f7b6c]/5'
-                  : 'text-[#787774] hover:text-[#37352f]'
+                  ? 'bg-white text-[#1d1d1f] font-semibold shadow-sm'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
             >
               <Radio className="w-3.5 h-3.5" />
@@ -578,36 +573,36 @@ export default function ConsumerHubPage() {
             <button
               type="button"
               onClick={() => setActiveTab('urgent')}
-              className={`px-3 py-2 text-xs font-semibold rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 text-xs rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'urgent'
-                  ? 'text-rose-700 border-b-2 border-rose-600 bg-rose-50/70'
-                  : 'text-[#787774] hover:text-rose-600'
+                  ? 'bg-white text-[#ff3b30] font-semibold shadow-sm'
+                  : 'text-[#86868b] hover:text-[#ff3b30]'
               }`}
             >
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+              <AlertTriangle className="w-3.5 h-3.5 text-[#ff3b30]" />
               <span>Scam Warnings</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('directories')}
-              className={`px-3 py-2 text-xs font-semibold rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 text-xs rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'directories'
-                  ? 'text-[#0f7b6c] border-b-2 border-[#0f7b6c] bg-[#0f7b6c]/5'
-                  : 'text-[#787774] hover:text-[#37352f]'
+                  ? 'bg-white text-[#0071e3] font-semibold shadow-sm'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
             >
               <Shield className="w-3.5 h-3.5" />
-              <span>Brand Directories</span>
+              <span>Directories</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('following')}
-              className={`px-3 py-2 text-xs font-semibold rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 text-xs rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'following'
-                  ? 'text-[#0f7b6c] border-b-2 border-[#0f7b6c] bg-[#0f7b6c]/5'
-                  : 'text-[#787774] hover:text-[#37352f]'
+                  ? 'bg-white text-[#0071e3] font-semibold shadow-sm'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -617,10 +612,10 @@ export default function ConsumerHubPage() {
             <button
               type="button"
               onClick={() => setActiveTab('saved')}
-              className={`px-3 py-2 text-xs font-semibold rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 text-xs rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'saved'
-                  ? 'text-[#0f7b6c] border-b-2 border-[#0f7b6c] bg-[#0f7b6c]/5'
-                  : 'text-[#787774] hover:text-[#37352f]'
+                  ? 'bg-white text-[#0071e3] font-semibold shadow-sm'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
             >
               <Bookmark className="w-3.5 h-3.5" />
@@ -631,10 +626,10 @@ export default function ConsumerHubPage() {
           <button
             type="button"
             onClick={() => setActiveTab('tools')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-2 text-xs font-semibold rounded-full transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'tools'
-                ? 'bg-[#0f7b6c] text-white shadow-2xs'
-                : 'text-[#787774] hover:text-[#37352f] border border-[#e3e2e0] bg-white'
+                ? 'bg-[#0071e3] text-white shadow-sm'
+                : 'bg-white text-[#1d1d1f] hover:bg-[#f5f5f7] border border-black/[0.08]'
             }`}
           >
             <Search className="w-3.5 h-3.5" />
@@ -643,15 +638,15 @@ export default function ConsumerHubPage() {
         </div>
 
         {/* ─────────────────────────────────────────────────────────────
-            6. FEED STREAM (Instagram-style Security Posts)
+            6. SECURITY FEED STREAM (Apple HIG Cards)
            ───────────────────────────────────────────────────────────── */}
         {activeTab !== 'tools' && (
           <div className="space-y-6">
             {filteredPosts.length === 0 ? (
-              <div className="bg-white rounded-[16px] border border-[#e3e2e0] p-12 text-center space-y-3">
-                <Shield className="w-10 h-10 text-[#9b9a97] mx-auto" />
-                <h3 className="text-sm font-bold text-[#37352f]">No security updates match this view</h3>
-                <p className="text-xs text-[#787774] max-w-sm mx-auto">
+              <div className="bg-white rounded-[28px] border border-black/[0.05] p-12 text-center space-y-3 shadow-sm">
+                <Shield className="w-10 h-10 text-[#86868b] mx-auto" />
+                <h3 className="text-base font-bold text-[#1d1d1f]">No security updates match this view</h3>
+                <p className="text-xs text-[#86868b] max-w-sm mx-auto">
                   {selectedBrandFilter
                     ? `No current alerts for ${selectedBrandFilter}. Try generating a safety card or clearing filters.`
                     : 'Try selecting another tab or reset your search filters.'}
@@ -664,14 +659,14 @@ export default function ConsumerHubPage() {
                       setSelectedBrandFilter(null);
                       setActiveTab('feed');
                     }}
-                    className="px-3.5 py-1.5 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[6px] text-xs font-semibold text-[#37352f]"
+                    className="px-4 py-2 bg-black/[0.04] rounded-full text-xs font-semibold text-[#1d1d1f]"
                   >
                     Reset Filters
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsGenerateModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-[#0f7b6c] text-white rounded-[6px] text-xs font-semibold"
+                    className="px-4 py-2 bg-[#0071e3] text-white rounded-full text-xs font-semibold"
                   >
                     Generate Alert
                   </button>
@@ -700,14 +695,14 @@ export default function ConsumerHubPage() {
           <div className="space-y-6">
             {/* Sub-tab selection buttons */}
             <div className="flex justify-center">
-              <div className="inline-flex p-1 rounded-[8px] bg-[#e3e2e0]/60 border border-[#e3e2e0] text-xs font-medium">
+              <div className="bg-black/[0.05] p-1 rounded-full inline-flex border border-black/[0.04] text-xs font-medium">
                 <button
                   type="button"
                   onClick={() => setToolSubTab('link-checker')}
-                  className={`px-4 py-2 rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-4 py-2 rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                     toolSubTab === 'link-checker'
-                      ? 'bg-white text-[#37352f] shadow-xs font-semibold'
-                      : 'text-[#787774] hover:text-[#37352f]'
+                      ? 'bg-white text-[#1d1d1f] shadow-sm font-semibold'
+                      : 'text-[#86868b] hover:text-[#1d1d1f]'
                   }`}
                 >
                   <Search className="w-3.5 h-3.5" />
@@ -716,10 +711,10 @@ export default function ConsumerHubPage() {
                 <button
                   type="button"
                   onClick={() => setToolSubTab('message-analyzer')}
-                  className={`px-4 py-2 rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-4 py-2 rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                     toolSubTab === 'message-analyzer'
-                      ? 'bg-white text-[#37352f] shadow-xs font-semibold'
-                      : 'text-[#787774] hover:text-[#37352f]'
+                      ? 'bg-white text-[#1d1d1f] shadow-sm font-semibold'
+                      : 'text-[#86868b] hover:text-[#1d1d1f]'
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
@@ -728,10 +723,10 @@ export default function ConsumerHubPage() {
                 <button
                   type="button"
                   onClick={() => setToolSubTab('report')}
-                  className={`px-4 py-2 rounded-[6px] transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-4 py-2 rounded-full transition cursor-pointer flex items-center gap-1.5 ${
                     toolSubTab === 'report'
-                      ? 'bg-white text-[#37352f] shadow-xs font-semibold'
-                      : 'text-[#787774] hover:text-[#37352f]'
+                      ? 'bg-white text-[#1d1d1f] shadow-sm font-semibold'
+                      : 'text-[#86868b] hover:text-[#1d1d1f]'
                   }`}
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
@@ -745,12 +740,12 @@ export default function ConsumerHubPage() {
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[16px] border border-[#e3e2e0] p-6 sm:p-8 shadow-xs space-y-6"
+                className="bg-white rounded-[28px] border border-black/[0.05] p-6 sm:p-8 shadow-sm space-y-6"
               >
                 <div>
-                  <h2 className="text-base font-bold text-[#37352f]">Check any URL or Website Link</h2>
-                  <p className="text-xs text-[#787774] mt-1">
-                    Enter any domain or URL received via SMS, WhatsApp, or Instagram DM to verify whether it matches a verified brand or is a phishing fake.
+                  <h2 className="text-lg font-bold text-[#1d1d1f]">Check Any URL or Website Link</h2>
+                  <p className="text-xs text-[#86868b] mt-1">
+                    Enter any link received via SMS, WhatsApp, or Instagram DM to verify whether it matches an authoritative brand or is a phishing fake.
                   </p>
                 </div>
 
@@ -758,16 +753,16 @@ export default function ConsumerHubPage() {
                   <div className="relative flex-1">
                     <input
                       type="text"
-                      placeholder="e.g. https://nilapay-kyc-verify.top or https://stripe.com"
+                      placeholder="e.g. https://appleid-icloud-login.top or https://nike.com"
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
-                      className="w-full px-4 py-3 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[8px] text-xs font-mono text-[#37352f] focus:outline-none focus:border-[#0f7b6c] focus:bg-white transition"
+                      className="w-full px-5 py-3 bg-[#f5f5f7] border border-black/[0.06] rounded-full text-xs font-mono text-[#1d1d1f] focus:outline-none focus:border-[#0071e3] focus:bg-white transition"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isScanningUrl}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0c6357] text-white text-xs font-semibold shadow-xs transition disabled:opacity-60 cursor-pointer shrink-0"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-semibold shadow-sm transition disabled:opacity-60 cursor-pointer shrink-0"
                   >
                     {isScanningUrl ? (
                       <>
@@ -784,28 +779,28 @@ export default function ConsumerHubPage() {
                 </form>
 
                 {/* Quick Samples */}
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[#787774]">
-                  <span className="text-[11px] text-[#9b9a97]">Try examples:</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-[#86868b]">
+                  <span className="text-[11px] text-[#86868b]">Try popular examples:</span>
                   <button
                     type="button"
-                    onClick={() => setUrlInput('https://nilapay-kyc-verify.top/rekyc')}
-                    className="px-2.5 py-1 rounded-[4px] bg-[#eb5757]/10 text-[#eb5757] border border-[#eb5757]/20 text-[11px] font-mono cursor-pointer"
+                    onClick={() => setUrlInput('https://appleid-icloud-login.top/verify')}
+                    className="px-3 py-1 rounded-full bg-[#ff3b30]/10 text-[#ff3b30] text-[11px] font-mono cursor-pointer"
                   >
-                    nilapay-kyc-verify.top (Phishing)
+                    appleid-icloud-login.top (Phishing)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setUrlInput('https://stripe.com/docs')}
-                    className="px-2.5 py-1 rounded-[4px] bg-[#0f7b6c]/10 text-[#0f7b6c] border border-[#0f7b6c]/20 text-[11px] font-mono cursor-pointer"
+                    onClick={() => setUrlInput('https://nike-vip-sale.shop')}
+                    className="px-3 py-1 rounded-full bg-[#ff3b30]/10 text-[#ff3b30] text-[11px] font-mono cursor-pointer"
                   >
-                    stripe.com (Safe)
+                    nike-vip-sale.shop (Fake Store)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setUrlInput('https://chatgpt-desktop-installer.top')}
-                    className="px-2.5 py-1 rounded-[4px] bg-[#eb5757]/10 text-[#eb5757] border border-[#eb5757]/20 text-[11px] font-mono cursor-pointer"
+                    onClick={() => setUrlInput('https://apple.com')}
+                    className="px-3 py-1 rounded-full bg-[#34c759]/10 text-[#34c759] text-[11px] font-mono cursor-pointer"
                   >
-                    chatgpt-desktop-installer.top (Malware)
+                    apple.com (Safe)
                   </button>
                 </div>
 
@@ -813,7 +808,7 @@ export default function ConsumerHubPage() {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`p-5 rounded-[12px] border space-y-3 ${
+                    className={`p-5 rounded-2xl border space-y-3 ${
                       urlResult.verdict === 'malicious'
                         ? 'bg-rose-50/70 border-rose-200 text-rose-900'
                         : urlResult.verdict === 'suspicious'
@@ -838,7 +833,7 @@ export default function ConsumerHubPage() {
                             : 'Authentic & Verified Domain'}
                         </span>
                       </div>
-                      <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-white/80 border">
+                      <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/80 border">
                         Safety Score: {urlResult.score}/100
                       </span>
                     </div>
@@ -861,12 +856,12 @@ export default function ConsumerHubPage() {
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[16px] border border-[#e3e2e0] p-6 sm:p-8 shadow-xs space-y-6"
+                className="bg-white rounded-[28px] border border-black/[0.05] p-6 sm:p-8 shadow-sm space-y-6"
               >
                 <div>
-                  <h2 className="text-base font-bold text-[#37352f]">Analyze Suspicious SMS or DM</h2>
-                  <p className="text-xs text-[#787774] mt-1">
-                    Paste the content of any SMS, WhatsApp, or Instagram DM claiming to represent customer care or demanding urgent KYC action.
+                  <h2 className="text-lg font-bold text-[#1d1d1f]">Analyze Suspicious SMS or DM</h2>
+                  <p className="text-xs text-[#86868b] mt-1">
+                    Paste the content of any SMS, WhatsApp, or Instagram DM claiming to represent official support or demanding urgent action.
                   </p>
                 </div>
 
@@ -876,7 +871,7 @@ export default function ConsumerHubPage() {
                     placeholder="Paste the suspicious message content here..."
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[8px] text-xs text-[#37352f] focus:outline-none focus:border-[#0f7b6c] focus:bg-white transition"
+                    className="w-full px-5 py-3.5 bg-[#f5f5f7] border border-black/[0.06] rounded-2xl text-xs text-[#1d1d1f] focus:outline-none focus:border-[#0071e3] focus:bg-white transition"
                   />
 
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
@@ -884,18 +879,18 @@ export default function ConsumerHubPage() {
                       type="button"
                       onClick={() =>
                         setMessageInput(
-                          'URGENT from NilaPay Support: Your KYC has expired. Your wallet will be frozen in 24 hours unless re-verified now at https://nilapay-kyc-verify.top/rekyc. Enter your UPI MPIN to unblock.'
+                          'Apple Security Alert: Your lost iPhone 15 Pro was located online today. View live GPS coordinates within 2 hours or Activation Lock will be permanently disabled: https://appleid-icloud-login.top/locate'
                         )
                       }
-                      className="text-[11px] text-[#0f7b6c] hover:underline cursor-pointer text-left"
+                      className="text-[11px] text-[#0071e3] hover:underline cursor-pointer text-left"
                     >
-                      Insert Sample Imposter KYC Message
+                      Insert Sample Smishing Message
                     </button>
 
                     <button
                       type="submit"
                       disabled={isAnalyzingMsg}
-                      className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0c6357] text-white text-xs font-semibold shadow-xs transition disabled:opacity-60 cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-semibold shadow-sm transition disabled:opacity-60 cursor-pointer"
                     >
                       {isAnalyzingMsg ? (
                         <>
@@ -916,7 +911,7 @@ export default function ConsumerHubPage() {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`p-5 rounded-[12px] border space-y-3 ${
+                    className={`p-5 rounded-2xl border space-y-3 ${
                       messageResult.riskLevel === 'high'
                         ? 'bg-rose-50/70 border-rose-200 text-rose-900'
                         : messageResult.riskLevel === 'medium'
@@ -955,17 +950,17 @@ export default function ConsumerHubPage() {
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[16px] border border-[#e3e2e0] p-6 sm:p-8 shadow-xs space-y-6"
+                className="bg-white rounded-[28px] border border-black/[0.05] p-6 sm:p-8 shadow-sm space-y-6"
               >
                 <div>
-                  <h2 className="text-base font-bold text-[#37352f]">Report a Fake Account or Scam Site</h2>
-                  <p className="text-xs text-[#787774] mt-1">
+                  <h2 className="text-lg font-bold text-[#1d1d1f]">Report a Fake Account or Scam Site</h2>
+                  <p className="text-xs text-[#86868b] mt-1">
                     Help protect consumers. Submissions are dispatched directly to the brand’s verified security response desk and automated takedown radars.
                   </p>
                 </div>
 
                 {reportSubmitted ? (
-                  <div className="p-6 rounded-[8px] bg-emerald-50 border border-emerald-200 text-center space-y-2">
+                  <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
                     <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
                     <h3 className="text-sm font-bold text-emerald-900">Incident Reported Successfully</h3>
                     <p className="text-xs text-emerald-700 max-w-md mx-auto">
@@ -974,7 +969,7 @@ export default function ConsumerHubPage() {
                     <button
                       type="button"
                       onClick={() => setReportSubmitted(false)}
-                      className="mt-3 px-4 py-1.5 rounded-[6px] bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 cursor-pointer"
+                      className="mt-3 px-5 py-2 rounded-full bg-[#0071e3] text-white text-xs font-semibold hover:bg-[#0077ed] cursor-pointer shadow-sm"
                     >
                       Report Another Incident
                     </button>
@@ -989,22 +984,22 @@ export default function ConsumerHubPage() {
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-[#37352f]">Suspicious Link or Handle</label>
+                        <label className="text-xs font-semibold text-[#1d1d1f]">Suspicious Link or Handle</label>
                         <input
                           type="text"
                           required
-                          placeholder="e.g. @fake_brand_support or https://..."
+                          placeholder="e.g. @nike_vip_sale or https://..."
                           value={reportData.scamUrl}
                           onChange={(e) => setReportData({ ...reportData, scamUrl: e.target.value })}
-                          className="w-full px-3.5 py-2.5 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[8px] text-xs text-[#37352f] focus:outline-none focus:border-[#0f7b6c]"
+                          className="w-full px-4 py-2.5 bg-[#f5f5f7] border border-black/[0.06] rounded-full text-xs text-[#1d1d1f] focus:outline-none focus:border-[#0071e3]"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-[#37352f]">Platform Observed</label>
+                        <label className="text-xs font-semibold text-[#1d1d1f]">Platform Observed</label>
                         <select
                           value={reportData.platform}
                           onChange={(e) => setReportData({ ...reportData, platform: e.target.value })}
-                          className="w-full px-3.5 py-2.5 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[8px] text-xs text-[#37352f] focus:outline-none focus:border-[#0f7b6c]"
+                          className="w-full px-4 py-2.5 bg-[#f5f5f7] border border-black/[0.06] rounded-full text-xs text-[#1d1d1f] focus:outline-none focus:border-[#0071e3]"
                         >
                           <option value="Instagram">Instagram</option>
                           <option value="Twitter/X">Twitter / X</option>
@@ -1018,19 +1013,19 @@ export default function ConsumerHubPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-[#37352f]">Details / Incident Description</label>
+                      <label className="text-xs font-semibold text-[#1d1d1f]">Details / Incident Description</label>
                       <textarea
                         rows={3}
                         placeholder="Describe how the fake account contacted you or what they offered..."
                         value={reportData.description}
                         onChange={(e) => setReportData({ ...reportData, description: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-[#f7f6f3] border border-[#e3e2e0] rounded-[8px] text-xs text-[#37352f] focus:outline-none focus:border-[#0f7b6c]"
+                        className="w-full px-4 py-2.5 bg-[#f5f5f7] border border-black/[0.06] rounded-2xl text-xs text-[#1d1d1f] focus:outline-none focus:border-[#0071e3]"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="px-6 py-2.5 rounded-[8px] bg-[#0f7b6c] hover:bg-[#0c6357] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                      className="px-6 py-2.5 rounded-full bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-semibold shadow-sm transition cursor-pointer"
                     >
                       Submit Scam Report
                     </button>
@@ -1045,7 +1040,7 @@ export default function ConsumerHubPage() {
       {/* ─────────────────────────────────────────────────────────────
           8. MODALS & DRAWERS
          ───────────────────────────────────────────────────────────── */}
-      {/* Story Viewer Modal (Instagram style) */}
+      {/* Story Viewer Modal */}
       <StoryViewerModal
         story={selectedStory}
         stories={stories}
@@ -1074,22 +1069,22 @@ export default function ConsumerHubPage() {
         onAlertGenerated={handleAlertGenerated}
       />
 
-      {/* Footer */}
-      <footer className="py-5 border-t border-[#e3e2e0] text-center text-xs text-[#787774] bg-white">
-        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      {/* Apple-style Footer */}
+      <footer className="py-6 border-t border-black/[0.05] text-center text-xs text-[#86868b] bg-white">
+        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>&copy; 2026 ASTRA Digital Risk Protection · Consumer Safety Feed</span>
           <div className="flex items-center gap-4 text-[11px]">
             <button
               type="button"
               onClick={() => setIsDirectoryOpen(true)}
-              className="hover:underline hover:text-[#37352f]"
+              className="hover:underline hover:text-[#1d1d1f] cursor-pointer"
             >
               Verified Brand Registry
             </button>
             <button
               type="button"
               onClick={handleSwitchToBrand}
-              className="hover:underline hover:text-[#0f7b6c]"
+              className="hover:underline hover:text-[#0071e3] cursor-pointer"
             >
               Register Your Brand
             </button>

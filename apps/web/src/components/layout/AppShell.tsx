@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
@@ -313,9 +314,20 @@ export function AppShell({ children }: AppShellProps) {
 
   if (isStandalonePage) {
     return (
-      <main className="min-h-screen w-full bg-slate-50 text-slate-900">
+      <main className="min-h-screen w-full bg-slate-50 text-slate-900 flex flex-col justify-between">
         <DemoModeBanner />
-        {children}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0, y: 36 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -36 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="flex-1 w-full flex flex-col"
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
         <GuidedTour />
         <TourLauncher />
       </main>
@@ -461,7 +473,20 @@ export function AppShell({ children }: AppShellProps) {
             window.location.reload();
           }}
         />
-        <main className="astra-main min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="astra-main min-h-0 flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 36 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -36 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full h-full flex flex-col"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </main>
         <GuidedTour />
         <TourLauncher />
       </div>

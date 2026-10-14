@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Any, Dict, List
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status

@@ -220,60 +220,6 @@ function normalizedAppStatus(value?: string | null): AppEntry['status'] {
   return 'needs_review';
 }
 
-const DEMO_ROGUE_APPS: AppEntry[] = [
-  {
-    id: 'demo-app-1',
-    appName: 'NovaPay Fast Rewards & Credit',
-    packageName: 'com.novapay.fastrewards.apk',
-    publisherName: 'Global FinTech Media LLC',
-    isPublisherMismatch: true,
-    hasResemblingDescription: true,
-    officialCertMatch: false,
-    downloadUrl: 'https://apkmirror.fake/novapay-rewards',
-    sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-    riskScore: 89,
-    status: 'active_threat',
-    sourcePlatform: 'google_play',
-    discoveredAt: new Date(Date.now() - 3600000 * 4).toISOString(),
-    impersonationDetails: "Rogue app listed on third-party store using copied NovaPay logo and brand name. Publisher differs from official entity ('Global FinTech Media LLC' vs 'NovaPay Inc.'). Declares high-risk permissions READ_SMS and RECEIVE_SMS.",
-    dataMode: 'synthetic_demo',
-  },
-  {
-    id: 'demo-app-2',
-    appName: 'NovaPay Support & Wallet Sync',
-    packageName: 'io.novapay.supportsync',
-    publisherName: 'AppVault Cloud Studio',
-    isPublisherMismatch: true,
-    hasResemblingDescription: true,
-    officialCertMatch: false,
-    downloadUrl: 'https://apkpure.fake/novapay-support',
-    sha256: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
-    riskScore: 94,
-    status: 'needs_review',
-    sourcePlatform: 'apkmirror',
-    discoveredAt: new Date(Date.now() - 3600000 * 12).toISOString(),
-    impersonationDetails: "Phishing companion application requesting seed phrase entry and KYC document upload. Certificate signature mismatch confirmed against official signing key.",
-    dataMode: 'synthetic_demo',
-  },
-  {
-    id: 'demo-app-3',
-    appName: 'Nova Pay Assistant Pro',
-    packageName: 'com.novapay.assistant',
-    publisherName: 'DevSolutions Tech',
-    isPublisherMismatch: true,
-    hasResemblingDescription: true,
-    officialCertMatch: false,
-    downloadUrl: 'https://direct-apk.fake/novapay-pro.apk',
-    sha256: '4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a',
-    riskScore: 76,
-    status: 'takedown_submitted',
-    sourcePlatform: 'direct_download',
-    discoveredAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    impersonationDetails: "Takedown dossier generated and dispatched to hosting provider abuse desk. Unofficial developer using brand identity.",
-    dataMode: 'synthetic_demo',
-  }
-];
-
 function parseSightingsToApps(sightings: Sighting[]): AppEntry[] {
   const appSightings = sightings.filter(
     (s) =>
@@ -335,6 +281,11 @@ export function AppsRadarView() {
   });
   const currentBrand = realBrands[0] || null;
   const currentBrandId = currentBrand?.id;
+  const brandSlug = currentBrand?.name
+    ? currentBrand.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    : isDemoMode
+    ? 'nexbank'
+    : 'brand';
 
   const { data: radarData, isLoading: radarLoading, isError: radarError, refetch: refetchRadar } = useQuery({
     queryKey: ['mobile_apps_radar', currentBrandId],
@@ -583,7 +534,7 @@ export function AppsRadarView() {
         <div className="flex items-center gap-2.5">
           <ShieldCheck className="h-4 w-4 shrink-0 text-[#0f7b6c]" />
           <span>
-            <strong>Official App Protection Guard Active:</strong> Verified brand apps in profile (e.g. <code>com.novapay.app</code>) and registered developer certificates are hard-excluded from threat alerts.
+            <strong>Official App Protection Guard Active:</strong> Verified brand apps in profile (e.g. <code>com.{brandSlug}.app</code>) and registered developer certificates are hard-excluded from threat alerts.
           </span>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px]">

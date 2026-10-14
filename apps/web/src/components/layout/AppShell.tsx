@@ -118,7 +118,8 @@ export function AppShell({ children }: AppShellProps) {
     pathname.startsWith('/sign-in') || 
     pathname.startsWith('/sign-up') ||
     pathname.startsWith('/guide') ||
-    pathname.startsWith('/demo');
+    pathname.startsWith('/demo') ||
+    pathname.startsWith('/consumer');
 
   // Client-side authentication guard: enforce login on all protected dashboard routes
   // Skip if demo mode is active — demo has its own localStorage session

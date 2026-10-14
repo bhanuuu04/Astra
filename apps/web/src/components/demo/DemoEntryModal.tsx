@@ -113,10 +113,9 @@ export function DemoEntryModal({
 
   const handleEnter = () => {
     enterDemoMode();
+    startTour();
     onClose();
-    // Route into /guide first to start from brand onboarding narrative!
     router.push('/guide');
-    setTimeout(() => startTour(), 600);
   };
 
   if (!open) return null;

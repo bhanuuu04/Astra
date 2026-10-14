@@ -307,7 +307,14 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   if (isStandalonePage) {
-    return <main className="min-h-screen w-full bg-slate-50 text-slate-900">{children}</main>;
+    return (
+      <main className="min-h-screen w-full bg-slate-50 text-slate-900">
+        <DemoModeBanner />
+        {children}
+        <GuidedTour />
+        <TourLauncher />
+      </main>
+    );
   }
 
   return (

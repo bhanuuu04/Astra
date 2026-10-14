@@ -826,3 +826,4 @@ export const DEMO_CONNECTORS = [
 export const DEMO_STORAGE_KEY = 'astra_bytexl_demo_active';
 export const DEMO_TOUR_STEP_KEY = 'astra_bytexl_tour_step';
 export const DEMO_STATE_KEY = 'astra_bytexl_demo_state';
+export const DEMO_TOUR_ACTIVE_KEY = 'astra_bytexl_tour_active';

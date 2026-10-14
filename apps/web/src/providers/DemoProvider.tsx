@@ -10,6 +10,7 @@ import React, {
 import {
   DEMO_STORAGE_KEY,
   DEMO_TOUR_STEP_KEY,
+  DEMO_TOUR_ACTIVE_KEY,
   DEMO_STATE_KEY,
   DEMO_TENANT,
   DEMO_USER,
@@ -296,7 +297,19 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
   });
-  const [tourActive, setTourActive] = useState(false);
+  const [tourActive, setTourActive] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const demoActive = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
+      const storedActive = localStorage.getItem(DEMO_TOUR_ACTIVE_KEY);
+      if (storedActive !== null) {
+        return storedActive === 'true';
+      }
+      return demoActive;
+    } catch {
+      return false;
+    }
+  });
   const [tourStep, setTourStep] = useState<number>(() => {
     if (typeof window === 'undefined') return 0;
     try {
@@ -313,9 +326,15 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       try {
         const active = localStorage.getItem(DEMO_STORAGE_KEY) === 'true';
         const savedStep = parseInt(localStorage.getItem(DEMO_TOUR_STEP_KEY) || '0', 10);
+        const storedActive = localStorage.getItem(DEMO_TOUR_ACTIVE_KEY);
         setIsDemoMode(active);
         if (active) {
           setTourStep(savedStep);
+          if (storedActive !== null) {
+            setTourActive(storedActive === 'true');
+          }
+        } else {
+          setTourActive(false);
         }
       } catch {}
     };
@@ -328,6 +347,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem(DEMO_STORAGE_KEY, 'true');
       localStorage.setItem(DEMO_TOUR_STEP_KEY, '0');
+      localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'true');
       // Set demo auth session
       localStorage.setItem('astra_active_user', JSON.stringify(DEMO_USER));
       localStorage.setItem('astra_active_tenant', JSON.stringify(DEMO_TENANT));
@@ -336,13 +356,14 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     }
     setIsDemoMode(true);
     setTourStep(0);
-    setTourActive(false);
+    setTourActive(true);
   }, []);
 
   const exitDemoMode = useCallback(() => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(DEMO_STORAGE_KEY);
       localStorage.removeItem(DEMO_TOUR_STEP_KEY);
+      localStorage.removeItem(DEMO_TOUR_ACTIVE_KEY);
       localStorage.removeItem(DEMO_STATE_KEY);
       localStorage.removeItem('astra_active_user');
       localStorage.removeItem('astra_active_tenant');
@@ -359,24 +380,32 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setInteractions(fresh);
     saveInteractions(fresh);
     setTourStep(0);
-    setTourActive(false);
+    setTourActive(true);
     if (typeof window !== 'undefined') {
       localStorage.setItem(DEMO_TOUR_STEP_KEY, '0');
+      localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'true');
     }
   }, []);
 
   const startTour = useCallback(() => {
     setTourStep(0);
     setTourActive(true);
-    if (typeof window !== 'undefined') localStorage.setItem(DEMO_TOUR_STEP_KEY, '0');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DEMO_TOUR_STEP_KEY, '0');
+      localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'true');
+    }
   }, []);
 
   const nextTourStep = useCallback(() => {
     setTourStep((prev) => {
       const next = Math.min(prev + 1, TOUR_STEPS.length - 1);
-      if (typeof window !== 'undefined') localStorage.setItem(DEMO_TOUR_STEP_KEY, String(next));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DEMO_TOUR_STEP_KEY, String(next));
+        localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'true');
+      }
       if (next >= TOUR_STEPS.length - 1 && prev === TOUR_STEPS.length - 1) {
         setTourActive(false);
+        if (typeof window !== 'undefined') localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'false');
       }
       return next;
     });
@@ -385,20 +414,29 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const prevTourStep = useCallback(() => {
     setTourStep((prev) => {
       const next = Math.max(prev - 1, 0);
-      if (typeof window !== 'undefined') localStorage.setItem(DEMO_TOUR_STEP_KEY, String(next));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DEMO_TOUR_STEP_KEY, String(next));
+        localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'true');
+      }
       return next;
     });
   }, []);
 
   const skipTour = useCallback(() => {
     setTourActive(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'false');
+    }
   }, []);
 
   const goToStep = useCallback((n: number) => {
     const clamped = Math.max(0, Math.min(n, TOUR_STEPS.length - 1));
     setTourStep(clamped);
     setTourActive(true);
-    if (typeof window !== 'undefined') localStorage.setItem(DEMO_TOUR_STEP_KEY, String(clamped));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DEMO_TOUR_STEP_KEY, String(clamped));
+      localStorage.setItem(DEMO_TOUR_ACTIVE_KEY, 'true');
+    }
   }, []);
 
   const mutateInteractions = useCallback((fn: (prev: DemoInteractionState) => DemoInteractionState) => {

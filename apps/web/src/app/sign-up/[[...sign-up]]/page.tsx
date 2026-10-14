@@ -220,7 +220,7 @@ export default function SignUpPage() {
     }
   };
 
-  const redirectUrl = `/guide?type=${portalMode}`;
+  const redirectUrl = portalMode === 'consumer' ? '/consumer' : '/guide?type=brand';
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#f7f6f3] text-[#37352f] p-4 sm:p-6 selection:bg-[#0f7b6c]/15 selection:text-[#0f7b6c] font-sans antialiased">

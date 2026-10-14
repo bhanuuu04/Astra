@@ -2,10 +2,6 @@ import {
   BrandSecurityProfile,
   SecurityFeedPost,
   SecurityStory,
-  AlertCategory,
-  AlertBadgeType,
-  OfficialSocialChannel,
-  OfficialWebsiteAsset,
 } from '@/types/consumer-feed';
 
 // -------------------------------------------------------------

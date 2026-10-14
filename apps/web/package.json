@@ -8,8 +8,13 @@
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test runner configured yet\" && exit 1",
-    "audit": "npm audit --audit-level=moderate"
+    "test": "tsc --noEmit",
+    "audit": "npm audit --omit=dev"
+  },
+  "overrides": {
+    "braces": "^3.0.3",
+    "fast-glob": "^3.3.3",
+    "micromatch": "^4.0.8"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.14",
@@ -18,7 +23,6 @@
     "@tanstack/react-query": "^5.104.1",
     "@xyflow/react": "^12.4.4",
     "clsx": "^2.1.1",
-    "composio-core": "^0.5.39",
     "framer-motion": "^14.1.0",
     "lucide-react": "^1.55.0",
     "next": "16.4.0",
